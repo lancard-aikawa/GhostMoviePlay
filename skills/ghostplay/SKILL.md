@@ -74,9 +74,11 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
 {
   "version": 1,
   "meta":  { "title": "動画タイトル", "lang": "ja" },
-  "app":   { "url": "http://localhost:5173", "ready": "text=スタート" },
+  "app":   { "url": "http://localhost:5173", "ready": "text=スタート",
+             "start": "npm run dev", "cwd": "." },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
+  "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" },
   "scenes": [
     {
       "id": "fail-greedy",
@@ -112,8 +114,17 @@ action:
 
 ## 注意
 
-- **決定論性。** 乱数や時刻に依存する挙動があれば `eval` で seed を固定するか、
-  状態を直接注入して潰す。潰せない場合はその旨をユーザーに伝える。
+- **決定論性。** 乱数や時刻に依存する挙動があれば `determinism` で潰す。
+
+  ```json
+  "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" }
+  ```
+
+  `seed` は `Math.random` を固定する。アプリが `crypto.getRandomValues` や
+  サーバ側の乱数を使っている場合はこれでは効かないので、`eval` で状態を直接
+  注入するか、それも無理ならその旨をユーザーに伝える。
+- **サーバ。** 開発サーバが必要なら `app.start` と `app.cwd` を書く。
+  すでに立っていれば起動されないので、書いておいて損はない。
 - **無効化された要素をクリックしない。** ゲーム終了後の盤面など、`disabled` な
   要素への `click` はタイムアウトします。解説ビートは `highlight` だけにする。
 - **冒頭で結論を言う。** 「大きい数から取ると損をする」のような一行を intro に置く。

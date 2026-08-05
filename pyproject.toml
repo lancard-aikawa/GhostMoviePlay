@@ -26,3 +26,4 @@ packages = ["ghostmovieplay"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: 実プロセスを起動するテスト (-m 'not slow' で除外)"]

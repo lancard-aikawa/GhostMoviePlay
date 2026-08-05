@@ -96,9 +96,11 @@ uv run gmp build examples/demo/plan.json
 {
   "version": 1,
   "meta":  { "title": "...", "lang": "ja" },
-  "app":   { "url": "...", "ready": "#tile-0" },
+  "app":   { "url": "...", "ready": "#tile-0",
+             "start": "npm run dev", "cwd": ".", "start_timeout": 60 },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
+  "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" },
   "scenes": [{
     "id": "fail-greedy",
     "beats": [{
@@ -139,6 +141,21 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 **音声の尺がビートの尺を決める。** 逆順（先に尺を決めてから合成）にすると必ず尻切れになるので、
 `gmp voice` → `gmp record` の順は入れ替えられない。
 
+**開発サーバの起動。** `app.start` があれば `gmp record` が起動し、`app.url` が応答するまで
+待ってから収録に入る。終わればプロセスツリーごと畳む（Windows は `taskkill /T`。
+npm 経由だと子プロセスが残るため）。**すでに応答している場合は起動しない**ので、
+自分で `npm run dev` を回したまま `gmp record` を叩いても二重起動しない。
+
+**再現性。** `determinism` で 2 つのブレを潰せる。同じ plan.json から 2 回収録して、
+同時刻のフレームが**バイト単位で一致**することを確認済み。
+
+- `seed` — `Math.random` を mulberry32 に差し替える。`crypto.getRandomValues` や
+  サーバ側の乱数までは面倒を見ない。
+- `time` — `page.clock` で開始時刻を固定し、その後は実時間どおりに進める。
+  `install` しただけだと時計が止まって `setTimeout` も凍るので `resume` まで打つ。
+  タイムゾーンを書かないとローカル時刻として解釈される
+  （JST 環境で `09:00:00` を指定すると `toISOString()` は `00:00:00Z` を返す）。
+
 **CFR 化。** Playwright が吐く webm はフレーム間隔が可変。`fps=N` を通してから
 字幕を焼かないとズレる。render は必ずこの順で 1 パスにまとめている。
 
@@ -148,6 +165,6 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 ## 未実装
 
 - `gmp plan` の Claude CLI 直接呼び出し（現状は依頼文を書き出すところまで）
-- `app.start` によるサーバ自動起動
-- 乱数・時刻の固定（`page.clock`）
 - VOICEVOX 以外の TTS エンジン（`ghostmovieplay/tts/` に足せば `voice.engine` で選べる）
+- BGM・効果音、シーン間のトランジション
+- canvas / WebGL アプリ向けの状態取得ヘルパ

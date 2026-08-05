@@ -20,9 +20,10 @@ from pathlib import Path
 from playwright.sync_api import Error as PWError
 from playwright.sync_api import sync_playwright
 
-from . import ffmpeg
+from . import determinism, ffmpeg
 from .overlay import OVERLAY_JS
 from .plan import Beat, Plan, Scene
+from .server import serve
 
 CURSOR_MOVE_MS = 420  # カーソルが目標まで滑る時間
 POST_CLICK_PAUSE = 0.25
@@ -220,8 +221,9 @@ def record(
 
     v = plan.video
     entries: list[dict] = []
+    base = plan.source.parent if plan.source else Path.cwd()
 
-    with sync_playwright() as pw:
+    with serve(plan.app, base, verbose=verbose), sync_playwright() as pw:
         browser = pw.chromium.launch(
             headless=headless,
             args=["--hide-scrollbars", "--force-device-scale-factor=1"],
@@ -241,6 +243,9 @@ def record(
 
         rec = Recorder(page, plan, subtitle_mode, verbose)
         rec.t0 = wall_start
+
+        # 乱数・時刻の固定は必ず goto より前に仕込む
+        determinism.apply(page, plan.determinism, verbose=verbose)
 
         # 準備: 黒みを出したまま初期表示を整える
         page.goto(plan.app.url, wait_until="load")

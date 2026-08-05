@@ -75,8 +75,9 @@ class Video:
 class App:
     url: str = ""
     ready: str | None = None  # ここが見えるまで待ってから収録開始
-    start: str | None = None  # 起動コマンド (未使用: 将来 gmp serve で使う)
-    cwd: str | None = None
+    start: str | None = None  # 開発サーバの起動コマンド。既に応答していれば起動しない
+    cwd: str | None = None  # start の実行ディレクトリ (plan.json からの相対)
+    start_timeout: float = 60.0
 
 
 @dataclass
@@ -96,12 +97,21 @@ class Voice:
 
 
 @dataclass
+class Determinism:
+    """リプレイのブレを潰す設定. 詳細は determinism.py."""
+
+    seed: int | None = None  # Math.random の固定
+    time: str | None = None  # 開始時刻の固定 ("2026-01-01T09:00:00")
+
+
+@dataclass
 class Plan:
     title: str = "untitled"
     lang: str = "ja"
     app: App = field(default_factory=App)
     video: Video = field(default_factory=Video)
     voice: Voice = field(default_factory=Voice)
+    determinism: Determinism = field(default_factory=Determinism)
     scenes: list[Scene] = field(default_factory=list)
     source: Path | None = None
 
@@ -140,6 +150,10 @@ def load(path: str | Path) -> Plan:
         app=App(**{k: v for k, v in raw.get("app", {}).items() if k in App.__annotations__}),
         video=Video(**{k: v for k, v in raw.get("video", {}).items() if k in Video.__annotations__}),
         voice=Voice(**{k: v for k, v in raw.get("voice", {}).items() if k in Voice.__annotations__}),
+        determinism=Determinism(**{
+            k: v for k, v in raw.get("determinism", {}).items()
+            if k in Determinism.__annotations__
+        }),
         source=path,
     )
 
