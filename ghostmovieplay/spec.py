@@ -82,7 +82,8 @@ PLAN_SCHEMA_DOC = """```jsonc
   "version": 1,
   "meta": { "title": "動画タイトル", "lang": "ja" },
   "app":   { "url": "...", "ready": "セレクタ(任意)" },
-  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 0.8, "trailer": 1.2 },
+  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
+  "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "scenes": [
     {
       "id": "fail-greedy",
@@ -117,6 +118,7 @@ GUIDE = """## Pass1 で守ること
 2. **失敗は狙って作る。** 「この項を無視すると詰む」という具体的な因果があるものを選ぶ。
 3. **1ビート1メッセージ。** 字幕は 2 行・26 文字/行 で収まる長さに。長い説明はビートを割る。
 4. **hold は読み切れる長さに。** 目安は 字幕の文字数 / 8 秒 + 0.6 秒。
+   音声 (`gmp voice`) を付ける場合は音声の尺が優先されるので、hold は下限として効く。
 5. **セレクタは実在を確認する。** Playwright MCP で実際に触り、開いた状態のDOMから取る。
    推測で書いたセレクタは収録時に必ず落ちる。
 6. **解説ビートでは操作しない。** highlight と sleep だけ置いて、画面を止めて喋らせる。
@@ -157,6 +159,8 @@ def build_request(spec: Spec) -> str:
 - style: {persona.get('style', '(指定なし)')}
 
 `say` はこの口調で書いてください。`subtitle` は口調を保ったまま短く整えます。
+plan.json の `voice.speaker` にはこの voice をそのまま入れてください
+(`gmp voice` が VOICEVOX の話者名として解決します)。
 
 ## 構成
 

@@ -64,7 +64,10 @@ class Video:
     width: int = 1280
     height: int = 720
     fps: int = 30
-    leader: float = 0.8  # 冒頭の余白(黒み)。録画開始のブレを吸収する
+    # ページ生成から最初のビートまでの最小待ち時間。
+    # Chromium の録画は最初のフレームが載るまで 1-2 秒かかることがあり、
+    # ここが短いと冒頭のビートが動画に入らない。実測 skew より大きく取る。
+    leader: float = 2.5
     trailer: float = 1.2  # 末尾の余白
 
 
@@ -77,11 +80,28 @@ class App:
 
 
 @dataclass
+class Voice:
+    """TTS の設定。gmp voice がこれを見て合成する."""
+
+    engine: str = "voicevox"
+    speaker: str | int | None = None  # 名前 ("ずんだもん"/"zundamon") か話者ID
+    style: str | None = None  # "ノーマル" "あまあま" など
+    url: str = "http://127.0.0.1:50021"
+    speed: float = 1.0
+    pitch: float = 0.0
+    intonation: float = 1.0
+    volume: float = 1.0
+    pre: float = 0.1  # 発話前の無音(秒)
+    post: float = 0.1
+
+
+@dataclass
 class Plan:
     title: str = "untitled"
     lang: str = "ja"
     app: App = field(default_factory=App)
     video: Video = field(default_factory=Video)
+    voice: Voice = field(default_factory=Voice)
     scenes: list[Scene] = field(default_factory=list)
     source: Path | None = None
 
@@ -119,6 +139,7 @@ def load(path: str | Path) -> Plan:
         lang=meta.get("lang", "ja"),
         app=App(**{k: v for k, v in raw.get("app", {}).items() if k in App.__annotations__}),
         video=Video(**{k: v for k, v in raw.get("video", {}).items() if k in Video.__annotations__}),
+        voice=Voice(**{k: v for k, v in raw.get("voice", {}).items() if k in Voice.__annotations__}),
         source=path,
     )
 

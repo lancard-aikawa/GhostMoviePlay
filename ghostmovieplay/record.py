@@ -169,12 +169,14 @@ class Recorder:
 
         # 音声があればその尺、無ければ hold を最低保持時間として使う
         floor = beat.hold
-        if beat.audio:
-            audio_path = self._audio_path(beat)
-            if audio_path and audio_path.exists():
-                dur = ffmpeg.probe_duration(audio_path)
-                if dur:
-                    floor = max(floor, dur + 0.25)
+        audio_path = self._audio_path(beat)
+        if audio_path and audio_path.exists():
+            dur = ffmpeg.probe_duration(audio_path)
+            if dur:
+                floor = max(floor, dur + 0.25)
+        elif beat.audio:
+            print(f"    ! 音声が見つかりません: {beat.audio} (hold を使います)")
+            audio_path = None
 
         elapsed = self.now() - start
         if elapsed < floor:
@@ -190,7 +192,8 @@ class Recorder:
             "index": index,
             "say": beat.say,
             "caption": caption,
-            "audio": beat.audio,
+            # timing.json は out/ に置かれ plan.json とは階層が違うので絶対パスで持つ
+            "audio": str(audio_path) if audio_path else None,
             "wall_start": round(start, 3),
             "wall_end": round(end, 3),
         }
@@ -247,7 +250,11 @@ def record(
             page.locator(plan.app.ready).first.wait_for(state="visible", timeout=20000)
         rec.sleep(0.35)
         rec.js("() => window.__gmp && window.__gmp.curtain(false)")
-        rec.sleep(v.leader)
+        # 録画が実際に始まるまでの遅れを吸収する。leader は「ページ生成から
+        # 最初のビートまで」の最小時間なので、既に食った分は差し引く。
+        remaining = v.leader - rec.now()
+        if remaining > 0:
+            rec.sleep(remaining)
 
         for scene in plan.scenes:
             if verbose:
@@ -274,7 +281,14 @@ def record(
     # 録画開始側の遅れを推定して全時刻を前詰めする
     video_duration = ffmpeg.probe_duration(dest) or wall_total
     skew = wall_total - video_duration if sync_offset is None else sync_offset
-    skew = max(0.0, min(skew, 3.0))
+    skew = max(0.0, min(skew, 10.0))
+
+    if sync_offset is None and skew > v.leader and entries:
+        print(
+            f"\n  ! 録画開始の遅れ ({skew:.2f}s) が leader ({v.leader:.2f}s) を超えました。\n"
+            f"    冒頭のビートが動画に入っていない可能性があります。\n"
+            f"    plan.json の video.leader を {skew + 0.5:.1f} 以上にして録り直してください。"
+        )
 
     for e in entries:
         e["start"] = round(max(0.0, e["wall_start"] - skew), 3)

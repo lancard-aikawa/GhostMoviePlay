@@ -78,6 +78,50 @@ def cmd_plan(args) -> int:
     return 0
 
 
+# --- voice ------------------------------------------------------------
+def cmd_voice(args) -> int:
+    from .plan import PlanError, load
+    from .tts import TTSError, synthesize, write_back
+
+    try:
+        plan = load(args.plan)
+    except (PlanError, FileNotFoundError) as exc:
+        return _err(str(exc))
+
+    # CLI 指定は plan.json の voice より優先する (口調の差し替え用)
+    for key in ("speaker", "style", "speed", "url"):
+        value = getattr(args, key, None)
+        if value is not None:
+            setattr(plan.voice, key, value)
+
+    print(f"合成: {plan.title}")
+    try:
+        synthesize(plan, force=args.force)
+    except TTSError as exc:
+        return _err(str(exc))
+
+    target = write_back(plan)
+    print(f"\n書き戻し: {target}\n次: gmp record {args.plan}")
+    return 0
+
+
+def cmd_voices(args) -> int:
+    """利用可能な話者を並べる."""
+    from .plan import Voice
+    from .tts.voicevox import VoiceVox, VoiceVoxError
+
+    engine = VoiceVox(Voice(url=args.url or Voice.url))
+    try:
+        speakers = engine.speakers()
+    except VoiceVoxError as exc:
+        return _err(str(exc))
+
+    for sp in speakers:
+        styles = ", ".join(f"{st['name']}({st['id']})" for st in sp.get("styles", []))
+        print(f"  {sp.get('name')}\n      {styles}")
+    return 0
+
+
 # --- record -----------------------------------------------------------
 def cmd_record(args) -> int:
     from .plan import PlanError, load
@@ -136,6 +180,11 @@ def cmd_render(args) -> int:
 
 # --- build ------------------------------------------------------------
 def cmd_build(args) -> int:
+    if args.voice:
+        rc = cmd_voice(args)
+        if rc != 0:
+            return rc
+        print()
     rc = cmd_record(args)
     if rc != 0:
         return rc
@@ -157,6 +206,14 @@ def _add_record_opts(p) -> None:
         "--sync-offset", type=float, default=None,
         help="字幕タイミングの手動補正(秒)。既定は自動推定",
     )
+
+
+def _add_voice_opts(p) -> None:
+    p.add_argument("--speaker", help="話者名 または 話者ID (plan.json の voice より優先)")
+    p.add_argument("--style", help="話者のスタイル (ノーマル / あまあま など)")
+    p.add_argument("--speed", type=float, help="話速")
+    p.add_argument("--url", help="VOICEVOX ENGINE の URL")
+    p.add_argument("--force", action="store_true", help="変更が無くても合成しなおす")
 
 
 def _add_render_opts(p) -> None:
@@ -190,6 +247,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out")
     p.set_defaults(func=cmd_plan)
 
+    p = sub.add_parser("voice", help="ビートの say を音声化して plan.json に書き戻す")
+    p.add_argument("plan")
+    _add_voice_opts(p)
+    p.set_defaults(func=cmd_voice)
+
+    p = sub.add_parser("voices", help="VOICEVOX の話者一覧を出す")
+    p.add_argument("--url")
+    p.set_defaults(func=cmd_voices)
+
     p = sub.add_parser("record", help="Pass2: plan.json をリプレイして録画する")
     p.add_argument("plan")
     _add_record_opts(p)
@@ -201,8 +267,10 @@ def main(argv: list[str] | None = None) -> int:
     _add_render_opts(p)
     p.set_defaults(func=cmd_render)
 
-    p = sub.add_parser("build", help="record + render を通しで実行する")
+    p = sub.add_parser("build", help="(voice +) record + render を通しで実行する")
     p.add_argument("plan")
+    p.add_argument("--voice", action="store_true", help="収録前に音声を合成する")
+    _add_voice_opts(p)
     _add_record_opts(p)
     _add_render_opts(p)
     p.set_defaults(func=cmd_build)

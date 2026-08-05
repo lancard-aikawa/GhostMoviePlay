@@ -12,7 +12,7 @@
     "width": 1280,
     "height": 720,
     "fps": 30,
-    "leader": 0.8,
+    "leader": 2.5,
     "trailer": 1.5
   },
   "scenes": [

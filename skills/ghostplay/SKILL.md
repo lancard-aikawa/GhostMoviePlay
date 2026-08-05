@@ -49,9 +49,24 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
 
 - 字幕は **2 行 / 26 文字** に収まる長さにする。長い説明はビートを割る。
 - `hold` は読み切れる長さに。目安は **文字数 / 8 + 0.6 秒**。
+  音声を付ける場合は音声の尺が優先されるので、`hold` は下限として効く。
 - 解説だけのビートは `actions` を空にして `hold` だけ置く。
 - 口調は指定に従う。`say` は音声用、`subtitle` は口調を保ったまま短く整えたもの
   （同じでよければ `subtitle` は省略）。
+
+### 音声を付ける場合
+
+`say` は **読み上げられる前提** で書く。TTS が誤読しやすいものは避けるか開いて書く:
+
+- 記号・英数字の混在（`#tile-1` → 「タイルの1番」）
+- 単位や略語（`3px` → 「3ピクセル」）
+- 顔文字・括弧書きの補足
+
+`voice` に話者を書いておくと `gmp voice` がそのまま使う:
+
+```json
+"voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 }
+```
 
 ## スキーマ
 
@@ -60,7 +75,8 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
   "version": 1,
   "meta":  { "title": "動画タイトル", "lang": "ja" },
   "app":   { "url": "http://localhost:5173", "ready": "text=スタート" },
-  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 0.8, "trailer": 1.5 },
+  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
+  "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "scenes": [
     {
       "id": "fail-greedy",

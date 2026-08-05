@@ -13,6 +13,7 @@ AI にプロジェクトフォルダを読ませるため、UI の外側から�
 
 ```
 Pass1  gmp plan     AI あり   ソースを読む → 演目を設計 → plan.json
+       gmp voice    AI なし   say を VOICEVOX で音声化 (尺がビートの尺を決める)
 Pass2  gmp record   AI なし   plan.json を決定論的にリプレイして録画
 Pass3  gmp render   AI なし   字幕焼き込み・音声 mix → mp4
 ```
@@ -37,12 +38,31 @@ uv run gmp plan video.md     # → PLAN_REQUEST.md を書き出す
 uv run gmp build plan.json   # 収録 + 書き出し → out/output.mp4
 ```
 
-Pass2/3 だけ回すとき:
+各段を個別に回すとき:
 
 ```bash
+uv run gmp voice  plan.json          # → voice/*.wav (plan.json に書き戻し)
 uv run gmp record plan.json          # → out/raw.webm, out/timing.json
 uv run gmp render out/timing.json    # → out/output.mp4
 ```
+
+### 音声を付ける
+
+[VOICEVOX](https://voicevox.hiroshiba.jp/) を起動した状態で:
+
+```bash
+uv run gmp voices                          # 話者一覧
+uv run gmp voice plan.json --speaker ずんだもん --style あまあま
+uv run gmp build plan.json --voice         # voice + record + render
+```
+
+`voice` は plan.json の `voice` 設定を見て `say` を合成し、各ビートに
+`audio` を書き戻す。**合成した音声の尺がそのままビートの尺になる**ので、
+喋り終わる前に次の場面へ飛ぶことがない（`hold` は下限として働く）。
+
+原稿も声の設定も変わっていないビートは再合成しない（`voice/manifest.json`
+でハッシュ照合）。口調だけ変えたいときは `--speaker` を変えて `voice` →
+`record` を回し直せばよく、`--force` で全部合成しなおせる。
 
 ## サンプル
 
@@ -61,12 +81,14 @@ uv run gmp build examples/demo/plan.json
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
 | `gmp init [path]` | `video.md` の雛形を作る |
 | `gmp plan [spec]` | video.md → Pass1 依頼文 (`PLAN_REQUEST.md`) |
+| `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
+| `gmp voices` | VOICEVOX の話者一覧 |
 | `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json` |
 | `gmp render [timing.json]` | 字幕・音声を乗せて `output.mp4` |
-| `gmp build <plan.json>` | record + render |
+| `gmp build <plan.json>` | (voice +) record + render |
 
 主なオプション: `--headed`（ブラウザを見ながら収録）、`--sync-offset`（字幕タイミング補正）、
-`--font`、`--crf`、`--no-subtitles`、`--no-audio`。
+`--speaker` / `--style` / `--speed`、`--font`、`--crf`、`--no-subtitles`、`--no-audio`。
 
 ## plan.json
 
@@ -75,7 +97,8 @@ uv run gmp build examples/demo/plan.json
   "version": 1,
   "meta":  { "title": "...", "lang": "ja" },
   "app":   { "url": "...", "ready": "#tile-0" },
-  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 0.8, "trailer": 1.5 },
+  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
+  "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "scenes": [{
     "id": "fail-greedy",
     "beats": [{
@@ -104,9 +127,17 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 実際にクリックする。これが無いと「クリックが虚空から発生する」動画になり、
 何が起きたのか視聴者に伝わらない。`add_init_script` で仕込むのでページ遷移後も復活する。
 
-**時刻同期。** Playwright の録画は `new_page()` から始まるが、最初のフレームが
-載るまでに数百 ms のブレがある。収録後に `実測経過時間 - webm の尺` で開始側の
-遅れを推定し、全ビートの時刻から差し引く。合わない場合は `--sync-offset` で補正。
+**録画開始の遅れ。** Playwright の録画は `new_page()` から始まる建前だが、実測すると
+最初のフレームが載るのは **1.8〜2.1 秒後**。2 つ手当てしている。
+
+- `video.leader` は「ページ生成から最初のビートまでの最小待ち時間」(既定 2.5 秒)。
+  ここが遅れより短いと**冒頭のビートが動画に入らない**。推定した遅れが leader を
+  超えたら警告を出す。
+- 字幕・音声の時刻は、収録後に `実測経過時間 − webm の尺` で遅れを推定して差し引く。
+  合わない環境では `--sync-offset` で手動補正できる。
+
+**音声の尺がビートの尺を決める。** 逆順（先に尺を決めてから合成）にすると必ず尻切れになるので、
+`gmp voice` → `gmp record` の順は入れ替えられない。
 
 **CFR 化。** Playwright が吐く webm はフレーム間隔が可変。`fps=N` を通してから
 字幕を焼かないとズレる。render は必ずこの順で 1 パスにまとめている。
@@ -117,6 +148,6 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 ## 未実装
 
 - `gmp plan` の Claude CLI 直接呼び出し（現状は依頼文を書き出すところまで）
-- TTS（`ghostmovieplay/tts/`。beat の `audio` と render 側の mix は実装済み）
 - `app.start` によるサーバ自動起動
 - 乱数・時刻の固定（`page.clock`）
+- VOICEVOX 以外の TTS エンジン（`ghostmovieplay/tts/` に足せば `voice.engine` で選べる）
