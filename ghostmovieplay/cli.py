@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
 import sys
 from pathlib import Path
 
 from . import __version__
+from .agent import DEFAULT_PERMISSION_MODE
 
 
 def _err(msg: str) -> int:
@@ -70,11 +69,43 @@ def cmd_plan(args) -> int:
     request = build_request(spec)
     out = Path(args.out) if args.out else spec_path.parent / "PLAN_REQUEST.md"
     out.write_text(request, encoding="utf-8")
+    print(f"作成: {out}")
 
-    print(f"作成: {out}\n")
-    print("次にやること — 対象プロジェクトを開いた Claude Code に、この依頼文を渡す:")
-    print(f"  claude \"@{out.name} の指示に従って plan.json を作って\"")
-    print("\n(Claude CLI の直接呼び出しは未実装。plan.json が出来たら `gmp build plan.json`)")
+    if not args.run:
+        print("\n次にやること — 対象プロジェクトを開いた Claude Code に、この依頼文を渡す:")
+        print(f'  claude "@{out.name} の指示に従って plan.json を作って"')
+        print(f"\n自動でやらせるなら: gmp plan {spec_path} --run")
+        return 0
+
+    from .agent import AgentError, run
+
+    plan_path = Path(args.plan_out) if args.plan_out else spec_path.parent / "plan.json"
+    cwd = Path(spec.app.get("cwd") or ".")
+    if not cwd.is_absolute():
+        cwd = (spec_path.parent / cwd).resolve()
+
+    try:
+        run(
+            out, plan_path, cwd,
+            model=args.model,
+            permission_mode=args.permission_mode,
+            timeout=args.timeout,
+        )
+    except AgentError as exc:
+        return _err(str(exc))
+
+    from .plan import PlanError, load
+
+    try:
+        plan = load(plan_path)
+    except PlanError as exc:
+        return _err(f"作られた plan.json が読めません: {exc}")
+
+    print(f"\n作成: {plan_path}")
+    print(f"  {len(plan.scenes)} シーン / {len(plan.beats)} ビート — {plan.title}")
+    for scene in plan.scenes:
+        print(f"    {scene.id}  ({len(scene.beats)} beats)  {scene.title}")
+    print(f"\n次: gmp build {plan_path}")
     return 0
 
 
@@ -242,9 +273,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_init)
 
-    p = sub.add_parser("plan", help="video.md から Pass1 の依頼文を書き出す")
+    p = sub.add_parser("plan", help="video.md から Pass1 の依頼文を書き出す / 実行する")
     p.add_argument("spec", nargs="?", default="video.md")
-    p.add_argument("--out")
+    p.add_argument("--out", help="依頼文の書き出し先 (既定: PLAN_REQUEST.md)")
+    p.add_argument("--run", action="store_true", help="claude を起動して plan.json まで作る")
+    p.add_argument("--plan-out", help="plan.json の書き出し先")
+    p.add_argument("--model", help="claude に渡すモデル (opus / sonnet など)")
+    p.add_argument("--permission-mode", default=DEFAULT_PERMISSION_MODE,
+                   help=f"claude に渡す権限モード (既定: {DEFAULT_PERMISSION_MODE})")
+    p.add_argument("--timeout", type=float, help="claude の制限時間(秒)")
     p.set_defaults(func=cmd_plan)
 
     p = sub.add_parser("voice", help="ビートの say を音声化して plan.json に書き戻す")

@@ -33,9 +33,16 @@ uv run gmp doctor            # ffmpeg / chromium の確認
 
 uv run gmp init video.md     # 指示ファイルの雛形
 #   video.md を編集（対象URL・口調・シーン構成）
-uv run gmp plan video.md     # → PLAN_REQUEST.md を書き出す
-#   対象プロジェクトを開いた Claude Code に PLAN_REQUEST.md を渡す → plan.json
-uv run gmp build plan.json   # 収録 + 書き出し → out/output.mp4
+uv run gmp plan video.md --run   # claude を起動して plan.json まで作らせる
+uv run gmp build plan.json       # 収録 + 書き出し → out/output.mp4
+```
+
+`--run` を付けなければ依頼文 (`PLAN_REQUEST.md`) を書き出すだけで止まる。
+対話しながら台本を詰めたいときは、それを対象プロジェクトの Claude Code に渡す方が早い:
+
+```bash
+uv run gmp plan video.md
+claude "@PLAN_REQUEST.md の指示に従って plan.json を作って"
 ```
 
 各段を個別に回すとき:
@@ -80,7 +87,7 @@ uv run gmp build examples/demo/plan.json
 |---|---|
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
 | `gmp init [path]` | `video.md` の雛形を作る |
-| `gmp plan [spec]` | video.md → Pass1 依頼文 (`PLAN_REQUEST.md`) |
+| `gmp plan [spec]` | video.md → 依頼文。`--run` で claude を起動し plan.json まで |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |
 | `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json` |
@@ -162,9 +169,13 @@ npm 経由だと子プロセスが残るため）。**すでに応答してい�
 **字幕は焼き込み。** DOM に描くとアプリの z-index と衝突し、多言語化もできない。
 `timing.json` → ASS → ffmpeg の順。DOM 字幕は確認用に `--subtitle-mode dom` で使える。
 
+**Pass1 の起動。** `gmp plan --run` は対象プロジェクトを作業ディレクトリにして
+`claude -p` を起動する。video.md と plan.json はプロジェクトの外にあることが多いので
+`--add-dir` でその場所を渡す。npm 経由でインストールされた `claude.cmd` シムは
+Windows の `CreateProcess` から直接起動できないため、`cmd /c` を噛ませている。
+
 ## 未実装
 
-- `gmp plan` の Claude CLI 直接呼び出し（現状は依頼文を書き出すところまで）
 - VOICEVOX 以外の TTS エンジン（`ghostmovieplay/tts/` に足せば `voice.engine` で選べる）
 - BGM・効果音、シーン間のトランジション
 - canvas / WebGL アプリ向けの状態取得ヘルパ
