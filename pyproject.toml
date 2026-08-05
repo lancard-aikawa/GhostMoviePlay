@@ -1,0 +1,28 @@
+[project]
+name = "ghostmovieplay"
+version = "0.1.0"
+description = "AI がアプリ/ゲームを実演し、字幕付きの解説動画を生成するパイプライン"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.40",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+gmp = "ghostmovieplay.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ghostmovieplay"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

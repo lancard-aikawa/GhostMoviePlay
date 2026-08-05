@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>タイル取りゲーム</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; height: 100vh; display: grid; place-content: center; gap: 26px;
+    background: radial-gradient(circle at 50% 20%, #1e2a3a, #0d1016 70%);
+    font-family: "Yu Gothic UI", Meiryo, sans-serif; color: #e8edf4;
+  }
+  h1 { margin: 0; text-align: center; font-size: 30px; letter-spacing: .06em; }
+  #board { display: flex; gap: 14px; justify-content: center; }
+  .tile {
+    width: 108px; height: 128px; border-radius: 14px; border: 3px solid #3d5a80;
+    background: linear-gradient(#2a4a70, #1b3352); color: #fff;
+    font: 700 40px/1 "Yu Gothic UI", sans-serif; cursor: pointer;
+    display: grid; place-content: center; transition: all .22s ease;
+  }
+  .tile:hover:not(:disabled) { transform: translateY(-6px); border-color: #6fb3ff; }
+  .tile.taken { background: linear-gradient(#1f6b3a, #14472a); border-color: #35c56a; }
+  .tile.locked { background: #1a1d23; border-color: #2a2e36; color: #4b525e; cursor: not-allowed; }
+  .row { display: flex; gap: 34px; justify-content: center; align-items: center; font-size: 22px; }
+  #score { font-size: 44px; font-weight: 800; color: #ffd400; min-width: 90px; text-align: center; }
+  #status { text-align: center; font-size: 21px; min-height: 30px; color: #9fb3c8; }
+  button.ctl {
+    padding: 12px 30px; font-size: 19px; border-radius: 10px; border: 0;
+    background: #3d7dd8; color: #fff; cursor: pointer;
+  }
+  #result { font-size: 30px; font-weight: 800; text-align: center; min-height: 40px; }
+  .win { color: #35c56a; } .lose { color: #ff7a6b; }
+</style>
+
+<h1>タイル取りゲーム</h1>
+
+<div id="board"></div>
+
+<div class="row">
+  <div>スコア</div><div id="score">0</div>
+  <button class="ctl" id="reset">やりなおす</button>
+</div>
+
+<div id="status">取ったタイルの両隣は取れなくなる</div>
+<div id="result"></div>
+
+<script>
+  const VALUES = [6, 10, 6, 3, 9, 3];
+  const BEST = 21;
+  let taken, locked, score;
+
+  const board = document.getElementById('board');
+  VALUES.forEach((v, i) => {
+    const b = document.createElement('button');
+    b.className = 'tile';
+    b.id = 'tile-' + i;
+    b.textContent = v;
+    b.onclick = () => take(i);
+    board.appendChild(b);
+  });
+
+  function reset() {
+    taken = new Set(); locked = new Set(); score = 0;
+    document.getElementById('result').textContent = '';
+    document.getElementById('result').className = '';
+    document.getElementById('status').textContent = '取ったタイルの両隣は取れなくなる';
+    paint();
+  }
+
+  function take(i) {
+    if (taken.has(i) || locked.has(i)) return;
+    taken.add(i); score += VALUES[i];
+    if (i > 0) locked.add(i - 1);
+    if (i < VALUES.length - 1) locked.add(i + 1);
+    paint();
+    if (!VALUES.some((_, j) => !taken.has(j) && !locked.has(j))) finish();
+  }
+
+  function finish() {
+    const r = document.getElementById('result');
+    const perfect = score >= BEST;
+    r.textContent = perfect ? `GOOD GAME!  ${score} 点 (満点)` : `終了  ${score} 点 / 満点 ${BEST}`;
+    r.className = perfect ? 'win' : 'lose';
+    document.getElementById('status').textContent = '取れるタイルがなくなりました';
+  }
+
+  function paint() {
+    VALUES.forEach((_, i) => {
+      const el = document.getElementById('tile-' + i);
+      el.className = 'tile' + (taken.has(i) ? ' taken' : locked.has(i) ? ' locked' : '');
+      el.disabled = taken.has(i) || locked.has(i);
+    });
+    document.getElementById('score').textContent = score;
+  }
+
+  document.getElementById('reset').onclick = reset;
+  reset();
+</script>
