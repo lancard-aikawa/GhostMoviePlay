@@ -98,6 +98,10 @@ class Voice:
     # 作品に焼くクレジット表記。gmp voice が話者から自動で埋める。
     # 手で書けばそれが優先される (正確な表記は音声ライブラリの利用規約に従うこと)
     credit: str | None = None
+    # 読みの指定。TTS は文脈の薄い単語を誤読する ("語" -> カタリ など)。
+    #   "dict": { "語": "ゴ", "冪等": { "pronunciation": "ベキトウ", "accent": 0 } }
+    # 合成の前だけエンジンのユーザー辞書へ入れ、終わったら消す。
+    dict: dict[str, Any] | None = None
 
 
 @dataclass

@@ -82,6 +82,31 @@ uv run gmp build plan.json --voice         # voice + record + render
 でハッシュ照合）。口調だけ変えたいときは `--speaker` を変えて `voice` →
 `record` を回し直せばよく、`--force` で全部合成しなおせる。
 
+**読みの指定。** TTS は文脈の薄い単語を誤読する。「語」は単独だと **カタリ** と
+読まれる（「用語」「物語」は正しい）。ルビは振れないので、読みを plan.json に書く:
+
+```jsonc
+"voice": {
+  "dict": {
+    "語": "ゴ",
+    "冪等": { "pronunciation": "ベキトウ", "accent": 0 }
+  }
+}
+```
+
+合成の前だけエンジンのユーザー辞書へ入れ、終わったら消す（失敗しても消す）。
+利用者が自分で登録済みの表記は触らない。複合語は長い一致が優先されるので、
+「語」を足しても「物語」「用語」の読みは変わらない。
+
+**録る前に読みを見る。**
+
+```bash
+uv run gmp kana plan.json --out kana.txt
+```
+
+全ビートの読みが出る。撮り終えてから誤読に気づくと撮り直しになるので、
+原稿を書いた直後にこれを通す。`--out` はコンソールの文字化け回避。
+
 **クレジット表記。** VOICEVOX は生成音声を使った作品にキャラクター名を含む
 クレジットを求める。`gmp voice` が話者名から `voice.credit` を自動で埋め、
 `gmp render` が音声を乗せるときだけ右上に焼き込む（`--no-credit` で抑制）。
@@ -149,6 +174,7 @@ uv run gmp build examples/demo/plan.json
 | `gmp config --set-home DIR` | 出力ルートを設定する |
 | `gmp init <dir>` | 1本ぶんのフォルダと `video.md` を作る |
 | `gmp plan [spec]` | video.md → 依頼文。`--run` で claude を起動し plan.json まで |
+| `gmp kana <plan.json>` | 各ビートの読みを確認する（合成しない） |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |
 | `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json` |

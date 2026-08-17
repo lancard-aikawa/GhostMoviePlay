@@ -76,6 +76,22 @@ def synthesize(
         print(f"  engine  {plan.voice.engine} speaker={speaker_id} speed={plan.voice.speed}")
         print(f"  credit  {plan.voice.credit}")
 
+    # 読みの指定は合成の前だけエンジンへ入れ、終わったら必ず戻す
+    pushed: list[str] = []
+    if plan.voice.dict and hasattr(engine, "push_dict"):
+        pushed = engine.push_dict(plan.voice.dict)
+        if verbose and pushed:
+            print(f"  読み    {len(pushed)} 件を一時登録")
+    try:
+        return _synthesize(plan, voice_dir, manifest, manifest_path, engine,
+                           speaker_id, force, verbose)
+    finally:
+        if pushed and hasattr(engine, "pop_dict"):
+            engine.pop_dict(pushed)
+
+
+def _synthesize(plan, voice_dir, manifest, manifest_path, engine,
+                speaker_id, force, verbose) -> list[Path]:
     written: list[Path] = []
     made = reused = 0
 

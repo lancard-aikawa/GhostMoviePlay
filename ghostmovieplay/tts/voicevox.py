@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from ..plan import Voice
+from ..plan import Voice  # noqa: F401  (型注釈で使う)
 
 # よく使う話者のローマ字別名。engine の一覧に無ければこれで引き直す
 ALIASES = {
@@ -54,8 +54,8 @@ class VoiceVox:
         if params:
             url += "?" + urllib.parse.urlencode(params)
         headers = {"Content-Type": "application/json"} if body else {}
-        req = urllib.request.Request(url, data=body if body is not None else (b"" if method == "POST" else None),
-                                     headers=headers, method=method)
+        payload = body if body is not None else (b"" if method == "POST" else None)
+        req = urllib.request.Request(url, data=payload, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=60) as res:
                 return res.read()
@@ -117,6 +117,53 @@ class VoiceVox:
         正確な表記は音声ライブラリごとの利用規約で確認すること。
         """
         return f"VOICEVOX:{self.resolved_name}" if self.resolved_name else "VOICEVOX"
+
+    # --- 読み --------------------------------------------------------
+    def kana(self, text: str, speaker_id: int) -> str:
+        """その文がどう読まれるかを返す (合成せずに確認できる)."""
+        query = json.loads(self._request("/audio_query", {"text": text, "speaker": speaker_id}))
+        return query.get("kana", "")
+
+    def push_dict(self, entries: dict[str, Any]) -> list[str]:
+        """読みをユーザー辞書へ一時的に入れる。戻り値は消すための uuid.
+
+        既に同じ表記が入っていれば触らない (利用者が自分で登録したものを
+        消さないため)。複合語は長い一致が優先されるので、"語" を足しても
+        "物語" や "用語" の読みは変わらない。
+        """
+        if not entries:
+            return []
+
+        existing = {w.get("surface") for w in self.user_dict().values()}
+        added: list[str] = []
+        for surface, spec in entries.items():
+            if surface in existing:
+                continue
+            if isinstance(spec, str):
+                spec = {"pronunciation": spec}
+            params = {
+                "surface": surface,
+                "pronunciation": spec["pronunciation"],
+                "accent_type": int(spec.get("accent", 0)),
+                "word_type": spec.get("type", "COMMON_NOUN"),
+                "priority": int(spec.get("priority", 5)),
+            }
+            try:
+                added.append(json.loads(self._request("/user_dict_word", params)))
+            except VoiceVoxError as exc:
+                raise VoiceVoxError(f"読みの登録に失敗しました ({surface}): {exc}") from exc
+        return added
+
+    def pop_dict(self, uuids: list[str]) -> None:
+        """push_dict で入れたぶんだけ消す."""
+        for uuid in uuids:
+            try:
+                self._request(f"/user_dict_word/{uuid}", {}, method="DELETE")
+            except VoiceVoxError:
+                pass  # 消せなくても合成そのものは終わっている
+
+    def user_dict(self) -> dict[str, Any]:
+        return json.loads(self._request("/user_dict", {}, method="GET"))
 
     # --- 合成 --------------------------------------------------------
     def synthesize(self, text: str, speaker_id: int) -> bytes:

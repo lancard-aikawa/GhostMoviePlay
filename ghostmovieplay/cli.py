@@ -215,6 +215,46 @@ def cmd_voice(args) -> int:
     return 0
 
 
+def cmd_kana(args) -> int:
+    """各ビートがどう読まれるかを、合成せずに確認する.
+
+    TTS は文脈の薄い単語を誤読する (「語」→カタリ など)。録り終えてから
+    気づくと撮り直しになるので、原稿を書いた直後にこれで見る。
+    """
+    from .plan import PlanError
+    from .tts import TTSError, _engine
+    from .tts.voicevox import VoiceVoxError
+
+    try:
+        plan, _ = _load_plan(args.plan)
+    except (PlanError, FileNotFoundError) as exc:
+        return _err(str(exc))
+
+    try:
+        engine = _engine(plan.voice)
+        speaker_id = engine.resolve_speaker()
+        pushed = engine.push_dict(plan.voice.dict or {})
+        try:
+            lines = []
+            for scene, beat in plan.beats:
+                text = (beat.say or "").strip()
+                if not text:
+                    continue
+                lines.append(f"{scene.id}: {text}\n    {engine.kana(text, speaker_id)}")
+        finally:
+            engine.pop_dict(pushed)
+    except (TTSError, VoiceVoxError) as exc:
+        return _err(str(exc))
+
+    body = "\n".join(lines)
+    if args.out:
+        Path(args.out).write_text(body + "\n", encoding="utf-8")
+        print(f"書き出し: {args.out}")
+    else:
+        print(body)
+    return 0
+
+
 def cmd_voices(args) -> int:
     """利用可能な話者を並べる."""
     from .plan import Voice
@@ -392,6 +432,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("plan")
     _add_voice_opts(p)
     p.set_defaults(func=cmd_voice)
+
+    p = sub.add_parser("kana", help="各ビートの読みを確認する (合成しない)")
+    p.add_argument("plan")
+    p.add_argument("--out", help="ファイルに書き出す (コンソールの文字化け回避)")
+    p.set_defaults(func=cmd_kana)
 
     p = sub.add_parser("voices", help="VOICEVOX の話者一覧を出す")
     p.add_argument("--url")
