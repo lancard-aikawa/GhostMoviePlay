@@ -186,7 +186,7 @@ uv run gmp build examples/demo/plan.json
 ```
 
 action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
-`highlight` `wait_for` `sleep` `eval`
+`select_text` `highlight` `wait_for` `sleep` `eval`
 
 **ビートが動画の最小単位**で、1 ビート = 1 字幕。字幕はビート開始から終了まで出る。
 解説だけしたいビートは `actions` を空にして `hold` だけ置く。
@@ -205,6 +205,19 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
   超えたら警告を出す。
 - 字幕・音声の時刻は、収録後に `実測経過時間 − webm の尺` で遅れを推定して差し引く。
   合わない環境では `--sync-offset` で手動補正できる。
+
+**テキスト選択。** `select_text` は本物のマウスドラッグでなぞる。実装で 3 つ踏んだ。
+
+- 座標を測ってからドラッグするまでにページがスクロールすると別の文字列を掴む
+  （読書位置の復元など）。選択結果を毎回照合し、食い違ったら測り直す
+- `<a>` は既定で draggable なので、リンクの上で押すとリンクのドラッグが始まる。
+  なぞる間だけ切る
+- **Chromium はリンクの上で押し始めたドラッグではテキスト選択を開始しない。**
+  手前の平文から掴み、離したあとに範囲を狙いどおりへ確定して、選択ツールバーの類に
+  `mouseup` を一度知らせる
+
+**ハイライトは自動で送る。** 画面外を光らせても見えないので、`highlight` は
+対象を表示範囲に入れてから光らせる（`"scroll": false` で切れる）。
 
 **音声の尺がビートの尺を決める。** 逆順（先に尺を決めてから合成）にすると必ず尻切れになるので、
 `gmp voice` → `gmp record` の順は入れ替えられない。

@@ -23,6 +23,7 @@ ACTION_SPECS: dict[str, tuple[str, ...]] = {
     "press": ("key",),
     "select": ("selector", "value"),
     "scroll_to": ("selector",),
+    "select_text": ("text",),
     "highlight": ("selector",),
     "wait_for": (),  # selector か seconds のどちらか
     "sleep": ("seconds",),

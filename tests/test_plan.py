@@ -68,6 +68,22 @@ def test_wait_for_needs_selector_or_seconds(tmp_path):
     assert load(write(tmp_path, data))
 
 
+def test_select_text_requires_text(tmp_path):
+    data = json.loads(json.dumps(BASE))
+    data["scenes"][0]["beats"][0]["actions"] = [{"type": "select_text", "selector": "article"}]
+    with pytest.raises(PlanError, match="text"):
+        load(write(tmp_path, data))
+
+
+def test_select_text_accepts_occurrence(tmp_path):
+    data = json.loads(json.dumps(BASE))
+    data["scenes"][0]["beats"][0]["actions"] = [
+        {"type": "select_text", "selector": "article", "text": "リンク", "occurrence": 2}
+    ]
+    plan = load(write(tmp_path, data))
+    assert plan.beats[0][1].actions[0]["occurrence"] == 2
+
+
 def test_example_plan_is_valid():
     from pathlib import Path
 

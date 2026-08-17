@@ -113,7 +113,8 @@ action:
 | `press` | `key` | |
 | `select` | `selector`, `value` | |
 | `scroll_to` | `selector` | |
-| `highlight` | `selector` | `duration` 秒だけ光らせる。省略時は次のビートまで点灯 |
+| `select_text` | `text` | 本文をマウスでなぞって選択する。`selector` は探す範囲 (既定 `article`)、`occurrence` は何番目か (0 始まり) |
+| `highlight` | `selector` | `duration` 秒だけ光らせる。画面外なら自動で送る。省略時は次のビートまで点灯 |
 | `wait_for` | `selector` か `seconds` | `state` は既定 `visible` |
 | `sleep` | `seconds` | |
 | `eval` | `expr` | 状態注入・乱数固定に使う |

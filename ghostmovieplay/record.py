@@ -27,6 +27,64 @@ from .server import serve
 
 CURSOR_MOVE_MS = 420  # カーソルが目標まで滑る時間
 POST_CLICK_PAUSE = 0.25
+DRAG_STEPS = 18  # テキスト選択のドラッグを何段階で見せるか
+
+# 指定テキストの矩形を取る。見えていなければ先にスクロールする。
+FIND_TEXT_JS = """
+({ selector, text, occurrence }) => {
+  const root = document.querySelector(selector);
+  if (!root) return null;
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node, seen = 0;
+  while ((node = walk.nextNode())) {
+    let i = -1;
+    while ((i = node.textContent.indexOf(text, i + 1)) >= 0) {
+      if (seen++ !== occurrence) continue;
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + text.length);
+      let box = range.getBoundingClientRect();
+      if (box.top < 40 || box.bottom > innerHeight - 40) {
+        (node.parentElement || root).scrollIntoView({ block: 'center' });
+        box = range.getBoundingClientRect();
+      }
+      if (!box.width && !box.height) return null;
+      return { left: box.left, top: box.top, right: box.right,
+               bottom: box.bottom, width: box.width, height: box.height };
+    }
+  }
+  return null;
+}
+"""
+
+# ドラッグで作った選択を、狙った範囲ぴったりに合わせ直す。
+# ボタンを離す前に呼ぶので、mouseup を見ているUIは正しい文字列を受け取る。
+SNAP_RANGE_JS = """
+({ selector, text, occurrence }) => {
+  const root = document.querySelector(selector);
+  if (!root) return '';
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node, seen = 0;
+  while ((node = walk.nextNode())) {
+    let i = -1;
+    while ((i = node.textContent.indexOf(text, i + 1)) >= 0) {
+      if (seen++ !== occurrence) continue;
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + text.length);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return sel.toString();
+    }
+  }
+  return '';
+}
+"""
+
+# リンクの上で押し始めたドラッグは Chromium がテキスト選択を開始しないので、
+# 少し手前の平文から掴む。
+DRAG_LEAD_PX = 12
 
 
 @dataclass
@@ -82,6 +140,96 @@ class Recorder:
     def ripple(self, pos: tuple[float, float]) -> None:
         self.js("([x,y]) => window.__gmp && window.__gmp.ripple(x,y)", [pos[0], pos[1]])
 
+    def select_text(self, text: str, selector: str, occurrence: int, pause: float) -> None:
+        """本文中の文字列を、実際のマウスドラッグでなぞって選択する.
+
+        座標を測ってからドラッグするまでの間にページがスクロールすると
+        (読書位置の復元など) 別の文字列をなぞってしまう。選択結果を毎回
+        照合し、食い違ったら測り直す。
+        """
+        for attempt in range(3):
+            got = self._drag_select(text, selector, occurrence)
+            if got is None:
+                print(f"    ! 選択できません: {text!r} が {selector} に見つかりません")
+                return
+            if got.strip() == text:
+                break
+            if attempt == 2:
+                print(f"    ! 選択がずれました: {text!r} のつもりが {got.strip()!r}")
+            else:
+                self.sleep(0.4)  # レイアウトが落ち着くのを待って測り直す
+        self.sleep(pause)
+
+    def _drag_select(self, text: str, selector: str, occurrence: int) -> str | None:
+        rect = self.page.evaluate(
+            FIND_TEXT_JS, {"selector": selector, "text": text, "occurrence": occurrence}
+        )
+        if not rect:
+            return None
+
+        y = rect["top"] + rect["height"] / 2
+        start_x = max(rect["left"] - DRAG_LEAD_PX, 2)
+        end_x = rect["right"] - 1
+
+        # <a> は既定で draggable なので、リンクの上で mousedown すると
+        # テキスト選択ではなくリンクのドラッグが始まってしまう。
+        # なぞる間だけ切っておく (見た目には影響しない)。
+        self.js(
+            """(sel) => {
+                const root = document.querySelector(sel);
+                if (!root) return;
+                root.querySelectorAll('a').forEach(a => {
+                  a.dataset.gmpDrag = a.draggable ? '1' : '0';
+                  a.draggable = false;
+                });
+            }""",
+            selector,
+        )
+
+        # まず行頭までカーソルを運ぶ (いきなり掴むと何が起きたか分からない)
+        self.js("([x,y,ms]) => window.__gmp && window.__gmp.moveTo(x,y,ms)",
+                [start_x, y, CURSOR_MOVE_MS])
+        self.page.mouse.move(start_x, y)
+        self.sleep(CURSOR_MOVE_MS / 1000)
+
+        self.page.mouse.down()
+        for step in range(1, DRAG_STEPS + 1):
+            x = start_x + (end_x - start_x) * step / DRAG_STEPS
+            self.page.mouse.move(x, y)
+            # オーバーレイのカーソルも一緒に動かす (transition なしで追従)
+            self.js("([x,y]) => window.__gmp && window.__gmp.moveTo(x,y,0)", [x, y])
+            self.sleep(0.02)
+
+        self.page.mouse.up()
+
+        # ここまでで「なぞる」絵は撮れている。ただし掴み始めが 1 文字ぶん
+        # 手前だったり、Chromium が mouseup で選択を畳んでしまうことがある
+        # ので、離したあとに範囲を狙いどおりへ確定する。選択そのものは
+        # 本物の DOM 状態で、見た目も同じ。
+        selected = self.page.evaluate(
+            SNAP_RANGE_JS, {"selector": selector, "text": text, "occurrence": occurrence}
+        )
+        # 選択ツールバーの類は mouseup を見て出るので、確定後に一度知らせる
+        self.js(
+            "() => document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))"
+        )
+        self.sleep(0.15)
+
+        self.js(
+            """(sel) => {
+                const root = document.querySelector(sel);
+                if (!root) return;
+                root.querySelectorAll('a[data-gmp-drag]').forEach(a => {
+                  a.draggable = a.dataset.gmpDrag === '1';
+                  delete a.dataset.gmpDrag;
+                });
+            }""",
+            selector,
+        )
+        # 確定した時点の値を返す。この後アプリ側が選択を畳むことがあるので
+        # (登録ボタンは掴んだ内容を既に持っている)、ここで読むのが正しい。
+        return selected
+
     # --- アクション ---------------------------------------------------
     def do(self, action: dict) -> None:
         kind = action["type"]
@@ -123,6 +271,16 @@ class Recorder:
         elif kind == "select":
             page.locator(action["selector"]).first.select_option(action["value"])
 
+        elif kind == "select_text":
+            # 本物のマウスドラッグで選択する。合成イベントだと isTrusted が立たず、
+            # mouseup を見て動くUI (選択ツールバーなど) が反応しないことがある。
+            self.select_text(
+                action["text"],
+                action.get("selector", "article"),
+                int(action.get("occurrence", 0)),
+                float(action.get("pause", 0.45)),
+            )
+
         elif kind == "scroll_to":
             page.locator(action["selector"]).first.scroll_into_view_if_needed()
             self.sleep(action.get("pause", 0.3))
@@ -130,7 +288,12 @@ class Recorder:
         elif kind == "highlight":
             sel = action["selector"]
             try:
-                box = page.locator(sel).first.bounding_box()
+                target = page.locator(sel).first
+                # 画面外を光らせても見えないので、先に送る
+                if action.get("scroll", True):
+                    target.scroll_into_view_if_needed(timeout=5000)
+                    self.sleep(action.get("scroll_pause", 0.45))
+                box = target.bounding_box()
             except PWError:
                 box = None
             if box:
