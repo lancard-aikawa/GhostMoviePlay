@@ -111,6 +111,7 @@ class Determinism:
 class Plan:
     title: str = "untitled"
     lang: str = "ja"
+    project: str | None = None  # 生成物の置き場所 <home>/<project>/ に使う
     app: App = field(default_factory=App)
     video: Video = field(default_factory=Video)
     voice: Voice = field(default_factory=Voice)
@@ -150,6 +151,7 @@ def load(path: str | Path) -> Plan:
     plan = Plan(
         title=meta.get("title", path.stem),
         lang=meta.get("lang", "ja"),
+        project=meta.get("project"),
         app=App(**{k: v for k, v in raw.get("app", {}).items() if k in App.__annotations__}),
         video=Video(**{k: v for k, v in raw.get("video", {}).items() if k in Video.__annotations__}),
         voice=Voice(**{k: v for k, v in raw.get("voice", {}).items() if k in Voice.__annotations__}),

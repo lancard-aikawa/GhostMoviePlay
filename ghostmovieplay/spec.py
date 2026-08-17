@@ -14,6 +14,9 @@ from typing import Any
 import yaml
 
 TEMPLATE = """---
+# 生成物は <出力ルート>/<project>/<このフォルダ名>/ に出る (gmp where で確認)
+project: MyProject
+
 app:
   # 収録対象。ローカルファイルなら file:///C:/... でも良い
   url: http://localhost:5173
@@ -47,6 +50,7 @@ scenes:
 
 @dataclass
 class Spec:
+    project: str | None = None
     app: dict[str, Any] = field(default_factory=dict)
     persona: dict[str, Any] = field(default_factory=dict)
     video: dict[str, Any] = field(default_factory=dict)
@@ -68,6 +72,7 @@ def parse(path: str | Path) -> Spec:
             body = parts[2]
 
     return Spec(
+        project=meta.get("project"),
         app=meta.get("app") or {},
         persona=meta.get("persona") or {},
         video=meta.get("video") or {},
@@ -80,7 +85,7 @@ def parse(path: str | Path) -> Spec:
 PLAN_SCHEMA_DOC = """```jsonc
 {
   "version": 1,
-  "meta": { "title": "動画タイトル", "lang": "ja" },
+  "meta": { "title": "動画タイトル", "lang": "ja", "project": "プロジェクト名" },
   "app":   { "url": "...", "ready": "セレクタ(任意)" },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
@@ -177,6 +182,9 @@ video の既定値:
 ```json
 {video_json}
 ```
+
+`meta.project` には `{spec.project or "(指定なし: 対象プロジェクト名を入れる)"}` を設定してください
+(生成物の置き場所の振り分けに使われます)。
 
 {GUIDE}
 

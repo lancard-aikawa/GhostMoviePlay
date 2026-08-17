@@ -40,8 +40,11 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
 
 ### 4. plan.json を書く
 
+`plan.json` はこのプロジェクトの git に置きます（`video.md` の隣）。
+生成物はユーザフォルダ側に出るので、プロジェクトを汚しません（`gmp where` で確認できます）。
+
 `gmp record <plan.json>` を実行して最後まで通ることを確認する。
-落ちたセレクタは直して再実行。通ったら `gmp render out/timing.json` で mp4 になります。
+落ちたセレクタは直して再実行。通ったら `gmp build <plan.json>` で mp4 になります。
 
 ## 台本の書き方
 
@@ -76,7 +79,7 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
 ```jsonc
 {
   "version": 1,
-  "meta":  { "title": "動画タイトル", "lang": "ja" },
+  "meta":  { "title": "動画タイトル", "lang": "ja", "project": "プロジェクト名" },
   "app":   { "url": "http://localhost:5173", "ready": "text=スタート",
              "start": "npm run dev", "cwd": "." },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },

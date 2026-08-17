@@ -35,6 +35,7 @@ def run(
     model: str | None = None,
     permission_mode: str = DEFAULT_PERMISSION_MODE,
     timeout: float | None = None,
+    extra_dirs: list[Path] | None = None,
     verbose: bool = True,
 ) -> Path:
     """claude を起動して plan.json を作らせる. 戻り値は生成された plan.json."""
@@ -52,12 +53,11 @@ def run(
     # .cmd/.bat を直接起動できないので cmd /c を噛ませる。
     launcher = ["cmd", "/c", exe] if exe.lower().endswith((".cmd", ".bat")) else [exe]
 
-    cmd = [
-        *launcher, "-p", _prompt(request, out_plan),
-        "--permission-mode", permission_mode,
-        # video.md / plan.json は対象プロジェクトの外にあることが多い
-        "--add-dir", str(request.parent),
-    ]
+    # 依頼文は出力側、plan.json はプロジェクト側と離れているので両方許可する
+    allow = {request.parent, out_plan.parent, *(extra_dirs or [])}
+    cmd = [*launcher, "-p", _prompt(request, out_plan), "--permission-mode", permission_mode]
+    for directory in sorted(str(d) for d in allow):
+        cmd += ["--add-dir", directory]
     if model:
         cmd += ["--model", model]
 

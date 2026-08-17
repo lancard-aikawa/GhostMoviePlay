@@ -44,13 +44,17 @@ def _fingerprint(text: str, voice: Voice, speaker_id: int) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def synthesize(plan: Plan, force: bool = False, verbose: bool = True) -> list[Path]:
+def synthesize(
+    plan: Plan, outdir: Path, force: bool = False, verbose: bool = True
+) -> list[Path]:
     """plan の全ビートを音声化し、beat.audio に相対パスを入れる.
 
-    戻り値は生成/再利用された wav のパス (say が空のビートは None を挟まず飛ばす)。
+    wav は生成物なので出力側 (<outdir>/voice/) に置く。beat.audio は
+    outdir からの相対パスで持つので、plan.json はマシンをまたいでも壊れない。
+
+    戻り値は生成/再利用された wav のパス (say が空のビートは飛ばす)。
     """
-    base = plan.source.parent if plan.source else Path.cwd()
-    voice_dir = base / "voice"
+    voice_dir = Path(outdir) / "voice"
     voice_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_path = voice_dir / "manifest.json"

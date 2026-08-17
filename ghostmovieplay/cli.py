@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
+from . import paths
 from . import __version__
 from .agent import DEFAULT_PERMISSION_MODE
+
+
+def _load_plan(path):
+    """plan.json を読み、対応する出力ディレクトリも返す."""
+    from .plan import load
+
+    plan = load(path)
+    return plan, paths.resolve_outdir(
+        Path(path), project=plan.project, app_cwd=plan.app.cwd,
+    )
 
 
 def _err(msg: str) -> int:
@@ -44,16 +56,74 @@ def cmd_doctor(args) -> int:
     return 0 if ok else 1
 
 
+# --- where / config ---------------------------------------------------
+def cmd_where(args) -> int:
+    """生成物がどこに出るかを見せる (暗黙の置き場所を持つツールには必須)."""
+    home = paths.output_home()
+    print(f"  出力ルート  {home}")
+    print(f"              ({paths.home_source()})")
+    print(f"  設定ファイル {paths.config_path()}"
+          + ("" if paths.config_path().exists() else "  (未作成)"))
+    print(f"  動画フォルダ {paths.user_videos_dir()}")
+
+    if not args.plan:
+        print("\n  plan.json を渡すとその1本の出力先が出ます: gmp where plan.json")
+        return 0
+
+    from .plan import PlanError
+
+    try:
+        plan, outdir = _load_plan(args.plan)
+    except (PlanError, FileNotFoundError) as exc:
+        return _err(str(exc))
+
+    print(f"\n  {plan.title}")
+    print(f"    出力先    {outdir}")
+    print(f"    音声      {outdir / 'voice'}")
+    print(f"    成果物    {outdir / 'output.mp4'}")
+    return 0
+
+
+def cmd_config(args) -> int:
+    config = paths.load_config()
+
+    if args.set_home:
+        config["home"] = str(Path(args.set_home).expanduser())
+        written = paths.save_config(config)
+        print(f"保存: {written}")
+    elif args.unset_home:
+        config.pop("home", None)
+        written = paths.save_config(config)
+        print(f"保存: {written}")
+
+    print(f"  home = {paths.output_home()}   ({paths.home_source()})")
+    if os.environ.get(paths.ENV_HOME):
+        print(f"  ! 環境変数 {paths.ENV_HOME} が設定を上書きしています")
+    return 0
+
+
 # --- init -------------------------------------------------------------
 def cmd_init(args) -> int:
+    """1本ぶんのディレクトリを掘って video.md を置く.
+
+    生成物はユーザフォルダ側に出るので、ここに .gitignore は要らない。
+    """
     from .spec import TEMPLATE
 
-    path = Path(args.path)
-    if path.exists() and not args.force:
-        return _err(f"{path} は既にあります (--force で上書き)")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(TEMPLATE, encoding="utf-8")
-    print(f"作成: {path}\n  編集したら `gmp plan {path}` で Pass1 の依頼文を出します")
+    target = Path(args.path)
+    # ディレクトリを渡されたらその中に video.md を作る
+    spec = target if target.suffix == ".md" else target / "video.md"
+
+    if spec.exists() and not args.force:
+        return _err(f"{spec} は既にあります (--force で上書き)")
+    spec.parent.mkdir(parents=True, exist_ok=True)
+    spec.write_text(TEMPLATE, encoding="utf-8")
+
+    print(f"作成: {spec}")
+    print(f"  生成物の置き場所: {paths.output_home()}")
+    print(f"\n  1. {spec} を編集 (対象URL・口調・シーン構成)")
+    print(f"  2. gmp plan {spec} --run     台本 plan.json を作らせる")
+    print(f"  3. gmp build {spec.parent / 'plan.json'} --voice")
     return 0
 
 
@@ -67,13 +137,20 @@ def cmd_plan(args) -> int:
 
     spec = parse(spec_path)
     request = build_request(spec)
-    out = Path(args.out) if args.out else spec_path.parent / "PLAN_REQUEST.md"
+
+    # 依頼文は生成物なので出力側に置く。プロジェクトには video.md と
+    # plan.json しか残らないので .gitignore が要らない。
+    outdir = paths.resolve_outdir(
+        spec_path, project=spec.project, app_cwd=spec.app.get("cwd")
+    )
+    out = Path(args.out) if args.out else outdir / "PLAN_REQUEST.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(request, encoding="utf-8")
     print(f"作成: {out}")
 
     if not args.run:
         print("\n次にやること — 対象プロジェクトを開いた Claude Code に、この依頼文を渡す:")
-        print(f'  claude "@{out.name} の指示に従って plan.json を作って"')
+        print(f'  claude "@{out} の指示に従って plan.json を作って"')
         print(f"\n自動でやらせるなら: gmp plan {spec_path} --run")
         return 0
 
@@ -115,9 +192,11 @@ def cmd_voice(args) -> int:
     from .tts import TTSError, synthesize, write_back
 
     try:
-        plan = load(args.plan)
+        plan, outdir = _load_plan(args.plan)
     except (PlanError, FileNotFoundError) as exc:
         return _err(str(exc))
+    if args.out:
+        outdir = Path(args.out)
 
     # CLI 指定は plan.json の voice より優先する (口調の差し替え用)
     for key in ("speaker", "style", "speed", "url"):
@@ -125,9 +204,9 @@ def cmd_voice(args) -> int:
         if value is not None:
             setattr(plan.voice, key, value)
 
-    print(f"合成: {plan.title}")
+    print(f"合成: {plan.title}  -> {outdir / 'voice'}")
     try:
-        synthesize(plan, force=args.force)
+        synthesize(plan, outdir, force=args.force)
     except TTSError as exc:
         return _err(str(exc))
 
@@ -159,11 +238,12 @@ def cmd_record(args) -> int:
     from .record import record
 
     try:
-        plan = load(args.plan)
+        plan, outdir = _load_plan(args.plan)
     except (PlanError, FileNotFoundError) as exc:
         return _err(str(exc))
+    if args.out:
+        outdir = Path(args.out)
 
-    outdir = Path(args.out) if args.out else Path(args.plan).parent / "out"
     print(f"収録: {plan.title}  ({len(plan.beats)} beats -> {outdir})")
 
     result = record(
@@ -212,6 +292,15 @@ def cmd_render(args) -> int:
 
 # --- build ------------------------------------------------------------
 def cmd_build(args) -> int:
+    from .plan import PlanError
+
+    try:
+        _, outdir = _load_plan(args.plan)
+    except (PlanError, FileNotFoundError) as exc:
+        return _err(str(exc))
+    if args.out:
+        outdir = Path(args.out)
+
     if args.voice:
         rc = cmd_voice(args)
         if rc != 0:
@@ -220,9 +309,9 @@ def cmd_build(args) -> int:
     rc = cmd_record(args)
     if rc != 0:
         return rc
-    outdir = Path(args.out) if args.out else Path(args.plan).parent / "out"
+
     args.timing = outdir / "timing.json"
-    args.out = None
+    args.out = None  # render の --out は成果物ファイル名なので流用しない
     return cmd_render(args)
 
 
@@ -273,8 +362,18 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("doctor", help="ffmpeg / playwright の状態を見る")
     p.set_defaults(func=cmd_doctor)
 
-    p = sub.add_parser("init", help="video.md の雛形を作る")
-    p.add_argument("path", nargs="?", default="video.md")
+    p = sub.add_parser("where", help="生成物の置き場所を見る")
+    p.add_argument("plan", nargs="?", help="plan.json (渡すとその1本の出力先を出す)")
+    p.set_defaults(func=cmd_where)
+
+    p = sub.add_parser("config", help="出力ルートの設定を見る / 変える")
+    p.add_argument("--set-home", metavar="DIR", help="出力ルートを設定する")
+    p.add_argument("--unset-home", action="store_true", help="設定を消して既定に戻す")
+    p.set_defaults(func=cmd_config)
+
+    p = sub.add_parser("init", help="1本ぶんのフォルダと video.md を作る")
+    p.add_argument("path", nargs="?", default="video.md",
+                   help="ディレクトリ、または video.md のパス")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_init)
 

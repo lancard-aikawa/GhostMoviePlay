@@ -31,7 +31,7 @@ uv sync
 uv run playwright install chromium
 uv run gmp doctor            # ffmpeg / chromium の確認
 
-uv run gmp init video.md     # 指示ファイルの雛形
+uv run gmp init docs/video/getting-started   # 1本ぶんのフォルダを掘る
 #   video.md を編集（対象URL・口調・シーン構成）
 uv run gmp plan video.md --run   # claude を起動して plan.json まで作らせる
 uv run gmp build plan.json       # 収録 + 書き出し → out/output.mp4
@@ -48,9 +48,10 @@ claude "@PLAN_REQUEST.md の指示に従って plan.json を作って"
 各段を個別に回すとき:
 
 ```bash
-uv run gmp voice  plan.json          # → voice/*.wav (plan.json に書き戻し)
-uv run gmp record plan.json          # → out/raw.webm, out/timing.json
-uv run gmp render out/timing.json    # → out/output.mp4
+uv run gmp where  plan.json    # 生成物がどこに出るか確認
+uv run gmp voice  plan.json    # → <出力先>/voice/*.wav
+uv run gmp record plan.json    # → <出力先>/raw.webm, timing.json
+uv run gmp render <出力先>/timing.json    # → output.mp4
 ```
 
 ### 音声を付ける
@@ -87,6 +88,48 @@ uv run gmp build plan.json --voice         # voice + record + render
 **正確な表記は音声ライブラリごとの利用規約で確認すること。** plan.json の
 `voice.credit` を手で書けばそちらが優先される。
 
+## ファイルの置き場所
+
+**ソースと生成物を完全に分ける。** プロジェクトの git には `video.md` と
+`plan.json` しか入らないので、**プロジェクト側に .gitignore が要らない**。
+
+```
+プロジェクト（git 管理）
+<project>/docs/video/getting-started/
+  ├─ video.md      手で書く指示
+  └─ plan.json     AI が書いた台本。手で直す資産。AI コストはここだけ
+
+ユーザフォルダ（git 外）
+~/Videos (Win) | ~/Movies (Mac) /GhostMoviePlay/<project>/<video>/
+  ├─ PLAN_REQUEST.md
+  ├─ voice/*.wav
+  ├─ raw.webm / timing.json / subs.ass
+  └─ output.mp4
+```
+
+`plan.json` はセレクタとアプリの挙動に依存していて**腐る**。だから対象プロジェクトの
+git に置き、UI の変更と同じ diff に乗るようにする。ツール側に集めると必ず放置される。
+
+置き場所は上から順に決まる:
+
+1. `--out DIR`
+2. 環境変数 `GHOSTMOVIEPLAY_HOME`
+3. 設定ファイル（`gmp config --set-home DIR`）
+4. プラットフォーム既定
+
+```bash
+uv run gmp where                        # 解決結果を見る
+uv run gmp config --set-home D:/videos  # 出力ルートを変える
+```
+
+将来 GUI を付けるときは 3 を書き換えるだけで済むようにしてある。
+
+**Win/Mac で名前が一致する動画フォルダは存在しない** — Windows は `Videos`、
+macOS は `Movies`。Linux は XDG。プラットフォームごとに解決している。
+Windows は Known Folder が OneDrive などにリダイレクトされていることがあるため
+レジストリを引く。`Documents` を使わないのは、リダイレクト先が OneDrive のことが多く、
+数百MB になる `raw.webm` がクラウド同期に乗ってしまうため。
+
 ## サンプル
 
 ```bash
@@ -102,7 +145,9 @@ uv run gmp build examples/demo/plan.json
 | | |
 |---|---|
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
-| `gmp init [path]` | `video.md` の雛形を作る |
+| `gmp where [plan.json]` | 生成物の置き場所を見る |
+| `gmp config --set-home DIR` | 出力ルートを設定する |
+| `gmp init <dir>` | 1本ぶんのフォルダと `video.md` を作る |
 | `gmp plan [spec]` | video.md → 依頼文。`--run` で claude を起動し plan.json まで |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |
@@ -118,7 +163,7 @@ uv run gmp build examples/demo/plan.json
 ```jsonc
 {
   "version": 1,
-  "meta":  { "title": "...", "lang": "ja" },
+  "meta":  { "title": "...", "lang": "ja", "project": "MyApp" },
   "app":   { "url": "...", "ready": "#tile-0",
              "start": "npm run dev", "cwd": ".", "start_timeout": 60 },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },

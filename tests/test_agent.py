@@ -116,8 +116,14 @@ def test_timeout_is_reported(tmp_path, monkeypatch):
 
 # --- CLI 経由 ---------------------------------------------------------
 def test_plan_without_run_only_writes_request(spec_file, capsys):
+    """依頼文は生成物なので出力側。プロジェクトには何も増えない."""
+    from ghostmovieplay import paths
+
     assert main(["plan", str(spec_file)]) == 0
-    assert (spec_file.parent / "PLAN_REQUEST.md").exists()
+
+    outdir = paths.resolve_outdir(spec_file, app_cwd=".")
+    assert (outdir / "PLAN_REQUEST.md").exists()
+    assert not (spec_file.parent / "PLAN_REQUEST.md").exists()
     assert not (spec_file.parent / "plan.json").exists()
     assert "--run" in capsys.readouterr().out
 

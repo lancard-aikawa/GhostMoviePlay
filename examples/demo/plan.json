@@ -2,7 +2,8 @@
   "version": 1,
   "meta": {
     "title": "タイル取りゲーム — 大きい数から取ると損をする",
-    "lang": "ja"
+    "lang": "ja",
+    "project": "examples"
   },
   "app": {
     "url": "file:///C:/Repos/mywork/GhostMoviePlay/examples/demo/index.html",

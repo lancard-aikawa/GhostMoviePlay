@@ -58,69 +58,69 @@ def test_voice_config_is_loaded(plan_file):
 
 def test_synthesize_skips_empty_say(plan_file, fake):
     plan = load(plan_file)
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert [t for t, _ in fake.calls] == ["ひとつめ", "みっつめ"]
     assert plan.beats[1][1].audio is None
 
 
 def test_synthesize_sets_audio_paths(plan_file, fake):
     plan = load(plan_file)
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert plan.beats[0][1].audio == "voice/000_a.wav"
     assert plan.beats[2][1].audio == "voice/002_b.wav"
     assert (plan_file.parent / "voice" / "000_a.wav").exists()
 
 
 def test_second_run_reuses_cached_audio(plan_file, fake):
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     assert len(fake.calls) == 2
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     assert len(fake.calls) == 2  # 増えない
 
 
 def test_force_resynthesizes(plan_file, fake):
-    tts.synthesize(load(plan_file), verbose=False)
-    tts.synthesize(load(plan_file), force=True, verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, force=True, verbose=False)
     assert len(fake.calls) == 4
 
 
 def test_changed_voice_params_invalidate_cache(plan_file, fake):
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     plan = load(plan_file)
     plan.voice.speed = 0.9
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert len(fake.calls) == 4
 
 
 def test_credit_change_does_not_resynthesize(plan_file, fake):
     """クレジットは音声の中身に影響しないので再合成を誘発してはいけない."""
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     plan = load(plan_file)
     plan.voice.credit = "まったく別の表記"
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert len(fake.calls) == 2
 
 
 def test_engine_url_change_does_not_resynthesize(plan_file, fake):
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     plan = load(plan_file)
     plan.voice.url = "http://127.0.0.1:60000"
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert len(fake.calls) == 2
 
 
 def test_changed_text_invalidates_cache(plan_file, fake):
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     data = json.loads(plan_file.read_text(encoding="utf-8"))
     data["scenes"][0]["beats"][0]["say"] = "ひとつめ(改)"
     plan_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    tts.synthesize(load(plan_file), verbose=False)
+    tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     assert len(fake.calls) == 3  # 変わった1本だけ
 
 
 def test_write_back_persists_audio_fields(plan_file, fake):
     plan = load(plan_file)
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     tts.write_back(plan)
 
     reloaded = load(plan_file)
@@ -133,7 +133,7 @@ def test_unknown_engine_rejected(plan_file):
     plan = load(plan_file)
     plan.voice.engine = "espeak"
     with pytest.raises(tts.TTSError, match="espeak"):
-        tts.synthesize(plan, verbose=False)
+        tts.synthesize(plan, plan_file.parent, verbose=False)
 
 
 # --- 話者の解決 -------------------------------------------------------

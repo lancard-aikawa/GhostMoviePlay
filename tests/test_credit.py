@@ -84,7 +84,7 @@ def plan_file(tmp_path):
 def test_synthesize_fills_credit(plan_file, monkeypatch):
     monkeypatch.setattr(tts, "_engine", lambda voice: FakeEngine())
     plan = load(plan_file)
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert plan.voice.credit == "VOICEVOX:ずんだもん"
 
 
@@ -92,14 +92,14 @@ def test_handwritten_credit_is_kept(plan_file, monkeypatch):
     monkeypatch.setattr(tts, "_engine", lambda voice: FakeEngine())
     plan = load(plan_file)
     plan.voice.credit = "自前の表記"
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     assert plan.voice.credit == "自前の表記"
 
 
 def test_credit_is_persisted_by_write_back(plan_file, monkeypatch):
     monkeypatch.setattr(tts, "_engine", lambda voice: FakeEngine())
     plan = load(plan_file)
-    tts.synthesize(plan, verbose=False)
+    tts.synthesize(plan, plan_file.parent, verbose=False)
     tts.write_back(plan)
     assert load(plan_file).voice.credit == "VOICEVOX:ずんだもん"
 

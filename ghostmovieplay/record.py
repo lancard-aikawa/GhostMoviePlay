@@ -38,9 +38,10 @@ class Recorded:
 
 
 class Recorder:
-    def __init__(self, page, plan: Plan, subtitle_mode: str, verbose: bool):
+    def __init__(self, page, plan: Plan, outdir: Path, subtitle_mode: str, verbose: bool):
         self.page = page
         self.plan = plan
+        self.outdir = Path(outdir)
         self.subtitle_mode = subtitle_mode
         self.verbose = verbose
         self.t0 = 0.0
@@ -200,10 +201,10 @@ class Recorder:
         }
 
     def _audio_path(self, beat: Beat) -> Path | None:
+        """beat.audio は出力ディレクトリからの相対パス (gmp voice がそこへ置く)."""
         if not beat.audio:
             return None
-        base = self.plan.source.parent if self.plan.source else Path.cwd()
-        return (base / beat.audio).resolve()
+        return (self.outdir / beat.audio).resolve()
 
 
 def record(
@@ -241,7 +242,7 @@ def record(
         video = page.video
         wall_start = time.monotonic()  # ここが録画開始のおおよその基準
 
-        rec = Recorder(page, plan, subtitle_mode, verbose)
+        rec = Recorder(page, plan, outdir, subtitle_mode, verbose)
         rec.t0 = wall_start
 
         # 乱数・時刻の固定は必ず goto より前に仕込む
