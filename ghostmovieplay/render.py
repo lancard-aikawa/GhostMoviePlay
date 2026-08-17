@@ -46,6 +46,7 @@ def render(
     preset: str = "medium",
     burn_subtitles: bool = True,
     with_audio: bool = True,
+    credit: bool = True,
 ) -> Rendered:
     timing_path = Path(timing_path)
     outdir = timing_path.parent
@@ -58,7 +59,10 @@ def render(
     out = Path(out) if out else outdir / "output.mp4"
     fps = int(timing.get("video", {}).get("fps", 30))
 
-    ass_path = write_ass(timing, outdir / "subs.ass", font=font)
+    # 音声を乗せないならクレジットも要らない
+    ass_path = write_ass(
+        timing, outdir / "subs.ass", font=font, credit=credit and with_audio
+    )
 
     vf = [f"fps={fps}"]
     if burn_subtitles:

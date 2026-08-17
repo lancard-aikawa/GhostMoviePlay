@@ -199,6 +199,7 @@ def cmd_render(args) -> int:
             preset=args.preset,
             burn_subtitles=not args.no_subtitles,
             with_audio=not args.no_audio,
+            credit=not args.no_credit,
         )
     except (FFmpegError, FileNotFoundError) as exc:
         return _err(str(exc))
@@ -255,6 +256,10 @@ def _add_render_opts(p) -> None:
     p.add_argument("--preset", default="medium", help="x264 preset")
     p.add_argument("--no-subtitles", action="store_true", help="字幕を焼かない")
     p.add_argument("--no-audio", action="store_true", help="音声を乗せない")
+    p.add_argument(
+        "--no-credit", action="store_true",
+        help="クレジット表記を焼かない (別途表示する場合のみ)",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

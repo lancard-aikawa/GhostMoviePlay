@@ -302,6 +302,8 @@ def record(
     timing = {
         "title": plan.title,
         "lang": plan.lang,
+        # 音声を使ったときだけクレジットを持ち回す (render が焼く)
+        "credit": plan.voice.credit if any(e["audio"] for e in entries) else None,
         "video": {"width": v.width, "height": v.height, "fps": v.fps},
         "source_video": dest.name,
         "duration": round(video_duration, 3),

@@ -43,13 +43,19 @@ def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")")
 
 
-def build_ass(timing: dict, font: str = DEFAULT_FONT, max_chars: int = 26) -> str:
+def build_ass(
+    timing: dict,
+    font: str = DEFAULT_FONT,
+    max_chars: int = 26,
+    credit: bool = True,
+) -> str:
     v = timing.get("video", {})
     width = int(v.get("width", 1280))
     height = int(v.get("height", 720))
     size = max(20, round(height * 0.061))
     margin_v = round(height * 0.055)
     margin_h = round(width * 0.06)
+    credit_size = max(12, round(height * 0.028))
 
     head = f"""[Script Info]
 ScriptType: v4.00+
@@ -62,12 +68,22 @@ YCbCr Matrix: TV.709
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font},{size},&H00FFFFFF,&H000000FF,&H00101010,&H90000000,-1,0,0,0,100,100,0,0,1,3.2,1.4,2,{margin_h},{margin_h},{margin_v},1
+Style: Credit,{font},{credit_size},&H30FFFFFF,&H000000FF,&H60101010,&H00000000,0,0,0,0,100,100,0,0,1,2,0,9,{credit_size},{credit_size},{credit_size},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
     lines: list[str] = []
+
+    # クレジットは右上に出しっぱなし。字幕(下部中央)とはぶつからない
+    credit_text = (timing.get("credit") or "").strip()
+    if credit and credit_text:
+        duration = float(timing.get("duration") or 0.0)
+        if duration > 0:
+            lines.append(
+                f"Dialogue: 0,{_ts(0)},{_ts(duration)},Credit,,0,0,0,,{_escape(credit_text)}"
+            )
     for beat in timing.get("beats", []):
         caption = (beat.get("caption") or "").strip()
         if not caption:
@@ -84,7 +100,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return head + "\n".join(lines) + "\n"
 
 
-def write_ass(timing: dict, path: str | Path, font: str = DEFAULT_FONT, max_chars: int = 26) -> Path:
+def write_ass(
+    timing: dict,
+    path: str | Path,
+    font: str = DEFAULT_FONT,
+    max_chars: int = 26,
+    credit: bool = True,
+) -> Path:
     path = Path(path)
-    path.write_text(build_ass(timing, font=font, max_chars=max_chars), encoding="utf-8")
+    path.write_text(
+        build_ass(timing, font=font, max_chars=max_chars, credit=credit),
+        encoding="utf-8",
+    )
     return path

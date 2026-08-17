@@ -45,6 +45,7 @@ class VoiceVox:
     def __init__(self, voice: Voice):
         self.voice = voice
         self.base = voice.url.rstrip("/")
+        self.resolved_name: str | None = None  # クレジット表記に使う
 
     # --- HTTP --------------------------------------------------------
     def _request(self, path: str, params: dict[str, Any], body: bytes | None = None,
@@ -70,17 +71,25 @@ class VoiceVox:
         return json.loads(self._request("/speakers", {}, method="GET"))
 
     def resolve_speaker(self) -> int:
-        """voice.speaker / voice.style から話者IDを決める."""
+        """voice.speaker / voice.style から話者IDを決める.
+
+        あわせてクレジット表記用に話者名を控える。
+        """
         want = self.voice.speaker
-        if isinstance(want, int):
-            return want
-        if isinstance(want, str) and want.isdigit():
-            return int(want)
+        speakers = self.speakers()
+
+        # ID 直指定。一覧に無くても指定は尊重するが、名前は引けるなら引く
+        if isinstance(want, int) or (isinstance(want, str) and want.isdigit()):
+            sid = int(want)
+            for sp in speakers:
+                if any(int(st["id"]) == sid for st in sp.get("styles", [])):
+                    self.resolved_name = sp.get("name")
+                    break
+            return sid
 
         name = ALIASES.get(str(want or "").lower(), want) or DEFAULT_SPEAKER
         style_want = self.voice.style
 
-        speakers = self.speakers()
         for sp in speakers:
             if sp.get("name") != name:
                 continue
@@ -88,16 +97,26 @@ class VoiceVox:
             if style_want:
                 for st in styles:
                     if st.get("name") == style_want:
+                        self.resolved_name = name
                         return int(st["id"])
                 available = ", ".join(st.get("name", "") for st in styles)
                 raise VoiceVoxError(
                     f"話者 {name!r} にスタイル {style_want!r} がありません (あるのは: {available})"
                 )
             if styles:
+                self.resolved_name = name
                 return int(styles[0]["id"])
 
         known = ", ".join(sorted({sp.get("name", "") for sp in speakers}))
         raise VoiceVoxError(f"話者 {name!r} が見つかりません\n  利用可能: {known}")
+
+    def credit(self) -> str:
+        """作品に載せるクレジット表記.
+
+        VOICEVOX は生成音声を使った作品にキャラクター名を含むクレジットを求める。
+        正確な表記は音声ライブラリごとの利用規約で確認すること。
+        """
+        return f"VOICEVOX:{self.resolved_name}" if self.resolved_name else "VOICEVOX"
 
     # --- 合成 --------------------------------------------------------
     def synthesize(self, text: str, speaker_id: int) -> bytes:

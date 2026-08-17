@@ -27,6 +27,9 @@ class FakeEngine:
     def resolve_speaker(self):
         return 3
 
+    def credit(self):
+        return "VOICEVOX:ずんだもん"
+
     def synthesize(self, text, speaker_id):
         self.calls.append((text, speaker_id))
         return b"RIFF____WAVEfmt "
@@ -87,6 +90,23 @@ def test_changed_voice_params_invalidate_cache(plan_file, fake):
     plan.voice.speed = 0.9
     tts.synthesize(plan, verbose=False)
     assert len(fake.calls) == 4
+
+
+def test_credit_change_does_not_resynthesize(plan_file, fake):
+    """クレジットは音声の中身に影響しないので再合成を誘発してはいけない."""
+    tts.synthesize(load(plan_file), verbose=False)
+    plan = load(plan_file)
+    plan.voice.credit = "まったく別の表記"
+    tts.synthesize(plan, verbose=False)
+    assert len(fake.calls) == 2
+
+
+def test_engine_url_change_does_not_resynthesize(plan_file, fake):
+    tts.synthesize(load(plan_file), verbose=False)
+    plan = load(plan_file)
+    plan.voice.url = "http://127.0.0.1:60000"
+    tts.synthesize(plan, verbose=False)
+    assert len(fake.calls) == 2
 
 
 def test_changed_text_invalidates_cache(plan_file, fake):

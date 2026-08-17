@@ -94,6 +94,9 @@ class Voice:
     volume: float = 1.0
     pre: float = 0.1  # 発話前の無音(秒)
     post: float = 0.1
+    # 作品に焼くクレジット表記。gmp voice が話者から自動で埋める。
+    # 手で書けばそれが優先される (正確な表記は音声ライブラリの利用規約に従うこと)
+    credit: str | None = None
 
 
 @dataclass

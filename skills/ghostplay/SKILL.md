@@ -68,6 +68,9 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
 "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 }
 ```
 
+クレジット表記は `gmp voice` が話者名から自動で埋めて動画に焼くので、
+台本側で用意する必要はない。指定の表記があるときだけ `voice.credit` に書く。
+
 ## スキーマ
 
 ```jsonc

@@ -31,9 +31,14 @@ def _engine(voice: Voice):
     raise TTSError(f"未知の TTS エンジン: {voice.engine!r} (使えるのは: voicevox)")
 
 
+# 音声の中身に影響しない項目。これで再合成が走ると無駄になる
+NON_AUDIO_KEYS = {"credit", "url"}
+
+
 def _fingerprint(text: str, voice: Voice, speaker_id: int) -> str:
+    params = {k: v for k, v in asdict(voice).items() if k not in NON_AUDIO_KEYS}
     payload = json.dumps(
-        {"text": text, "speaker": speaker_id, **asdict(voice)},
+        {"text": text, "speaker": speaker_id, **params},
         ensure_ascii=False, sort_keys=True,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
@@ -58,8 +63,14 @@ def synthesize(plan: Plan, force: bool = False, verbose: bool = True) -> list[Pa
 
     engine = _engine(plan.voice)
     speaker_id = engine.resolve_speaker()
+
+    # クレジットは手で書いてあればそれを尊重する
+    if not plan.voice.credit:
+        plan.voice.credit = engine.credit()
+
     if verbose:
         print(f"  engine  {plan.voice.engine} speaker={speaker_id} speed={plan.voice.speed}")
+        print(f"  credit  {plan.voice.credit}")
 
     written: list[Path] = []
     made = reused = 0

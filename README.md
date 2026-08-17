@@ -55,7 +55,17 @@ uv run gmp render out/timing.json    # → out/output.mp4
 
 ### 音声を付ける
 
-[VOICEVOX](https://voicevox.hiroshiba.jp/) を起動した状態で:
+[VOICEVOX](https://voicevox.hiroshiba.jp/) が要る。Windows なら:
+
+```powershell
+winget install HiroshibaKazuyuki.VOICEVOX.CPU
+```
+
+ナレーション用途（短文を数十本、しかも再合成はキャッシュされる）なら CPU 版で十分。
+GUI を開いておけば ENGINE も一緒に立つ。GUI なしで回したいときは同梱の
+`vv-engine\run.exe` を直接叩けばよい。
+
+起動した状態で:
 
 ```bash
 uv run gmp voices                          # 話者一覧
@@ -70,6 +80,12 @@ uv run gmp build plan.json --voice         # voice + record + render
 原稿も声の設定も変わっていないビートは再合成しない（`voice/manifest.json`
 でハッシュ照合）。口調だけ変えたいときは `--speaker` を変えて `voice` →
 `record` を回し直せばよく、`--force` で全部合成しなおせる。
+
+**クレジット表記。** VOICEVOX は生成音声を使った作品にキャラクター名を含む
+クレジットを求める。`gmp voice` が話者名から `voice.credit` を自動で埋め、
+`gmp render` が音声を乗せるときだけ右上に焼き込む（`--no-credit` で抑制）。
+**正確な表記は音声ライブラリごとの利用規約で確認すること。** plan.json の
+`voice.credit` を手で書けばそちらが優先される。
 
 ## サンプル
 
@@ -95,7 +111,7 @@ uv run gmp build examples/demo/plan.json
 | `gmp build <plan.json>` | (voice +) record + render |
 
 主なオプション: `--headed`（ブラウザを見ながら収録）、`--sync-offset`（字幕タイミング補正）、
-`--speaker` / `--style` / `--speed`、`--font`、`--crf`、`--no-subtitles`、`--no-audio`。
+`--speaker` / `--style` / `--speed`、`--font`、`--crf`、`--no-subtitles`、`--no-audio`、`--no-credit`。
 
 ## plan.json
 
