@@ -31,11 +31,15 @@ uv sync
 uv run playwright install chromium
 uv run gmp doctor            # ffmpeg / chromium の確認
 
-uv run gmp init docs/video/getting-started   # 1本ぶんのフォルダを掘る
-#   video.md を編集（対象URL・口調・シーン構成）
-uv run gmp plan video.md --run   # claude を起動して plan.json まで作らせる
-uv run gmp build plan.json       # 収録 + 書き出し → out/output.mp4
+cd <対象プロジェクト>
+uv run gmp init docs/video/getting-started            # 1本ぶんのフォルダを掘る
+#   docs/video/getting-started/video.md を編集（対象URL・口調・シーン構成）
+uv run gmp plan  docs/video/getting-started/video.md --run    # 台本を作らせる
+uv run gmp kana  docs/video/getting-started/plan.json         # 読みを確認する
+uv run gmp build docs/video/getting-started/plan.json --voice # → output.mp4
 ```
+
+成果物の場所は `gmp where <plan.json>` で分かる（プロジェクトの外に出る）。
 
 `--run` を付けなければ依頼文 (`PLAN_REQUEST.md`) を書き出すだけで止まる。
 対話しながら台本を詰めたいときは、それを対象プロジェクトの Claude Code に渡す方が早い:
@@ -158,12 +162,23 @@ Windows は Known Folder が OneDrive などにリダイレクトされている
 ## サンプル
 
 ```bash
-uv run gmp build examples/demo/plan.json
+uv run gmp build examples/demo/plan.json --voice
 ```
 
 「タイル取りゲーム」（数字を取ると両隣が取れなくなる）で、
 *大きい数から取る* という典型的な悪手を実演 → 何を失ったか解説 → 満点ルート、
 という 3 幕構成の動画が出る。plan.json を手で書いた例でもある。
+
+### 実プロジェクトの例
+
+[GlossPop](https://github.com/lancard-aikawa/GlossPop) の
+`docs/video/gloss-scope/` が 1 本目。**登録する語が短すぎると本文がリンクだらけになる**
+という、ソースを読まないと狙って作れない失敗を扱っている（日本語には語境界が無いので
+自動リンクが部分文字列で照合される、という設計から来る）。
+
+そこでは収録用に `serve.py` を置き、使い捨てのデータルートでアプリを起動している。
+**実データを触らず、撮り直すたびに同じ初期状態から始められる**ようにするため。
+状態を持つアプリを撮るときはこの形が要る。
 
 ## コマンド
 
@@ -274,8 +289,19 @@ npm 経由だと子プロセスが残るため）。**すでに応答してい�
 `--add-dir` でその場所を渡す。npm 経由でインストールされた `claude.cmd` シムは
 Windows の `CreateProcess` から直接起動できないため、`cmd /c` を噛ませている。
 
+## 開発
+
+設計の前提・壊しやすい不変条件・実測値は [CLAUDE.md](CLAUDE.md) にある。
+
+```bash
+uv run pytest                 # 全テスト
+uv run pytest -m "not slow"   # 実プロセスを起動するものを除く
+```
+
 ## 未実装
 
 - VOICEVOX 以外の TTS エンジン（`ghostmovieplay/tts/` に足せば `voice.engine` で選べる）
 - BGM・効果音、シーン間のトランジション
 - canvas / WebGL アプリ向けの状態取得ヘルパ
+- 収録前後のフック（アプリの状態を仕込む・後片付けする）。いまは `app.start` に
+  起動スクリプトを噛ませて代用している（GlossPop の `serve.py` がその例）

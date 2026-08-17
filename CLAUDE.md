@@ -1,0 +1,124 @@
+# CLAUDE.md
+
+使い方・コマンド・plan.json の書式は [README.md](README.md) にある。
+ここには **README を読んでも分からないこと**（設計の前提、壊しやすい不変条件、
+実測して初めて分かった落とし穴）だけを書く。
+
+## コマンド
+
+```powershell
+uv sync
+uv run playwright install chromium
+uv run gmp doctor                      # ffmpeg / chromium の確認
+uv run pytest                          # 全テスト
+uv run pytest -m "not slow"            # 実プロセスを起動するテストを除く
+uv run gmp build examples/demo/plan.json --voice   # 通しで1本
+```
+
+音声を扱うときは VOICEVOX ENGINE が要る。GUI を開かずに済ませるなら:
+
+```powershell
+Start-Process "$env:LOCALAPPDATA\Programs\VOICEVOX\vv-engine\run.exe" -ArgumentList "--host","127.0.0.1","--port","50021" -WindowStyle Hidden
+```
+
+## 設計の前提
+
+### Pass2 と Pass3 に AI を入れない
+
+このツールの全体は **AI を使う段を 1 つに閉じ込める**ことで成り立っている。
+
+```
+Pass1  gmp plan     AI あり   ソースを読んで演目を設計する
+Pass2  gmp record   AI なし   plan.json を決定論的にリプレイして録画
+Pass3  gmp render   AI なし   字幕・音声を乗せる
+```
+
+record や render に「賢い判断」を足したくなったら、**それは plan.json に書くべき情報**。
+ここに AI を入れると、撮り直しのたびに絵が変わり、口調の差し替えに再収録が要り、
+コストが読めなくなる。3 段に分けた意味が全部消える。
+
+### 順番を入れ替えられないもの
+
+| | なぜ |
+| --- | --- |
+| `voice` → `record` | **音声の尺がビートの尺を決める**。先に尺を決めてから合成すると必ず尻切れになる |
+| CFR 化 → 字幕焼き込み | Playwright の webm はフレーム間隔が可変。先に `fps=N` を通さないと字幕がズレる |
+| 決定論化 → `goto` | `page.clock` と seed の init script はナビゲーションより前にしか仕込めない |
+| 選択の確定 → `mouseup` の通知 | 選択ツールバーの類は `mouseup` を見て出る。範囲を確定してから知らせる |
+
+## 壊しやすい不変条件
+
+### `beat.audio` は出力ディレクトリからの相対パス
+
+plan.json の隣ではない。plan.json は**プロジェクトの git に入る**が wav は生成物で
+ユーザフォルダ側に出るので、plan.json の隣にすると解決できない。相対のままなのは
+マシンをまたいでも plan.json が壊れないようにするため。
+
+一方 **`timing.json` の `audio` は絶対パス**。timing.json は出力ディレクトリに、
+plan.json はプロジェクトにあって階層が違うので、相対で持つと render が見失う。
+（これは実際に踏んだ。TTS を実装するまで露見しなかった。）
+
+### 音声を乗せたらクレジットも焼く
+
+VOICEVOX は生成音声を使った作品にキャラクター名を含むクレジットを求める。
+`render` は `with_audio` のときだけクレジットを焼く、という関係で担保している。
+**音声だけ乗せてクレジットを落とせる経路を作らないこと。**
+`--no-credit` は「別の場所に自分で表示する」人のための逃げ道で、既定ではない。
+
+### 再合成のフィンガープリント
+
+`voice/manifest.json` は「原稿 + 声の設定」のハッシュで再合成を省く。
+
+- **音に影響するものは必ず入れる** —— `dict`（読み）を入れ忘れると、読みを直しても
+  古い wav が使われて直らない
+- **音に影響しないものは入れない** —— `credit` と `url` は `NON_AUDIO_KEYS` で外して
+  ある。入れると、クレジットを書き換えただけで全部再合成される
+
+### テストは実ユーザの Videos フォルダに書いてはいけない
+
+出力先は環境変数 > 設定ファイル > 既定 の順で決まる。`tests/conftest.py` が
+最優先の環境変数を一時ディレクトリに固定している。**この autouse fixture を外すと、
+CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実際に汚した）。
+
+### ffmpeg は出力ディレクトリを cwd にして起動する
+
+字幕フィルタに Windows の絶対パス（`C:\...` のコロン）を渡すと壊れる。
+`cwd=outdir` にして `subtitles=subs.ass` と相対名で渡すことで回避している。
+**絶対パスに変えないこと。**
+
+## 実測して分かったこと
+
+数字は Windows 11 / Chromium での実測。環境が変われば動くが、性質は変わらない。
+
+- **録画は `new_page()` の 1.8〜2.1 秒後から始まる。** `video.leader` はこれを吸収する
+  ための「ページ生成から最初のビートまでの最小待ち時間」。短いと**冒頭のビートが
+  動画に入らない**。推定した遅れが leader を超えたら警告が出る
+- **Chromium はリンクの上で押し始めたドラッグではテキスト選択を開始しない。**
+  実際の操作でも同じ。`select_text` は手前の平文から掴む
+- **`<a>` は既定で draggable。** リンクの上で押すとテキスト選択ではなくリンクの
+  ドラッグが始まる。なぞる間だけ切っている
+- **座標を測ってからドラッグするまでにページがスクロールすることがある**
+  （読書位置の復元など）。選択結果を毎回照合して測り直す
+- **TTS は文脈の薄い単語を誤読する。** 「語」は単独だと カタリ。ルビは振れないので
+  `voice.dict` で読みを渡す。複合語（用語・物語）は長い一致が優先されるので巻き添えにならない
+- **`page.clock.install()` だけだと時計が止まる。** `setTimeout` も凍ってアプリが
+  動かなくなるので `resume()` まで打つ
+
+## 変更時に一緒に直すもの
+
+| 変えたもの | 一緒に直す |
+| --- | --- |
+| action を足した | `plan.ACTION_SPECS`（必須キー）、`record.Recorder.do()` の分岐、`skills/ghostplay/SKILL.md` の action 表、README の action 一覧、`tests/test_plan.py` |
+| plan.json のスキーマ | `plan.py` の dataclass と `load()`、`spec.PLAN_SCHEMA_DOC`（**AI に渡す仕様はここが正**）、SKILL.md、README の plan.json |
+| 出力先の決まり方 | `paths.py`、README の「ファイルの置き場所」、`gmp where` の表示、`tests/test_paths.py` |
+| voice の設定項目 | `plan.Voice`、`tts/voicevox.py`、**音に影響するなら `NON_AUDIO_KEYS` に入れない**、`tests/test_reading.py` |
+| TTS エンジンを足した | `tts/__init__.py` の `_engine()`、`resolve_speaker` / `synthesize` / `credit` / `push_dict` / `pop_dict` を実装（`hasattr` で見ているので辞書系は任意） |
+| 字幕の見た目 | `subtitles.py` の Style 行。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
+| CLI のサブコマンド | `cli.py` の `main()`、README のコマンド表 |
+
+## サンプルと実例
+
+- `examples/demo/` —— 手で書いた plan.json。タイル取りゲームで
+  「大きい数から取ると損をする」を実演する 3 幕構成
+- `C:\Repos\mywork\GlossPop\docs\video\gloss-scope\` —— 実プロジェクトの 1 本目。
+  収録用に使い捨てのデータルートを立てる `serve.py` を置く形の例
