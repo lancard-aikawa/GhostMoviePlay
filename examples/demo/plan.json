@@ -15,6 +15,19 @@
     "leader": 2.5,
     "trailer": 1.5
   },
+  "voice": {
+    "engine": "voicevox",
+    "speaker": "ずんだもん",
+    "style": "ノーマル",
+    "url": "http://127.0.0.1:50021",
+    "speed": 1.05,
+    "pitch": 0.0,
+    "intonation": 1.0,
+    "volume": 1.0,
+    "pre": 0.1,
+    "post": 0.1,
+    "credit": "VOICEVOX:ずんだもん"
+  },
   "scenes": [
     {
       "id": "intro",
@@ -24,7 +37,11 @@
           "say": "タイル取りゲームです。数字を選ぶとその点が入りますが、両隣は取れなくなります。",
           "hold": 3.4,
           "actions": [
-            { "type": "highlight", "selector": "#board", "duration": 2.6 }
+            {
+              "type": "highlight",
+              "selector": "#board",
+              "duration": 2.6
+            }
           ]
         },
         {
@@ -41,30 +58,52 @@
           "say": "一番大きいのは10。当然ここから取りたくなります。",
           "hold": 2.4,
           "actions": [
-            { "type": "highlight", "selector": "#tile-1", "duration": 1.4 },
-            { "type": "click", "selector": "#tile-1" }
+            {
+              "type": "highlight",
+              "selector": "#tile-1",
+              "duration": 1.4
+            },
+            {
+              "type": "click",
+              "selector": "#tile-1"
+            }
           ]
         },
         {
           "say": "両隣の6が、2枚とも死にました。",
           "hold": 2.6,
           "actions": [
-            { "type": "highlight", "selector": "#tile-0", "duration": 1.1 },
-            { "type": "highlight", "selector": "#tile-2", "duration": 1.1 }
+            {
+              "type": "highlight",
+              "selector": "#tile-0",
+              "duration": 1.1
+            },
+            {
+              "type": "highlight",
+              "selector": "#tile-2",
+              "duration": 1.1
+            }
           ]
         },
         {
           "say": "残りで一番大きいのは9。これも取ります。",
           "hold": 2.2,
           "actions": [
-            { "type": "click", "selector": "#tile-4" }
+            {
+              "type": "click",
+              "selector": "#tile-4"
+            }
           ]
         },
         {
           "say": "打つ手がなくなって終了。19点でした。",
           "hold": 3.0,
           "actions": [
-            { "type": "highlight", "selector": "#result", "duration": 2.4 }
+            {
+              "type": "highlight",
+              "selector": "#result",
+              "duration": 2.4
+            }
           ]
         }
       ]
@@ -77,14 +116,22 @@
           "say": "問題は最初の1手です。10を取った瞬間に、この6と、",
           "hold": 2.2,
           "actions": [
-            { "type": "highlight", "selector": "#tile-0", "duration": 1.6 }
+            {
+              "type": "highlight",
+              "selector": "#tile-0",
+              "duration": 1.6
+            }
           ]
         },
         {
           "say": "こちらの6が同時に消えました。合わせて12点。",
           "hold": 2.4,
           "actions": [
-            { "type": "highlight", "selector": "#tile-2", "duration": 1.6 }
+            {
+              "type": "highlight",
+              "selector": "#tile-2",
+              "duration": 1.6
+            }
           ]
         },
         {
@@ -105,35 +152,51 @@
           "say": "やりなおします。今度は10を、あえて取りません。",
           "hold": 2.4,
           "actions": [
-            { "type": "click", "selector": "#reset" }
+            {
+              "type": "click",
+              "selector": "#reset"
+            }
           ]
         },
         {
           "say": "左端の6から。失うのは隣の10だけです。",
           "hold": 2.4,
           "actions": [
-            { "type": "click", "selector": "#tile-0" }
+            {
+              "type": "click",
+              "selector": "#tile-0"
+            }
           ]
         },
         {
           "say": "続けて、もう1枚の6。10はもう死んでいるので、ここは実質ノーリスク。",
           "hold": 3.2,
           "actions": [
-            { "type": "click", "selector": "#tile-2" }
+            {
+              "type": "click",
+              "selector": "#tile-2"
+            }
           ]
         },
         {
           "say": "最後に9を回収します。",
           "hold": 2.0,
           "actions": [
-            { "type": "click", "selector": "#tile-4" }
+            {
+              "type": "click",
+              "selector": "#tile-4"
+            }
           ]
         },
         {
           "say": "6と6と9で、21点。満点です。グッドゲーム。",
           "hold": 3.6,
           "actions": [
-            { "type": "highlight", "selector": "#result", "duration": 2.8 }
+            {
+              "type": "highlight",
+              "selector": "#result",
+              "duration": 2.8
+            }
           ]
         }
       ]
