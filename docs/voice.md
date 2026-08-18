@@ -5,17 +5,11 @@
 
 ## VOICEVOX を入れる
 
-[VOICEVOX](https://voicevox.hiroshiba.jp/) が要る。Windows なら:
+[VOICEVOX](https://voicevox.hiroshiba.jp/) が要る。入れ方と ENGINE の起こし方は
+[環境の用意](setup.md#voicevox-engine-を起動しておく)。ナレーション用途
+（短文を数十本、しかも再合成はキャッシュされる）なら CPU 版で十分。
 
-```powershell
-winget install HiroshibaKazuyuki.VOICEVOX.CPU
-```
-
-ナレーション用途（短文を数十本、しかも再合成はキャッシュされる）なら CPU 版で十分。
-GUI を開いておけば ENGINE も一緒に立つ。GUI なしで回したいときは同梱の
-`vv-engine\run.exe` を直接叩けばよい。
-
-起動した状態で:
+ENGINE が起動した状態で:
 
 ```bash
 uv run gmp voices                          # 話者一覧

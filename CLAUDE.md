@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-使い方は [README.md](README.md)、詳細は `docs/` にある（[設定](docs/settings.md) /
-[音声](docs/voice.md) / [plan.json](docs/plan.md) / [実装メモ](docs/internals.md)）。
+使い方は [README.md](README.md)、詳細は `docs/` にある（[環境の用意](docs/setup.md) /
+[設定](docs/settings.md) / [音声](docs/voice.md) / [plan.json](docs/plan.md) /
+[実装メモ](docs/internals.md)）。
 ここには **それらを読んでも分からないこと**（設計の前提、壊しやすい不変条件、
 実測して初めて分かった落とし穴）だけを書く。
 

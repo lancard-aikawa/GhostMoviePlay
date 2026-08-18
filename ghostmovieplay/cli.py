@@ -36,6 +36,9 @@ def cmd_doctor(args) -> int:
     for name, present in (("ffmpeg", has_ffmpeg), ("ffprobe", has_ffprobe)):
         print(f"  {'OK  ' if present else 'NG  '} {name}")
         ok &= present
+    if not (has_ffmpeg and has_ffprobe):
+        print("       (`winget install Gyan.FFmpeg`。入れた直後は端末を"
+              "開き直さないと PATH に出てきません)")
 
     try:
         from playwright.sync_api import sync_playwright
@@ -65,7 +68,7 @@ def cmd_doctor(args) -> int:
               " (gmp plan --run と画面の「台本を作る」が使えません。\n"
               "       Claude Code を入れるか、gmp plan で依頼文だけ書き出してください)")
 
-    print("\n準備完了" if ok else "\n不足があります")
+    print("\n準備完了" if ok else "\n不足があります (docs/setup.md)")
     return 0 if ok else 1
 
 

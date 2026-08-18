@@ -30,6 +30,8 @@ Pass3  gmp render   AI なし   字幕焼き込み・音声 mix → mp4
 
 ## 使い方
 
+前提ソフト（ffmpeg・Chromium・VOICEVOX）の入れ方は[環境の用意](docs/setup.md)。
+
 ```bash
 uv sync
 uv run playwright install chromium
@@ -205,6 +207,7 @@ gmp.toml の voice.dict に読みを足して。
 
 | | |
 |---|---|
+| [docs/setup.md](docs/setup.md) | 前提ソフトの入れ方、VOICEVOX ENGINE の起動 |
 | [docs/settings.md](docs/settings.md) | 設定の 3 層、`gmp ui`、生成物の置き場所 |
 | [docs/voice.md](docs/voice.md) | VOICEVOX、読みの指定、クレジット表記 |
 | [docs/plan.md](docs/plan.md) | plan.json の書式、action 一覧、尺の見積り |
