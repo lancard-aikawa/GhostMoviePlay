@@ -73,6 +73,10 @@ uv run gmp render <出力先>/timing.json    # → output.mp4
 
 ## サンプル
 
+出来上がりを先に見るなら **[GhostMoviePlay Gallery](https://lancard-aikawa.github.io/GhostMoviePlayGallery/)** —— このツールで出力した動画を、
+尺・収録対象・素材へのリンク・**それを再現するコマンド**を添えて並べてある。
+手元で撮るなら:
+
 ```bash
 uv run gmp build examples/demo/plan.json --voice
 ```

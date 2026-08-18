@@ -470,3 +470,8 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
   「大きい数から取ると損をする」を実演する 3 幕構成（シリーズの 2 本目）
 - `C:\Repos\mywork\GlossPop\docs\video\gloss-scope\` —— 実プロジェクトの 1 本目。
   収録用に使い捨てのデータルートを立てる `serve.py` を置く形の例
+- [GhostMoviePlay Gallery](https://lancard-aikawa.github.io/GhostMoviePlayGallery/) —— 完成した mp4 の展示
+  (`lancard-aikawa/GhostMoviePlayGallery`)。**mp4 をこのリポジトリに入れない**ための
+  置き場所で、`.gitignore` が `*.mp4` を除外しているのはそのため。動画は向こう、
+  **素材 (`video.md` / `plan.json` / 収録対象) はこちら**。展示のカードが
+  再現コマンドを載せているので、パスやコマンドを変えたら向こうも直す
