@@ -238,6 +238,15 @@ def cmd_config(args) -> int:
     return 0
 
 
+def cmd_ui(args) -> int:
+    """設定画面を開く (書けるのは機械とプロジェクトだけ)."""
+    try:
+        from .ui import open_window
+    except ImportError as exc:      # tkinter が入っていない Python
+        return _err(f"設定画面を開けません: {exc}\n  gmp config で同じことができます")
+    return open_window(args.spec)
+
+
 # --- init -------------------------------------------------------------
 def cmd_init(args) -> int:
     """1本ぶんのディレクトリを掘って video.md を置く.
@@ -647,6 +656,10 @@ def main(argv: list[str] | None = None) -> int:
                    help=f"プロジェクトの既定 {PROJECT_FILE} の雛形を置く (既定: カレント)")
     p.add_argument("--force", action="store_true", help="--init-project で上書きする")
     p.set_defaults(func=cmd_config)
+
+    p = sub.add_parser("ui", help="設定画面を開く")
+    p.add_argument("spec", nargs="?", help="video.md (渡すとその1本を選んだ状態で開く)")
+    p.set_defaults(func=cmd_ui)
 
     p = sub.add_parser("init", help="1本ぶんのフォルダと video.md を作る")
     p.add_argument("path", nargs="?", default="video.md",

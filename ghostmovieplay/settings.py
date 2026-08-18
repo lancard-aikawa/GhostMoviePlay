@@ -278,7 +278,7 @@ def find_project_file(start: str | Path, limit: int = 8) -> Path | None:
     return None
 
 
-def _read_toml(path: Path) -> dict[str, Any]:
+def read_toml(path: Path) -> dict[str, Any]:
     import tomllib
 
     try:
@@ -504,7 +504,7 @@ def load(
 
     return resolve(
         machine=paths.load_config(),
-        project=_read_toml(project_path) if project_path else {},
+        project=read_toml(project_path) if project_path else {},
         video=video or {},
         cli=cli or {},
         machine_path=machine_path if machine_path.exists() else None,
@@ -569,6 +569,130 @@ def dump(values: dict[str, Any], header: str = "", comments: bool = True) -> str
         lines.append("")
 
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _section_of(line: str) -> str | None:
+    """`[voice.dict]` のような区画見出しなら、その名前を返す."""
+    text = line.strip()
+    if text.startswith("[") and text.endswith("]") and not text.startswith("[["):
+        return text[1:-1].strip()
+    return None
+
+
+def _key_of(line: str) -> str | None:
+    """`speaker = '...'` のような代入なら、キー名を返す (コメント行は None)."""
+    text = line.strip()
+    if not text or text.startswith("#") or "=" not in text:
+        return None
+    raw = text.split("=", 1)[0].strip()
+    if raw[:1] in ("'", '"') and raw[-1:] == raw[:1]:
+        raw = raw[1:-1]
+    return raw or None
+
+
+def patch_toml(text: str, changes: dict[str, Any]) -> str:
+    """既存の TOML に変更だけを当てる. **コメントと並び順を保つ.**
+
+    gmp.toml は人が手で書くファイルで、なぜその値なのかをコメントに書く。
+    dump() で書き直すとそれが消えるので、UI からの保存はこちらを通す。
+    値が None の項目は消す。dict (kind="table") は区画ごと置き換える。
+    """
+    tables = {k: v for k, v in changes.items() if isinstance(v, dict)}
+    scalars = {k: v for k, v in changes.items() if not isinstance(v, dict)}
+
+    lines = text.splitlines()
+    out: list[str] = []
+    section = ""
+    done: set[str] = set()
+    dropped_tables = set(tables)
+
+    for line in lines:
+        header = _section_of(line)
+        if header is not None:
+            # 置き換える表の区画は、見出しごと落とす
+            section = header
+            if header in dropped_tables:
+                continue
+            out.append(line)
+            continue
+        if section in dropped_tables:
+            continue   # 落とした区画の中身
+
+        key = _key_of(line)
+        full = f"{section}.{key}" if section and key else key
+        if full in scalars:
+            done.add(full)
+            if scalars[full] is not None:
+                indent = line[: len(line) - len(line.lstrip())]
+                out.append(f"{indent}{_key(key)} = {_scalar(scalars[full])}")
+            continue   # None なら行ごと消す
+        out.append(line)
+
+    # 既存の行に無かったものを足す
+    remaining = {
+        k: v for k, v in scalars.items() if k not in done and v is not None
+    }
+    if remaining:
+        out = _insert_new_keys(out, remaining)
+    for path, value in tables.items():
+        if value:
+            out += ["", f"[{path}]"]
+            out += [f"{_key(k)} = {_scalar(v)}" for k, v in value.items()]
+
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+def _insert_new_keys(lines: list[str], remaining: dict[str, Any]) -> list[str]:
+    """新しいキーを、対応する区画の末尾へ入れる (無ければ区画ごと作る)."""
+    by_section: dict[str, dict[str, Any]] = {}
+    for path, value in remaining.items():
+        head, _, leaf = path.rpartition(".")
+        by_section.setdefault(head, {})[leaf] = value
+
+    out = list(lines)
+    for head, entries in by_section.items():
+        block = [f"{_key(k)} = {_scalar(v)}" for k, v in entries.items()]
+        # 区画の最後の行を探す (次の見出しの直前)
+        end = None
+        section = ""
+        for i, line in enumerate(out):
+            header = _section_of(line)
+            if header is not None:
+                if section == head:
+                    end = i
+                    break
+                section = header
+        if section == head and end is None:
+            end = len(out)
+        if end is None:
+            # 区画そのものが無い。root は先頭、それ以外は末尾に作る
+            if head:
+                out += ["", f"[{head}]", *block]
+            else:
+                first = next(
+                    (i for i, x in enumerate(out) if _section_of(x) is not None), len(out)
+                )
+                out[first:first] = block
+            continue
+        while end > 0 and not out[end - 1].strip():
+            end -= 1     # 区画末尾の空行より前に入れる
+        out[end:end] = block
+    return out
+
+
+def write_layer(path: str | Path, changes: dict[str, Any]) -> Path:
+    """設定ファイルに変更を書く. 既にあればコメントを保ったまま当てる."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        patched = patch_toml(target.read_text(encoding="utf-8"), changes)
+    else:
+        patched = dump(
+            {k: v for k, v in changes.items() if v is not None},
+            header="GhostMoviePlay の設定",
+        )
+    target.write_text(patched, encoding="utf-8")
+    return target
 
 
 def writable_keys(layer: str) -> list[str]:

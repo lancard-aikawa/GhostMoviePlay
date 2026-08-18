@@ -189,6 +189,83 @@ def test_parse_value_uses_the_declared_type():
         settings.parse_value("nope.nope", "1")
 
 
+# --- 変更だけを当てる (UI からの保存) ---------------------------------
+BASE = """# なぜこの値なのかを書いたコメント
+project = 'MyApp'
+
+[app]
+url = 'http://localhost:5173'
+# start = 'npm run dev'      # 自分で起動するので切ってある
+
+[voice]
+speaker = 'ずんだもん'
+speed = 1.0
+"""
+
+
+def test_patch_keeps_comments_and_order():
+    """gmp.toml は人が書くファイル. 書き直すとコメントが消える."""
+    patched = settings.patch_toml(BASE, {"voice.speaker": "四国めたん"})
+
+    assert "# なぜこの値なのかを書いたコメント" in patched
+    assert "# start = 'npm run dev'      # 自分で起動するので切ってある" in patched
+    assert tomllib.loads(patched)["voice"]["speaker"] == "四国めたん"
+    assert tomllib.loads(patched)["voice"]["speed"] == 1.0
+
+
+def test_patch_adds_a_key_to_an_existing_section():
+    patched = settings.patch_toml(BASE, {"app.ready": "text=開始"})
+    data = tomllib.loads(patched)
+    assert data["app"]["ready"] == "text=開始"
+    assert data["app"]["url"] == "http://localhost:5173"   # 元の行は動かない
+
+
+def test_patch_creates_a_missing_section():
+    patched = settings.patch_toml(BASE, {"determinism.seed": 42})
+    assert tomllib.loads(patched)["determinism"]["seed"] == 42
+
+
+def test_patch_writes_root_keys_before_the_first_section():
+    patched = settings.patch_toml("[app]\nurl = 'x'\n", {"project": "New"})
+    assert tomllib.loads(patched)["project"] == "New"
+
+
+def test_patch_removes_a_key_when_the_value_is_none():
+    patched = settings.patch_toml(BASE, {"voice.speed": None})
+    assert "speed" not in tomllib.loads(patched)["voice"]
+    assert tomllib.loads(patched)["voice"]["speaker"] == "ずんだもん"
+
+
+def test_patch_replaces_a_whole_table():
+    text = BASE + "\n[voice.dict]\n'語' = 'ゴ'\n'旧' = 'キュウ'\n"
+    patched = settings.patch_toml(text, {"voice.dict": {"語": "ゴ", "冪等": "ベキトウ"}})
+
+    data = tomllib.loads(patched)
+    assert data["voice"]["dict"] == {"語": "ゴ", "冪等": "ベキトウ"}
+    assert data["voice"]["speaker"] == "ずんだもん"     # 隣の区画を巻き込まない
+
+
+def test_patch_drops_an_emptied_table():
+    text = BASE + "\n[voice.dict]\n'語' = 'ゴ'\n"
+    patched = settings.patch_toml(text, {"voice.dict": {}})
+    assert "dict" not in tomllib.loads(patched).get("voice", {})
+
+
+def test_write_layer_creates_the_file_when_missing(tmp_path):
+    target = settings.write_layer(tmp_path / "gmp.toml", {"voice.speaker": "ずんだもん"})
+    assert tomllib.loads(target.read_text(encoding="utf-8"))["voice"]["speaker"] == "ずんだもん"
+
+
+def test_write_layer_patches_an_existing_file(tmp_path):
+    target = tmp_path / "gmp.toml"
+    target.write_text(BASE, encoding="utf-8")
+    settings.write_layer(target, {"voice.speed": 1.2})
+
+    text = target.read_text(encoding="utf-8")
+    assert "# なぜこの値なのかを書いたコメント" in text
+    assert tomllib.loads(text)["voice"]["speed"] == 1.2
+
+
 # --- 雛形 -------------------------------------------------------------
 def test_project_template_is_valid_and_fully_known(tmp_path):
     """雛形に書いたキーが全部スキーマに載っていること.

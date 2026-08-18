@@ -132,11 +132,30 @@ uv run gmp kana plan.json --out kana.txt
 | 1本 | `video.md` のフロントマター | その動画だけの上書き |
 
 ```bash
+uv run gmp ui                             # 設定画面 (下の3層をまとめて編集)
 uv run gmp config --init-project .        # <project>/gmp.toml の雛形を置く
 uv run gmp config                         # いま効いている値と、その由来を全部出す
 uv run gmp config docs/video/intro/video.md   # その1本まで含めた解決結果
 uv run gmp config --set voice.speaker=ずんだもん --set render.crf=18
 ```
+
+### 設定画面
+
+`gmp ui` は**用途でタブを切り、行ごとに「値・由来・書込先」**を並べる。
+`声と口調` / `何を撮るか` / `対象と動画` / `この機械` の 4 枚。
+
+- **どの層から来た値か**が各行に出る。3 層あるので、これが見えないと迷子になる
+- **書込先**を行ごとに選ぶ（`機械の設定` = 全プロジェクトの既定 / `プロジェクト` =
+  この 1 つ）。プロジェクト固有の事実は機械を選べないし、`render.*` のような
+  機械の設定はプロジェクトを選べない
+- **`! 再合成`** —— その項目を変えると音声を作り直すことを先に言う
+- **`! この1本が上書き中`** —— video.md が上書きしている行。ここで直しても効かない
+- **試聴** —— いまの声の設定で 1 文だけ合成して鳴らす。VOICEVOX が起動していなくても
+  画面は開き、話者名は手で入力できる
+
+書き込むのは **`config.toml` と `gmp.toml` だけ**。`video.md` は本文（補足の散文）を
+持つので、GUI から書き戻して人の書いた文章を壊さないようにしてある（表示のみ）。
+`gmp.toml` への保存は**変更した行だけを当てる**ので、手で書いたコメントは残る。
 
 `gmp config` は各項目の値と**どの層から来たか**を並べる。3 層あるので、
 これが見えないと必ず迷子になる。`*` が付いている行が「誰かが決めた値」。
@@ -257,6 +276,7 @@ uv run gmp build examples/demo/plan.json --voice
 |---|---|
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
 | `gmp where [plan.json]` | 生成物の置き場所を見る |
+| `gmp ui [video.md]` | 設定画面を開く |
 | `gmp config [video.md]` | 効いている設定と由来を見る |
 | `gmp config --set KEY=VALUE` | この機械の設定を書く（`--set-home DIR` も可） |
 | `gmp config --init-project [DIR]` | `<project>/gmp.toml` の雛形を置く |

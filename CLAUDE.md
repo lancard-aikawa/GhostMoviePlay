@@ -71,6 +71,22 @@ plan.json に焼かれる」値もここからは取れない（取れると、p
 `tests/test_settings.py` の `test_home_agrees_with_paths_output_home` で
 両者が同じ答えを出すことを固定している。
 
+### 設定画面が書いてよいファイル
+
+`gmp ui` が書くのは **`config.toml` と `gmp.toml` だけ**。`video.md` は
+フロントマターの下に本文（補足の散文）を持つので、GUI から書き戻すと人の
+書いた文章とコメントを壊す。1本ぶんは「効いている値」の表示に留め、
+video.md 由来の行には「この1本が上書き中」を出して、直しても効かないことを
+先に言う（書ける先が無い行は編集できないようにしてある）。
+
+`gmp.toml` への保存は `settings.patch_toml()` を通す。**変更した行だけを
+当ててコメントと並び順を保つ。** `dump()` で書き直すと、なぜその値なのかを
+書いたコメントが消える（雛形が配っている説明ごと消える）。
+
+画面の判断のうち Tk が要らないものは `ui.py` のモジュール関数にしてある
+（`TABS` / `write_targets` / `plan_writes` / `parse_dict_text`）。
+ウィンドウを作らずにテストできるので、`tests/test_ui.py` は CI で走る。
+
 ### 見積り尺と実測の余白を別々に書かない
 
 `plan.AUDIO_TAIL` は「音声を鳴らし終えてから次のビートへ行くまでの余白」で、
@@ -164,7 +180,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | action を足した | `plan.ACTION_SPECS`（必須キー）、`record.Recorder.do()` の分岐、`skills/ghostplay/SKILL.md` の action 表、README の action 一覧、`tests/test_plan.py` |
 | plan.json のスキーマ | `plan.py` の dataclass と `load()`、`spec.PLAN_SCHEMA_DOC`（**AI に渡す仕様はここが正**）、SKILL.md、README の plan.json |
 | 出力先の決まり方 | `paths.py`、README の「ファイルの置き場所」、`gmp where` の表示、`tests/test_paths.py` |
-| 設定項目を足した | `settings.SCHEMA`（**`layers` と `bake` を必ず埋める**）、雛形を配るなら `settings.PROJECT_TEMPLATE`、README の「設定」、`tests/test_settings.py`。値を実際に使う側（`spec.build_request` / 実行時の解決）も一緒に繋ぐ |
+| 設定項目を足した | `settings.SCHEMA`（**`layers` と `bake` を必ず埋める**）、`ui.TABS` と `ui.LABELS`（漏れは `tests/test_ui.py` が検出する）、雛形を配るなら `settings.PROJECT_TEMPLATE`、README の「設定」、`tests/test_settings.py`。値を実際に使う側（`spec.build_request` / 実行時の解決）も一緒に繋ぐ |
 | 設定の層を足した | `settings.ORDER` と `LAYER_LABEL`、`resolve()` の layers 組み立て、`gmp config` のヘッダ表示、README の 3 層の表 |
 | voice の設定項目 | `plan.Voice`、`tts/voicevox.py`、**音に影響するなら `NON_AUDIO_KEYS` に入れない**、機械ごとに違う値なら `MACHINE_KEYS` に入れる、`settings.SCHEMA` の `voice.*`、`tests/test_reading.py` |
 | TTS エンジンを足した | `tts/__init__.py` の `_engine()`、`resolve_speaker` / `synthesize` / `credit` / `push_dict` / `pop_dict` を実装（`hasattr` で見ているので辞書系は任意） |
