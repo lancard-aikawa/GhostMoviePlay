@@ -46,9 +46,6 @@ PROJECT = "project"   # <project>/gmp.toml
 VIDEO = "video"       # video.md のフロントマター
 CLI = "cli"           # コマンドライン引数
 
-# 弱い順。resolve() はこの順に上書きしていく
-ORDER = (DEFAULT, MACHINE, ENV, PROJECT, VIDEO, CLI)
-
 # 設定ファイルとして書ける層 (DEFAULT/ENV/CLI はファイルではない)
 WRITABLE = (MACHINE, PROJECT, VIDEO)
 
@@ -95,8 +92,6 @@ SCHEMA: tuple[Setting, ...] = (
             "生成物の出力ルート"),
     Setting("engine.voicevox.url", "str", "http://127.0.0.1:50021", _M, "runtime",
             "VOICEVOX ENGINE の接続先"),
-    Setting("engine.voicevox.exe", "path", None, _M, "runtime",
-            "ENGINE の実行ファイル。未起動のときに自分で起動する用"),
     Setting("render.font", "str", DEFAULT_FONT, _M, "runtime",
             "字幕フォント。この機械に入っているものを指す"),
     Setting("render.crf", "int", 20, _M, "runtime",
@@ -693,10 +688,6 @@ def write_layer(path: str | Path, changes: dict[str, Any]) -> Path:
         )
     target.write_text(patched, encoding="utf-8")
     return target
-
-
-def writable_keys(layer: str) -> list[str]:
-    return [s.path for s in SCHEMA if layer in s.layers]
 
 
 def parse_value(path: str, text: str) -> Any:

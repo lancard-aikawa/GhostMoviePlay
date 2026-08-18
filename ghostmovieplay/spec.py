@@ -119,15 +119,17 @@ title: 動画タイトル
 
 @dataclass
 class Spec:
-    project: str | None = None
-    app: dict[str, Any] = field(default_factory=dict)
-    persona: dict[str, Any] = field(default_factory=dict)
-    video: dict[str, Any] = field(default_factory=dict)
+    """video.md の中身.
+
+    フロントマターは **raw のまま持つ**。project / app / persona のように
+    項目ごとへ割っていたが、値の解決は settings に移ったので割る意味が無くなった
+    (どのキーが書かれていたかも raw でないと分からない)。ここに残すのは、
+    設定にできないもの —— シーン構成と自由記述だけ。
+    """
+
     scenes: list[dict[str, Any]] = field(default_factory=list)
     notes: str = ""
     source: Path | None = None
-    # フロントマター全体。settings が「この1本」の層として読む
-    # (個別フィールドに割った後だと、どのキーが書かれていたか分からない)
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -144,10 +146,6 @@ def parse(path: str | Path) -> Spec:
             body = parts[2]
 
     return Spec(
-        project=meta.get("project"),
-        app=meta.get("app") or {},
-        persona=meta.get("persona") or {},
-        video=meta.get("video") or {},
         scenes=meta.get("scenes") or [],
         notes=body.strip(),
         source=path,

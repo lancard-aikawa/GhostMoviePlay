@@ -77,7 +77,6 @@ LABELS: dict[str, str] = {
     "determinism.time": "固定する開始時刻",
     "home": "生成物の置き場所",
     "engine.voicevox.url": "VOICEVOX の接続先",
-    "engine.voicevox.exe": "VOICEVOX の実行ファイル",
     "render.font": "字幕フォント",
     "render.crf": "画質 (CRF)",
     "render.preset": "x264 preset",
@@ -235,7 +234,6 @@ TABS: tuple[Tab, ...] = (
             )),
             Group("VOICEVOX", (
                 _one("engine.voicevox.url", "接続先"),
-                _one("engine.voicevox.exe", "実行ファイル"),
             )),
             Group("書き出し", (
                 _one("render.font", "字幕フォント"),
@@ -251,13 +249,6 @@ TABS: tuple[Tab, ...] = (
         ),
     ),
 )
-
-
-def tab_of(path: str) -> str | None:
-    for tab in TABS:
-        if path in tab.keys:
-            return tab.title
-    return None
 
 
 def affects_audio(path: str) -> bool:
