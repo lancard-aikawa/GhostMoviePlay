@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-使い方・コマンド・plan.json の書式は [README.md](README.md) にある。
-ここには **README を読んでも分からないこと**（設計の前提、壊しやすい不変条件、
+使い方は [README.md](README.md)、詳細は `docs/` にある（[設定](docs/settings.md) /
+[音声](docs/voice.md) / [plan.json](docs/plan.md) / [実装メモ](docs/internals.md)）。
+ここには **それらを読んでも分からないこと**（設計の前提、壊しやすい不変条件、
 実測して初めて分かった落とし穴）だけを書く。
 
 ## コマンド
@@ -177,11 +178,11 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 
 | 変えたもの | 一緒に直す |
 | --- | --- |
-| action を足した | `plan.ACTION_SPECS`（必須キー）、`record.Recorder.do()` の分岐、`skills/ghostplay/SKILL.md` の action 表、README の action 一覧、`tests/test_plan.py` |
-| plan.json のスキーマ | `plan.py` の dataclass と `load()`、`spec.PLAN_SCHEMA_DOC`（**AI に渡す仕様はここが正**）、SKILL.md、README の plan.json |
-| 出力先の決まり方 | `paths.py`、README の「ファイルの置き場所」、`gmp where` の表示、`tests/test_paths.py` |
-| 設定項目を足した | `settings.SCHEMA`（**`layers` と `bake` を必ず埋める**）、`ui.TABS` と `ui.LABELS`（漏れは `tests/test_ui.py` が検出する）、雛形を配るなら `settings.PROJECT_TEMPLATE`、README の「設定」、`tests/test_settings.py`。値を実際に使う側（`spec.build_request` / 実行時の解決）も一緒に繋ぐ |
-| 設定の層を足した | `settings.ORDER` と `LAYER_LABEL`、`resolve()` の layers 組み立て、`gmp config` のヘッダ表示、README の 3 層の表 |
+| action を足した | `plan.ACTION_SPECS`（必須キー）、`record.Recorder.do()` の分岐、`skills/ghostplay/SKILL.md` の action 表、`docs/plan.md` の action 一覧、`tests/test_plan.py` |
+| plan.json のスキーマ | `plan.py` の dataclass と `load()`、`spec.PLAN_SCHEMA_DOC`（**AI に渡す仕様はここが正**）、SKILL.md、`docs/plan.md` |
+| 出力先の決まり方 | `paths.py`、`docs/settings.md` の「ファイルの置き場所」、`gmp where` の表示、`tests/test_paths.py` |
+| 設定項目を足した | `settings.SCHEMA`（**`layers` と `bake` を必ず埋める**）、`ui.TABS` と `ui.LABELS`（漏れは `tests/test_ui.py` が検出する）、雛形を配るなら `settings.PROJECT_TEMPLATE`、`docs/settings.md`、`tests/test_settings.py`。値を実際に使う側（`spec.build_request` / 実行時の解決）も一緒に繋ぐ |
+| 設定の層を足した | `settings.ORDER` と `LAYER_LABEL`、`resolve()` の layers 組み立て、`gmp config` のヘッダ表示、`docs/settings.md` の 3 層の表 |
 | voice の設定項目 | `plan.Voice`、`tts/voicevox.py`、**音に影響するなら `NON_AUDIO_KEYS` に入れない**、機械ごとに違う値なら `MACHINE_KEYS` に入れる、`settings.SCHEMA` の `voice.*`、`tests/test_reading.py` |
 | TTS エンジンを足した | `tts/__init__.py` の `_engine()`、`resolve_speaker` / `synthesize` / `credit` / `push_dict` / `pop_dict` を実装（`hasattr` で見ているので辞書系は任意） |
 | 字幕の見た目 | `subtitles.py` の Style 行。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
