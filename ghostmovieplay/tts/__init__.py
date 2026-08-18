@@ -34,6 +34,10 @@ def _engine(voice: Voice):
 # 音声の中身に影響しない項目。これで再合成が走ると無駄になる
 NON_AUDIO_KEYS = {"credit", "url"}
 
+# plan.json に書き戻さない項目。機械ごとに違う値を焼くと、別のマシンで
+# 撮り直したときに繋がらない接続先が残る (--url は一時的な指定として扱う)
+MACHINE_KEYS = {"url"}
+
 
 def _fingerprint(text: str, voice: Voice, speaker_id: int) -> str:
     params = {k: v for k, v in asdict(voice).items() if k not in NON_AUDIO_KEYS}
@@ -136,7 +140,10 @@ def write_back(plan: Plan, path: Path | None = None) -> Path:
             beat_raw["audio"] = beat.audio
         else:
             beat_raw.pop("audio", None)
-    raw["voice"] = {k: v for k, v in asdict(plan.voice).items() if v is not None}
+    raw["voice"] = {
+        k: v for k, v in asdict(plan.voice).items()
+        if v is not None and k not in MACHINE_KEYS
+    }
 
     Path(target).write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return Path(target)

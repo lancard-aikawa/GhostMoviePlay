@@ -43,8 +43,11 @@ class VoiceVoxError(RuntimeError):
 
 class VoiceVox:
     def __init__(self, voice: Voice):
+        from ..settings import machine_value
+
         self.voice = voice
-        self.base = voice.url.rstrip("/")
+        # 接続先は機械の設定。plan.json に書いてあればそれを尊重する
+        self.base = str(voice.url or machine_value("engine.voicevox.url")).rstrip("/")
         self.resolved_name: str | None = None  # クレジット表記に使う
 
     # --- HTTP --------------------------------------------------------
@@ -63,7 +66,7 @@ class VoiceVox:
             raise VoiceVoxError(
                 f"VOICEVOX ENGINE に繋がりません ({self.base}): {exc}\n"
                 "  VOICEVOX を起動するか、engine を単体で立ち上げてください。\n"
-                "  plan.json の voice.url で接続先を変えられます。"
+                "  接続先を変えるなら: gmp config --set engine.voicevox.url=http://..."
             ) from exc
 
     # --- 話者 --------------------------------------------------------

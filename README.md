@@ -78,6 +78,10 @@ uv run gmp voice plan.json --speaker ずんだもん --style あまあま
 uv run gmp build plan.json --voice         # voice + record + render
 ```
 
+ENGINE の接続先は**機械の設定**（`gmp config --set engine.voicevox.url=...`）で、
+plan.json には書きません。書くと別のマシンで繋がらない接続先が残るためです
+（`--url` は一時的な指定として扱い、`gmp voice` は plan.json に書き戻しません）。
+
 `voice` は plan.json の `voice` 設定を見て `say` を合成し、各ビートに
 `audio` を書き戻す。**合成した音声の尺がそのままビートの尺になる**ので、
 喋り終わる前に次の場面へ飛ぶことがない（`hold` は下限として働く）。
@@ -117,15 +121,82 @@ uv run gmp kana plan.json --out kana.txt
 **正確な表記は音声ライブラリごとの利用規約で確認すること。** plan.json の
 `voice.credit` を手で書けばそちらが優先される。
 
+## 設定
+
+設定は 3 層ある。**下に行くほど強い。**
+
+| 層 | ファイル | 置くもの |
+|---|---|---|
+| 機械 | `config.toml`（`gmp config --set`） | 出力ルート、VOICEVOX の接続先、フォント、画質、**声と口調の既定** |
+| プロジェクト | `<project>/gmp.toml`（**git に入れる**） | 対象URL・起動コマンド、声と口調、読み辞書、題材と本数、seed |
+| 1本 | `video.md` のフロントマター | その動画だけの上書き |
+
+```bash
+uv run gmp config --init-project .        # <project>/gmp.toml の雛形を置く
+uv run gmp config                         # いま効いている値と、その由来を全部出す
+uv run gmp config docs/video/intro/video.md   # その1本まで含めた解決結果
+uv run gmp config --set voice.speaker=ずんだもん --set render.crf=18
+```
+
+`gmp config` は各項目の値と**どの層から来たか**を並べる。3 層あるので、
+これが見えないと必ず迷子になる。`*` が付いている行が「誰かが決めた値」。
+
+**`config.toml` に置けるのは「機械が変われば変わる値」と「好みの既定」だけ。**
+アプリの URL や起動コマンド、`seed` のようなプロジェクト固有の事実は置けず、
+書いても警告して無視される（同じ機械で 2 つ目のプロジェクトを撮った瞬間に嘘になる）。
+綴りを間違えたキーも黙って消えずに警告が出る。
+
+**読み辞書 (`voice.dict`) はプロジェクトに置く。** 用語の読みは動画をまたいで
+共通なので、1本ずつ持つと「1本目で直した読みが2本目で戻る」を必ず踏む。
+これだけは層をまたいで**マージ**される（他の項目は上書き）。
+
+解決した値の行き先は 3 通りある。`gmp config` の見出しがそれ:
+
+| | 行き先 |
+|---|---|
+| `plan` | plan.json に焼かれる。Pass2/3 が読む |
+| `brief` | `PLAN_REQUEST.md` に載るだけ。plan.json には残らない（口調・題材・尺） |
+| `runtime` | この機械でだけ効く。plan.json には入らない（接続先・フォント・画質） |
+
+**`plan` の値は Pass1 の時点で plan.json に焼き切る。** `record` / `render` が
+設定ファイルを読むと、同じ plan.json が機械ごとに違う動画を出すようになる。
+`gmp plan` が書く依頼文には「**そのまま使う値**」として解決済みの JSON が
+入っていて、AI はそれを写すだけ。だから **plan.json は設定ファイル無しでも
+そのまま撮り直せる**（別のマシンに持って行っても同じ動画になる）。
+
+`app.cwd` のような相対パスは、**それを書いたファイルからの相対**として解釈して
+plan.json の位置に直してから渡す。`gmp.toml` の `cwd = '.'` はプロジェクトルート、
+`video.md` の `cwd = '.'` は動画のフォルダで、別の場所を指す。
+
+`gmp.toml` を作ったあとの `gmp init` は、**共通の値を video.md に書き写しません**
+（書き写すと 1本ぶんが常にプロジェクトを上書きしてしまう）。何を継承しているかは
+コメントで見えるので、変えたい行だけコメントを外します。
+
+### 尺の見積り
+
+`gmp plan --run` と `gmp voice` が通しの尺を出します。目標
+（`series.target_seconds`）を許容幅（`series.tolerance`）より超えていたら警告します。
+依頼文に「90 秒で」と書いても守られないので、機械側で数えて言うようにしてあります。
+
+```
+  尺  103.4 秒  (音声の実尺。操作にかかる時間は含みません)
+  ! 目標の 90 秒を 13 秒超えています (許容 112 秒)。ビートを削るか説明を分けてください
+```
+
+`gmp voice` の後は**音声の実尺**で数えます（音声の尺がそのままビートの尺なので
+これが正確）。合成前は字幕の文字数と `hold` からの見積りになります。どちらも
+**操作にかかる時間は含みません**ので、足りない側にズレます。
+
 ## ファイルの置き場所
 
 **ソースと生成物を完全に分ける。** プロジェクトの git には `video.md` と
-`plan.json` しか入らないので、**プロジェクト側に .gitignore が要らない**。
+`plan.json`（と `gmp.toml`）しか入らないので、**プロジェクト側に .gitignore が要らない**。
 
 ```
 プロジェクト（git 管理）
+<project>/gmp.toml   プロジェクト共通の既定（対象URL・声・口調・題材・読み辞書）
 <project>/docs/video/getting-started/
-  ├─ video.md      手で書く指示
+  ├─ video.md      手で書く指示。gmp.toml を上書きする
   └─ plan.json     AI が書いた台本。手で直す資産。AI コストはここだけ
 
 ユーザフォルダ（git 外）
@@ -186,7 +257,9 @@ uv run gmp build examples/demo/plan.json --voice
 |---|---|
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
 | `gmp where [plan.json]` | 生成物の置き場所を見る |
-| `gmp config --set-home DIR` | 出力ルートを設定する |
+| `gmp config [video.md]` | 効いている設定と由来を見る |
+| `gmp config --set KEY=VALUE` | この機械の設定を書く（`--set-home DIR` も可） |
+| `gmp config --init-project [DIR]` | `<project>/gmp.toml` の雛形を置く |
 | `gmp init <dir>` | 1本ぶんのフォルダと `video.md` を作る |
 | `gmp plan [spec]` | video.md → 依頼文。`--run` で claude を起動し plan.json まで |
 | `gmp kana <plan.json>` | 各ビートの読みを確認する（合成しない） |
@@ -198,6 +271,8 @@ uv run gmp build examples/demo/plan.json --voice
 
 主なオプション: `--headed`（ブラウザを見ながら収録）、`--sync-offset`（字幕タイミング補正）、
 `--speaker` / `--style` / `--speed`、`--font`、`--crf`、`--no-subtitles`、`--no-audio`、`--no-credit`。
+`--font` / `--crf` / `--preset` / `--url` / `--model` / `--permission-mode` を省略すると
+機械の設定（`render.*` / `engine.voicevox.url` / `agent.*`）が使われる。
 
 ## plan.json
 
@@ -207,7 +282,7 @@ uv run gmp build examples/demo/plan.json --voice
   "meta":  { "title": "...", "lang": "ja", "project": "MyApp" },
   "app":   { "url": "...", "ready": "#tile-0",
              "start": "npm run dev", "cwd": ".", "start_timeout": 60 },
-  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
+  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.2 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" },
   "scenes": [{

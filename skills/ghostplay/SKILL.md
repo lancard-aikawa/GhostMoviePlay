@@ -51,6 +51,8 @@ canvas / WebGL で a11y スナップショットが効かない場合は、収�
 **1 ビート = 1 字幕 = 1 メッセージ。** 字幕はビート開始から終了まで出しっぱなしです。
 
 - 字幕は **2 行 / 26 文字** に収まる長さにする。長い説明はビートを割る。
+  （この上限と下の見積り式は既定値。依頼文 (`PLAN_REQUEST.md`) に別の数字が
+  書かれていればそちらに従う —— `subtitle.*` の設定で変えられます）
 - `hold` は読み切れる長さに。目安は **文字数 / 8 + 0.6 秒**。
   音声を付ける場合は音声の尺が優先されるので、`hold` は下限として効く。
 - 解説だけのビートは `actions` を空にして `hold` だけ置く。
@@ -92,7 +94,7 @@ TTS は文脈の薄い単語を誤読する（「語」は単独だと **カタ�
   "meta":  { "title": "動画タイトル", "lang": "ja", "project": "プロジェクト名" },
   "app":   { "url": "http://localhost:5173", "ready": "text=スタート",
              "start": "npm run dev", "cwd": "." },
-  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.5 },
+  "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.2 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" },
   "scenes": [

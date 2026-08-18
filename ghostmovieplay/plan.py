@@ -13,6 +13,11 @@ from typing import Any
 
 PLAN_VERSION = 1
 
+# 音声を鳴らし終えてから次のビートへ行くまでの余白。
+# record が実際に使う値。estimate() も同じ値で数えるので、見積りと
+# 実測がここでズレない (別々に書くと必ずズレる)
+AUDIO_TAIL = 0.25
+
 # actions[].type で使える操作と、必須キー
 ACTION_SPECS: dict[str, tuple[str, ...]] = {
     "goto": ("url",),
@@ -88,7 +93,9 @@ class Voice:
     engine: str = "voicevox"
     speaker: str | int | None = None  # 名前 ("ずんだもん"/"zundamon") か話者ID
     style: str | None = None  # "ノーマル" "あまあま" など
-    url: str = "http://127.0.0.1:50021"
+    # ENGINE の接続先は機械ごとに違うので plan.json には書かない。
+    # 未指定なら設定 (engine.voicevox.url) から取る。ここに書けば優先される
+    url: str | None = None
     speed: float = 1.0
     pitch: float = 0.0
     intonation: float = 1.0
@@ -127,6 +134,51 @@ class Plan:
     @property
     def beats(self) -> list[tuple[Scene, Beat]]:
         return [(s, b) for s in self.scenes for b in s.beats]
+
+
+def wav_seconds(path: Path) -> float | None:
+    """wav の尺. 読めなければ None (合成前・欠落を区別せず扱えるように)."""
+    import wave
+
+    try:
+        with wave.open(str(path), "rb") as handle:
+            rate = handle.getframerate()
+            return handle.getnframes() / rate if rate else None
+    except (OSError, wave.Error):
+        return None
+
+
+def estimate(
+    plan: Plan,
+    outdir: Path | None = None,
+    reading_cps: float = 8.0,
+    pad: float = 0.6,
+) -> tuple[float, bool]:
+    """通しの尺の見積り. 戻り値は (秒, 音声で測ったか).
+
+    音声があればその尺で測る (**それがビートの尺そのもの**なので正確)。
+    無いビートは hold と「字幕を読み切る時間」の大きいほうで見る。
+
+    **操作にかかる時間は含まれない** (クリックの後の遷移待ちなどは実測しないと
+    分からない)。だから足りない側にはズレる。目標尺の超過を早めに気づくための
+    ものであって、正確な尺は `gmp record` の出力を見ること。
+    """
+    total = plan.video.leader + plan.video.trailer
+    measured = False
+
+    for _, beat in plan.beats:
+        seconds = None
+        if beat.audio and outdir:
+            seconds = wav_seconds(Path(outdir) / beat.audio)
+            if seconds is not None:
+                seconds += AUDIO_TAIL      # record と同じ余白で数える
+                measured = True
+        if seconds is None:
+            read = len(beat.caption) / reading_cps + pad if beat.caption else 0.0
+            seconds = max(beat.hold, read)
+        total += max(seconds, beat.hold)
+
+    return total, measured
 
 
 def _validate_action(action: dict[str, Any], where: str) -> None:

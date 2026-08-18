@@ -37,6 +37,46 @@ record や render に「賢い判断」を足したくなったら、**それは
 ここに AI を入れると、撮り直しのたびに絵が変わり、口調の差し替えに再収録が要り、
 コストが読めなくなる。3 段に分けた意味が全部消える。
 
+### 設定は Pass1 で plan.json に焼き切る
+
+設定は 3 層（`config.toml` / `<project>/gmp.toml` / `video.md`）ある。
+`settings.py` の各項目には**行き先 (`bake`)** が宣言されていて、これが
+上の「Pass2/3 に AI を入れない」と同じ不変条件を守っている。
+
+- `plan` —— 解決した値は **`gmp plan` の時点で plan.json に入れる**。
+  `record` / `render` / `voice` が設定ファイルを読んではいけない。読むと、
+  同じ plan.json が機械ごとに違う動画を出す。AI ではなく設定ファイル経由で
+  3 段構成が破れるので、見た目より気づきにくい
+- `brief` —— `PLAN_REQUEST.md` に載るだけ（口調・題材・尺・字幕の上限）。
+  plan.json には残らない
+- `runtime` —— 機械依存で、**絵と音を変えない**値だけ（接続先・フォント・画質）。
+  これだけが実行時に設定ファイルを読んでよい。`layers` が `(MACHINE,)` に
+  限られていることをテストで固定している
+
+同じ理由で、**機械の設定に「プロジェクト固有の事実」を置けないようにしてある**
+（`app.url`、`determinism.seed` など）。書くと警告して無視する。許すと、同じ
+機械で 2 本目のプロジェクトを撮った瞬間に嘘になる。
+
+**Pass2/3 から設定を読む入口は `settings.machine_value()` 1 つだけ。**
+`bake="runtime"` 以外を渡すと例外を投げる。声の既定のように「機械にも書けるが
+plan.json に焼かれる」値もここからは取れない（取れると、plan.json に書いてある
+声と違う声で喋る経路ができる）。`voice.url` と `render.font/crf/preset` が
+これを通っている唯一の利用者。
+
+`voice.url` は plan.json に**書き戻さない**（`tts.MACHINE_KEYS`）。機械ごとに
+違う値なので、焼くと別のマシンで繋がらない接続先が残る。`--url` は一時指定。
+
+出力ルートの解決だけは `paths.output_home()` に実装が残っている（`settings` が
+`paths` を使う関係で、逆向きの依存を作りたくないため）。二重実装なので
+`tests/test_settings.py` の `test_home_agrees_with_paths_output_home` で
+両者が同じ答えを出すことを固定している。
+
+### 見積り尺と実測の余白を別々に書かない
+
+`plan.AUDIO_TAIL` は「音声を鳴らし終えてから次のビートへ行くまでの余白」で、
+`record` が実際に使う値と `estimate()` が数える値の**両方がこれを見る**。
+片方に数値を直書きすると、見積りと実測が理由もなくズレる。
+
 ### 順番を入れ替えられないもの
 
 | | なぜ |
@@ -57,6 +97,19 @@ plan.json の隣ではない。plan.json は**プロジェクトの git に入�
 一方 **`timing.json` の `audio` は絶対パス**。timing.json は出力ディレクトリに、
 plan.json はプロジェクトにあって階層が違うので、相対で持つと render が見失う。
 （これは実際に踏んだ。TTS を実装するまで露見しなかった。）
+
+### 相対パスは「それを書いたファイル」からの相対
+
+設定は 3 層あるので、`app.cwd = '.'` の意味が層ごとに違う。`gmp.toml` の `.` は
+プロジェクトルート、`video.md` の `.` は動画のフォルダ。**解決した値をそのまま
+使ってはいけない。** `settings.Resolved.rebase_path()` に使う側の基準を渡して
+書き直す（`gmp plan` は plan.json の置き場所を基準にする）。
+
+`Origin.source` にどのファイルが書いたかを覚えてあるのはこのためで、由来の
+追跡は表示のためだけの機能ではない。
+
+なお **TOML の裸のキーは ASCII だけ**。`voice.dict` に日本語の表記を書くときは
+`'語' = 'ゴ'` とクォートする（`settings.dump` は自動でクォートする）。
 
 ### 音声を乗せたらクレジットも焼く
 
@@ -111,7 +164,9 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | action を足した | `plan.ACTION_SPECS`（必須キー）、`record.Recorder.do()` の分岐、`skills/ghostplay/SKILL.md` の action 表、README の action 一覧、`tests/test_plan.py` |
 | plan.json のスキーマ | `plan.py` の dataclass と `load()`、`spec.PLAN_SCHEMA_DOC`（**AI に渡す仕様はここが正**）、SKILL.md、README の plan.json |
 | 出力先の決まり方 | `paths.py`、README の「ファイルの置き場所」、`gmp where` の表示、`tests/test_paths.py` |
-| voice の設定項目 | `plan.Voice`、`tts/voicevox.py`、**音に影響するなら `NON_AUDIO_KEYS` に入れない**、`tests/test_reading.py` |
+| 設定項目を足した | `settings.SCHEMA`（**`layers` と `bake` を必ず埋める**）、雛形を配るなら `settings.PROJECT_TEMPLATE`、README の「設定」、`tests/test_settings.py`。値を実際に使う側（`spec.build_request` / 実行時の解決）も一緒に繋ぐ |
+| 設定の層を足した | `settings.ORDER` と `LAYER_LABEL`、`resolve()` の layers 組み立て、`gmp config` のヘッダ表示、README の 3 層の表 |
+| voice の設定項目 | `plan.Voice`、`tts/voicevox.py`、**音に影響するなら `NON_AUDIO_KEYS` に入れない**、機械ごとに違う値なら `MACHINE_KEYS` に入れる、`settings.SCHEMA` の `voice.*`、`tests/test_reading.py` |
 | TTS エンジンを足した | `tts/__init__.py` の `_engine()`、`resolve_speaker` / `synthesize` / `credit` / `push_dict` / `pop_dict` を実装（`hasattr` で見ているので辞書系は任意） |
 | 字幕の見た目 | `subtitles.py` の Style 行。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
 | CLI のサブコマンド | `cli.py` の `main()`、README のコマンド表 |

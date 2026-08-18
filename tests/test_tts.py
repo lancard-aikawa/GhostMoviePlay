@@ -109,6 +109,18 @@ def test_engine_url_change_does_not_resynthesize(plan_file, fake):
     assert len(fake.calls) == 2
 
 
+def test_engine_url_is_not_written_back(plan_file, fake):
+    """接続先は機械ごとに違う. plan.json に焼くと別のマシンで繋がらない."""
+    plan = load(plan_file)
+    plan.voice.url = "http://127.0.0.1:60000"     # --url 相当の一時指定
+    tts.synthesize(plan, plan_file.parent, verbose=False)
+    tts.write_back(plan)
+
+    raw = json.loads(plan_file.read_text(encoding="utf-8"))
+    assert "url" not in raw["voice"]
+    assert raw["voice"]["speaker"] == "ずんだもん"   # 声の指定は焼く
+
+
 def test_changed_text_invalidates_cache(plan_file, fake):
     tts.synthesize(load(plan_file), plan_file.parent, verbose=False)
     data = json.loads(plan_file.read_text(encoding="utf-8"))

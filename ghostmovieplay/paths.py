@@ -11,7 +11,9 @@
   3. 設定ファイル config.toml の home
   4. プラットフォーム既定の動画フォルダ / GhostMoviePlay
 
-将来 GUI を作るときは 3 を書き換えるだけで済む。
+出力ルートは「機械が決める設定」なので、プロジェクトの gmp.toml には置けない
+(settings.py の layers で弾いている)。設定全体の層と由来の追跡は settings.py。
+ここが持っているのは置き場所の解決と、設定ファイルの読み書きだけ。
 
 Win/Mac で名前が一致する動画フォルダは存在しない (Windows=Videos, macOS=Movies)
 ので、プラットフォームごとに解決する。Windows は Known Folder が
@@ -98,21 +100,20 @@ def load_config() -> dict:
         return {}
 
 
-def _toml_value(value: str) -> str:
-    # Windows のパスはバックスラッシュを含むので、エスケープ不要な
-    # リテラル文字列 ('...') に入れる。
-    text = str(value).replace("\\", "/")
-    if "'" in text:
-        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    return f"'{text}'"
-
-
 def save_config(config: dict) -> Path:
+    """機械の設定を書く. 区画つき (ネストした) 設定も書ける.
+
+    書式は settings.dump が持っている (スキーマの順に並べ、説明を添える)。
+    ここで import するのは settings が paths を使うため (循環を避ける)。
+    """
+    from .settings import dump
+
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = ["# GhostMoviePlay の設定", ""]
-    lines += [f"{k} = {_toml_value(v)}" for k, v in sorted(config.items()) if v is not None]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text(
+        dump(config, header="GhostMoviePlay — この機械の設定 (gmp config で編集)"),
+        encoding="utf-8",
+    )
     return path
 
 

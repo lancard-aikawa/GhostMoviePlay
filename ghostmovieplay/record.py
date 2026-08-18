@@ -22,7 +22,7 @@ from playwright.sync_api import sync_playwright
 
 from . import determinism, ffmpeg
 from .overlay import OVERLAY_JS
-from .plan import Beat, Plan, Scene
+from .plan import AUDIO_TAIL, Beat, Plan, Scene
 from .server import serve
 
 CURSOR_MOVE_MS = 420  # カーソルが目標まで滑る時間
@@ -338,7 +338,7 @@ class Recorder:
         if audio_path and audio_path.exists():
             dur = ffmpeg.probe_duration(audio_path)
             if dur:
-                floor = max(floor, dur + 0.25)
+                floor = max(floor, dur + AUDIO_TAIL)
         elif beat.audio:
             print(f"    ! 音声が見つかりません: {beat.audio} (hold を使います)")
             audio_path = None
