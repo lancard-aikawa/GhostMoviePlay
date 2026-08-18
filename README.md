@@ -33,6 +33,7 @@ uv run gmp doctor            # ffmpeg / chromium の確認
 
 cd <対象プロジェクト>
 uv run gmp config --init-project .                    # 共通の既定 (gmp.toml) を置く
+uv run gmp ui                                         # 設定画面で埋める (対象URL・声・口調・題材)
 uv run gmp init docs/video/getting-started            # 1本ぶんのフォルダを掘る
 #   docs/video/getting-started/video.md を編集（タイトルとシーン構成）
 uv run gmp plan  docs/video/getting-started/video.md --run    # 台本を作らせる
@@ -40,8 +41,10 @@ uv run gmp kana  docs/video/getting-started/plan.json         # 読みを確認�
 uv run gmp build docs/video/getting-started/plan.json --voice # → output.mp4
 ```
 
-対象URL・声・口調・題材は `gmp.toml` に置くと以降の全部に効く（`gmp ui` で編集できる）。
-成果物はプロジェクトの外に出る。場所は `gmp where <plan.json>` で分かる。
+`gmp.toml` に置いた対象URL・声・口調・題材は、以降の全部に効く。画面を使わず
+`gmp.toml` を直に書いてもよく、いま何が効いているかは `gmp config` で見られる
+（[設定](docs/settings.md)）。成果物はプロジェクトの外に出る。場所は
+`gmp where <plan.json>` で分かる。
 
 `--run` を付けなければ依頼文 (`PLAN_REQUEST.md`) を書き出すだけで止まる。
 対話しながら台本を詰めたいときは、それを対象プロジェクトの Claude Code に渡す方が早い:
