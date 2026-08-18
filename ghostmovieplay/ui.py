@@ -1,16 +1,20 @@
 """設定画面 (tkinter). `gmp ui` から開く.
 
-**用途でタブを切り、行ごとに「値・由来・書込先」を並べる。**
+**編集する層を先に 1 つ選び、そのファイルだけを編集する。**
+「このプロジェクト (gmp.toml)」と「この機械の既定 (config.toml)」は完全に分ける。
+行ごとに書込先を選ばせていたころは、機械の既定から来ている値をこのプロジェクト
+だけのつもりで直すと、**既定 (= 全プロジェクト) を書き換えていた**。
+
+その中は**用途でタブを切り、行ごとに「値・由来」を並べる。**
 設定は 3 層 (config.toml / gmp.toml / video.md) あるので、値だけ見せても
 「なぜこの値なのか」「直したのにどこが効いているのか」が分からなくなる。
 `gmp config` が由来を出しているのと同じ理由で、画面でも由来を必ず出す。
 
-書き込むのは **機械 (config.toml) とプロジェクト (gmp.toml) だけ**。
-video.md は本文 (補足の散文) とコメントを持つので、GUI から書き戻すと
-人の書いた文章を壊す。こちらは「効いている値」の表示に留める。
+video.md は本文 (補足の散文) とコメントを持つので、GUI から書き戻すと人の書いた
+文章を壊す。編集の対象にはせず、上書きしている値を読み取り専用で見せるに留める。
 
 画面に出す判断のうち、Tk が要らないものは全部モジュール関数にしてある
-(TABS / write_targets / plan_writes など)。ウィンドウを作らずにテストできる。
+(TABS / settable / visible / plan_writes など)。ウィンドウを作らずにテストできる。
 """
 
 from __future__ import annotations
@@ -260,43 +264,49 @@ def affects_audio(path: str) -> bool:
     return head == "voice" and leaf not in NON_AUDIO_KEYS
 
 
-# --- 書込先 -----------------------------------------------------------
-NOWHERE = "(保存先なし)"
+# --- 編集対象 ---------------------------------------------------------
+# **どの層を編集するかは画面で 1 回だけ選ぶ。**
+# 行ごとに書込先を選ばせると、機械の既定から来ている値を「このプロジェクトだけ
+# 変えたつもり」で直したときに、既定の側 (=全プロジェクト) を書き換えてしまう。
+# 由来を既定の書込先にしていたので、いちばん起こりやすい操作でそれが起きていた。
+EDITABLE = (settings.PROJECT, settings.MACHINE)
+
+LAYER_TITLE = {
+    settings.PROJECT: "このプロジェクト",
+    settings.MACHINE: "この機械の既定",
+}
 
 
-def write_targets(path: str, has_project: bool) -> list[str]:
-    """この項目を書ける層. video.md は UI からは書かない."""
-    setting = settings.SETTINGS[path]
-    out = []
-    if settings.MACHINE in setting.layers:
-        out.append(settings.MACHINE)
-    if has_project and settings.PROJECT in setting.layers:
-        out.append(settings.PROJECT)
-    return out
+def settable(path: str, layer: str, has_project: bool) -> bool:
+    """その層にその項目を書けるか."""
+    if layer == settings.PROJECT and not has_project:
+        return False
+    return layer in settings.SETTINGS[path].layers
 
 
-def visible(row: Row, has_project: bool, explicit: set[str]) -> bool:
+def holds(tab: Tab, layer: str) -> bool:
+    """そのタブに、その層へ置ける項目があるか.
+
+    gmp.toml がまだ無いだけのときは True。「置けない」と「まだ作っていない」を
+    混ぜると、作る導線ごと画面から消える。
+    """
+    return any(layer in settings.SETTINGS[path].layers for path in tab.keys)
+
+
+def visible(row: Row, layer: str, has_project: bool, pinned: set[str]) -> bool:
     """その行を画面に出すか.
 
-    **書ける先が無い行は、いま効いている値があるときだけ読み取り専用で出す。**
-    `gmp.toml` を作る前に「入力できない入力欄」を並べても、埋められないものを
-    埋めようとして詰まるだけ。一方、video.md が上書きしている値は、直せなくても
-    「いまこうなっている」を見せる価値がある。
+    **いま編集している層に書けない行は出さない。** `gmp.toml` を作る前に
+    「入力できない入力欄」を並べても、埋められないものを埋めようとして詰まる。
+    機械の既定を編集しているときに `app.url` を出しても同じ (もう一方の層へ
+    切り替えれば触れるので、こちらに引きずり出す意味が無い)。
+
+    例外は `pinned` —— **UI では触れない層** (video.md や環境変数) で決まって
+    いる項目。ここで直せなくても「いまこうなっている」を見せる価値がある。
     """
-    if write_targets(row.paths[0], has_project):
+    if settable(row.paths[0], layer, has_project):
         return True
-    return any(path in explicit for path in row.paths)
-
-
-def default_target(path: str, origin_layer: str, has_project: bool) -> str:
-    """既定の書込先. いま効いている層に上書きするのが素直."""
-    choices = write_targets(path, has_project)
-    if not choices:
-        return NOWHERE
-    if origin_layer in choices:
-        return origin_layer
-    # プロジェクト固有の事実は機械に置けないので、プロジェクトを優先する
-    return choices[-1] if settings.PROJECT in choices else choices[0]
+    return any(path in pinned for path in row.paths)
 
 
 # --- 値と文字列の変換 -------------------------------------------------
@@ -376,10 +386,19 @@ def plan_writes(edits: list[Edit]) -> dict[str, dict[str, Any]]:
     for edit in edits:
         if not edit.changed:
             continue
-        if edit.target == NOWHERE:
+        if edit.target not in EDITABLE:
             raise settings.SettingsError(
                 f"{edit.path} の保存先がありません"
                 " (プロジェクトを選ぶか、gmp.toml を作ってください)"
+            )
+        if edit.target not in settings.SETTINGS[edit.path].layers:
+            allowed = " / ".join(
+                LAYER_TITLE.get(x, x) for x in settings.SETTINGS[edit.path].layers
+                if x in EDITABLE
+            )
+            raise settings.SettingsError(
+                f"{edit.path} は{LAYER_TITLE.get(edit.target, edit.target)}に置けません"
+                + (f" (置けるのは: {allowed})" if allowed else "")
             )
         text = edit.text.strip()
         setting = settings.SETTINGS[edit.path]
@@ -452,6 +471,8 @@ class SettingsWindow:
         self.root = root
         self.rows: dict[str, dict[str, Any]] = {}
         self.speakers: list[dict[str, Any]] = []
+        self.speaker_box: ttk.Combobox | None = None
+        self.style_box: ttk.Combobox | None = None
         # 畳んだ状態は読み直しても保つ (開くたびに畳まれると邪魔になる)
         self.folded: dict[tuple[str, str], bool] = {}
 
@@ -469,6 +490,8 @@ class SettingsWindow:
                 shown = str(resolved_spec)
         self.spec_path = tk.StringVar(value=shown)
         self.status = tk.StringVar(value="")
+        # 開いたときはプロジェクトを編集する (機械の既定を触るのは稀)
+        self.layer = tk.StringVar(value=settings.PROJECT)
 
         root.title("GhostMoviePlay 設定")
         root.geometry("960x720")
@@ -503,6 +526,19 @@ class SettingsWindow:
         head.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 4))
         head.columnconfigure(1, weight=1)
 
+        # **編集する層はここで 1 回だけ選ぶ。** 行ごとに選ばせない
+        tk.Label(head, text="編集対象").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        picker = tk.Frame(head)
+        picker.grid(row=3, column=1, sticky="w", padx=6, pady=(8, 0))
+        for value in EDITABLE:
+            tk.Radiobutton(
+                picker, text=LAYER_TITLE[value], value=value, variable=self.layer,
+                command=self.reload,
+            ).pack(side=tk.LEFT, padx=(0, 12))
+        self.layer_note = tk.Label(head, text="", anchor="w", fg="#666",
+                                   justify=tk.LEFT, wraplength=780)
+        self.layer_note.grid(row=4, column=1, sticky="ew", padx=6)
+
         tk.Label(head, text="プロジェクト").grid(row=0, column=0, sticky="w")
         tk.Entry(head, textvariable=self.project_dir).grid(row=0, column=1, sticky="ew", padx=6)
         tk.Button(head, text="選択", command=self.choose_project).grid(row=0, column=2)
@@ -525,9 +561,11 @@ class SettingsWindow:
         self.notebook = ttk.Notebook(self.root, style=ensure_notebook_style())
         self.notebook.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=6)
         self.frames: dict[str, tk.Frame] = {}
+        self.pages: dict[str, tk.Frame] = {}
 
         for tab in TABS:
             outer = tk.Frame(self.notebook)
+            self.pages[tab.title] = outer
             self.notebook.add(outer, text=tab.title)
             tk.Label(outer, text=tab.note, fg="#666", anchor="w").pack(
                 fill=tk.X, padx=10, pady=(8, 4)
@@ -596,9 +634,17 @@ class SettingsWindow:
             video_meta = parse(spec).raw
 
         project_file = self.project_file
+        machine_raw = paths.load_config()
+        project_raw = settings.read_toml(project_file) if project_file else {}
+        # **入力欄に出すのは、編集中の層が自分で持っている値だけ。**
+        # 解決後の値を出すと、機械の既定を編集しているのにプロジェクトの値が
+        # 入力欄に見え、それを直すと既定へ焼いてしまう (逆向きの同じ事故)
+        self.own = settings.normalize(
+            machine_raw if self.layer.get() == settings.MACHINE else project_raw
+        )
         self.resolved = settings.resolve(
-            machine=paths.load_config(),
-            project=settings.read_toml(project_file) if project_file else {},
+            machine=machine_raw,
+            project=project_raw,
             video=video_meta,
             machine_path=paths.config_path(),
             project_path=project_file,
@@ -613,32 +659,66 @@ class SettingsWindow:
             )
             self.project_action.config(text="作る", command=self.create_project_file)
 
+        layer = self.layer.get()
+        if layer == settings.PROJECT:
+            # 太字などは効かないので、効く範囲の広さは色で出す
+            self.layer_note.config(
+                fg="#666",
+                text=f"保存先: {project_file or settings.PROJECT_FILE}"
+                     "   ここでの変更は、このプロジェクトの全動画に効きます",
+            )
+        else:
+            self.layer_note.config(
+                fg="#b00",
+                text=f"保存先: {paths.config_path()}"
+                     "   ここでの変更は、すべてのプロジェクトに効きます",
+            )
+
         for frame in self.frames.values():
             for child in frame.winfo_children():
                 child.destroy()
         self.rows.clear()
+        # 作り直すので、前の画面のウィジェットを掴んだままにしない
+        self.speaker_box = self.style_box = None
+
         for tab in TABS:
             self._fill(tab)
+            # その層に**そもそも置けない**タブは見せない (この機械の既定に
+            # app.url は無い)。gmp.toml がまだ無いだけのときは、タブは残して
+            # 「作ると出ます」を出す
+            state = "normal" if holds(tab, layer) else "hidden"
+            self.notebook.tab(self.pages[tab.title], state=state)
         self._fill_speaker_boxes()   # 作り直したコンボボックスは中身が空
 
         warnings = len(self.resolved.warnings)
         self.status.set(
-            f"読み込みました ({'警告 %d 件' % warnings if warnings else '警告なし'})"
+            f"{LAYER_TITLE[layer]}を編集しています"
+            f" ({'警告 %d 件' % warnings if warnings else '警告なし'})"
         )
 
-    def _explicit_paths(self) -> set[str]:
-        return {p for p in settings.SETTINGS if self.resolved.is_explicit(p)}
+    def _pinned_paths(self) -> set[str]:
+        """UI では直せない層 (video.md / 環境変数) で決まっている項目.
 
-    def _fill(self, tab: Tab) -> None:
+        その層はここから書けないが、値は実際に効いているので読み取り専用で出す。
+        機械とプロジェクトは切り替えれば触れるので、ここには入れない。
+        """
+        untouchable = (*EDITABLE, settings.DEFAULT)
+        return {p for p in settings.SETTINGS
+                if self.resolved.origin(p).layer not in untouchable}
+
+    def _fill(self, tab: Tab) -> int:
+        """タブの中身を作る. 戻り値は出した行数 (0 ならタブごと隠す)."""
         body = self.frames[tab.title]
         has_project = self.project_file is not None
-        explicit = self._explicit_paths()
+        layer = self.layer.get()
+        pinned = self._pinned_paths()
 
-        hidden = sum(
-            not visible(row, has_project, explicit)
+        shown = sum(
+            visible(row, layer, has_project, pinned)
             for group in tab.groups for row in group.rows
         )
-        if hidden and not has_project:
+        hidden = sum(len(g.rows) for g in tab.groups) - shown
+        if hidden and layer == settings.PROJECT and not has_project:
             # 「入力できない入力欄」を並べる代わりに、何をすれば出るかを言う
             box = tk.Frame(body, bg="#fff8e1")
             box.pack(fill=tk.X, padx=8, pady=(8, 0))
@@ -653,12 +733,13 @@ class SettingsWindow:
             )
 
         for group in tab.groups:
-            self._fill_group(body, tab, group, has_project, explicit)
+            self._fill_group(body, tab, group, layer, has_project, pinned)
+        return shown
 
-    def _fill_group(self, body: tk.Frame, tab: Tab, group: Group,
-                    has_project: bool, explicit: set[str]) -> None:
+    def _fill_group(self, body: tk.Frame, tab: Tab, group: Group, layer: str,
+                    has_project: bool, pinned: set[str]) -> None:
         """区切りごとに見出しを付け、めったに変えないものは畳んでおく."""
-        rows = [row for row in group.rows if visible(row, has_project, explicit)]
+        rows = [row for row in group.rows if visible(row, layer, has_project, pinned)]
         if not rows:
             return      # 全部出ない区切りは見出しごと出さない
 
@@ -697,7 +778,9 @@ class SettingsWindow:
 
     def _fill_row(self, frame: tk.Frame, grid_row: int, row: Row) -> None:
         has_project = self.project_file is not None
+        layer = self.layer.get()
         origins = [self.resolved.origin(p) for p in row.paths]
+        writable = settable(row.paths[0], layer, has_project)
 
         tk.Label(frame, text=row.label, anchor="w", font=("", 9, "bold")).grid(
             row=grid_row, column=0, sticky="w", padx=(14, 6), pady=(6, 0)
@@ -705,8 +788,8 @@ class SettingsWindow:
 
         # 1 行に複数項目を置くので、入力は横並びの入れ物にまとめる
         holder = tk.Frame(frame)
-        holder.grid(row=grid_row, column=1, sticky="ew", padx=6, pady=(6, 0))
-        writable = write_targets(row.paths[0], has_project)
+        holder.grid(row=grid_row, column=1, columnspan=2, sticky="ew",
+                    padx=6, pady=(6, 0))
 
         for field in row.fields:
             if field.prefix:
@@ -715,27 +798,18 @@ class SettingsWindow:
                 )
             widget, getter = self._widget(holder, field)
             if not writable:
-                # 書ける先が無い行を編集させると、保存で必ず行き止まりになる
+                # ここで直せない行を編集させると、保存で必ず行き止まりになる
                 kind = settings.SETTINGS[field.path].kind
                 widget.configure(state="disabled" if kind == "table" else "readonly")
             widget.pack(side=tk.LEFT, fill=tk.X, expand=field.width is None)
-            self.rows[field.path] = {"getter": getter, "targets": writable,
-                                     "original": format_value(
-                                         field.path, self.resolved.values.get(field.path))}
+            self.rows[field.path] = {
+                "getter": getter,
+                "target": layer if writable else "",
+                "original": format_value(field.path, self.own.get(field.path)),
+            }
 
-        target = tk.StringVar(value=default_target(
-            row.paths[0], origins[0].layer, has_project
-        ))
-        box = ttk.Combobox(
-            frame, textvariable=target, state="readonly", width=12,
-            values=[settings.LAYER_LABEL[t] for t in writable] or [NOWHERE],
-        )
-        box.set(settings.LAYER_LABEL.get(target.get(), NOWHERE))
-        box.grid(row=grid_row, column=2, padx=(0, 10), pady=(6, 0))
-        for path in row.paths:
-            self.rows[path]["target"] = target      # 書込先は行に 1 つ
-
-        tk.Label(frame, text=self._note(row, origins), anchor="w",
+        own = [path for path in row.paths if path in self.own]
+        tk.Label(frame, text=self._note(row, origins, writable, own), anchor="w",
                  justify=tk.LEFT, wraplength=860,
                  fg=self._note_color(origins), font=("", 8)).grid(
             row=grid_row + 1, column=0, columnspan=3, sticky="w", padx=(16, 10)
@@ -743,7 +817,7 @@ class SettingsWindow:
 
     def _widget(self, parent: tk.Frame, field: Field):
         path = field.path
-        value = format_value(path, self.resolved.values.get(path))
+        value = format_value(path, self.own.get(path))
 
         if settings.SETTINGS[path].kind == "table":
             widget = tk.Text(parent, height=5, width=40)
@@ -763,15 +837,25 @@ class SettingsWindow:
         widget = tk.Entry(parent, textvariable=var, width=field.width or 20)
         return widget, lambda v=var: v.get()
 
-    def _note(self, row: Row, origins) -> str:
-        """行の下に出す 1 行. 由来が項目ごとに違うなら項目ごとに書く."""
-        layers = {o.short() for o in origins}
-        if len(layers) == 1:
-            parts = [f"由来: {origins[0].short()}"]
+    def _note(self, row: Row, origins, writable: bool = True,
+              own: list[str] | None = None) -> str:
+        """行の下に出す 1 行.
+
+        入力欄は編集中の層の値なので、**空欄が「未設定」なのか「そういう値」なのか**
+        を言わないと読めない。未設定なら、いま効いている値と由来を出す。
+        """
+        if own:
+            parts = [f"この層で設定" if len(own) == len(row.paths)
+                     else "この層で設定: " + " / ".join(label_of(p) for p in own)]
         else:
-            parts = ["由来: " + " / ".join(
-                f"{label_of(p)}={o.short()}" for p, o in zip(row.paths, origins)
-            )]
+            shown = " / ".join(
+                f"{format_value(p, self.resolved.values.get(p)) or '(なし)'}"
+                + (f" ({o.short()})" if len(row.paths) == 1 else f" ({label_of(p)}/{o.short()})")
+                for p, o in zip(row.paths, origins)
+            )
+            parts = [f"未設定 — いま効いている値: {shown}"]
+        if not writable:
+            parts.append("! ここでは直せません (表示のみ)")
         if any(o.layer == settings.VIDEO for o in origins):
             parts.append("! この1本が上書き中 (ここで直しても効きません)")
         if any(affects_audio(p) for p in row.paths):
@@ -817,7 +901,7 @@ class SettingsWindow:
 
         **行を作り直すたびに呼ぶ。** 取得は起動時に 1 回だけなので、
         プロジェクトを選び直した後にここを通さないと一覧が空のままになる
-        (実際に空になった)。
+        (実際に空になった)。話者の行が出ていない層もあるので、無ければ何もしない。
         """
         box = getattr(self, "speaker_box", None)
         if box is not None:
@@ -874,16 +958,11 @@ class SettingsWindow:
         self.reload()
 
     def edits(self) -> list[Edit]:
-        out = []
-        for path, row in self.rows.items():
-            label = row["target"].get()
-            layer = next(
-                (t for t in row["targets"] if settings.LAYER_LABEL[t] == label), NOWHERE
-            )
-            out.append(
-                Edit(path=path, text=row["getter"](), original=row["original"], target=layer)
-            )
-        return out
+        return [
+            Edit(path=path, text=row["getter"](),
+                 original=row["original"], target=row["target"])
+            for path, row in self.rows.items()
+        ]
 
     def on_save(self) -> None:
         try:

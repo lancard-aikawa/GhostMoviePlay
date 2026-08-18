@@ -19,8 +19,8 @@ def test_every_setting_appears_in_exactly_one_tab():
     assert len(placed) == len(set(placed)), "2 つのタブに出ている項目がある"
 
 
-def test_a_row_only_holds_settings_with_the_same_write_targets():
-    """書込先は行に 1 つ. 層の違うものを並べると、選べる先が嘘になる."""
+def test_a_row_only_holds_settings_with_the_same_layers():
+    """行はまとめて出し分ける. 書ける層が違うものを並べると片方が宙に浮く."""
     for tab in ui.TABS:
         for group in tab.groups:
             for row in group.rows:
@@ -50,20 +50,23 @@ def test_every_group_and_row_has_a_label():
 def test_rows_that_cannot_be_written_are_hidden():
     """gmp.toml を作る前に「入力できない入力欄」を並べない."""
     url = ui.Row("URL", (ui.Field("app.url"),))
-    assert ui.visible(url, has_project=True, explicit=set())
-    assert not ui.visible(url, has_project=False, explicit=set())
+    assert ui.visible(url, settings.PROJECT, has_project=True, pinned=set())
+    assert not ui.visible(url, settings.PROJECT, has_project=False, pinned=set())
+    # 機械の既定を編集しているときは、そもそも置けないので出さない
+    assert not ui.visible(url, settings.MACHINE, has_project=True, pinned=set())
 
 
 def test_effective_values_stay_visible_even_when_unwritable():
     """直せなくても「いまこうなっている」は見せる (video.md の上書きなど)."""
     title = ui.Row("動画タイトル", (ui.Field("title"),))
-    assert not ui.visible(title, has_project=True, explicit=set())
-    assert ui.visible(title, has_project=True, explicit={"title"})
+    assert not ui.visible(title, settings.PROJECT, has_project=True, pinned=set())
+    assert ui.visible(title, settings.PROJECT, has_project=True, pinned={"title"})
 
 
 def test_machine_settings_show_without_a_project_file():
     font = ui.Row("字幕フォント", (ui.Field("render.font"),))
-    assert ui.visible(font, has_project=False, explicit=set())
+    assert ui.visible(font, settings.MACHINE, has_project=False, pinned=set())
+    assert not ui.visible(font, settings.PROJECT, has_project=True, pinned=set())
 
 
 def test_machine_tab_holds_exactly_the_runtime_settings():
@@ -72,32 +75,27 @@ def test_machine_tab_holds_exactly_the_runtime_settings():
     assert set(machine.keys) == runtime
 
 
-# --- 書込先 -----------------------------------------------------------
-def test_project_facts_can_only_go_to_the_project():
-    assert ui.write_targets("app.url", has_project=True) == [settings.PROJECT]
-    assert ui.write_targets("determinism.seed", has_project=True) == [settings.PROJECT]
+# --- 編集対象 ---------------------------------------------------------
+def test_project_facts_can_only_be_set_on_the_project():
+    assert ui.settable("app.url", settings.PROJECT, has_project=True)
+    assert not ui.settable("app.url", settings.MACHINE, has_project=True)
+    assert not ui.settable("determinism.seed", settings.MACHINE, has_project=True)
 
 
-def test_runtime_settings_can_only_go_to_the_machine():
-    assert ui.write_targets("render.font", has_project=True) == [settings.MACHINE]
+def test_runtime_settings_can_only_be_set_on_the_machine():
+    assert ui.settable("render.font", settings.MACHINE, has_project=True)
+    assert not ui.settable("render.font", settings.PROJECT, has_project=True)
 
 
-def test_without_a_project_file_only_the_machine_is_offered():
-    assert ui.write_targets("voice.speaker", has_project=False) == [settings.MACHINE]
-    assert ui.write_targets("app.url", has_project=False) == []
+def test_nothing_is_settable_on_a_project_without_a_file():
+    assert not ui.settable("voice.speaker", settings.PROJECT, has_project=False)
+    assert ui.settable("voice.speaker", settings.MACHINE, has_project=False)
 
 
-def test_default_target_is_where_the_value_comes_from():
-    """いま効いている層に上書きするのが素直."""
-    assert ui.default_target("voice.speaker", settings.PROJECT, True) == settings.PROJECT
-    assert ui.default_target("voice.speaker", settings.MACHINE, True) == settings.MACHINE
-
-
-def test_default_target_falls_back_when_the_origin_is_not_writable():
-    # video.md 由来 (UI からは書かない) なら、プロジェクトへ書く
-    assert ui.default_target("voice.speaker", settings.VIDEO, True) == settings.PROJECT
-    assert ui.default_target("voice.speaker", settings.DEFAULT, False) == settings.MACHINE
-    assert ui.default_target("app.url", settings.DEFAULT, False) == ui.NOWHERE
+def test_the_editing_layer_is_not_chosen_per_row():
+    """行ごとに書込先を選ばせると、機械の既定を意図せず書き換える."""
+    assert set(ui.EDITABLE) == {settings.PROJECT, settings.MACHINE}
+    assert settings.VIDEO not in ui.EDITABLE      # video.md は UI から書かない
 
 
 # --- 再合成の警告 -----------------------------------------------------
@@ -168,7 +166,13 @@ def test_emptying_a_row_removes_the_value():
 
 def test_a_row_with_nowhere_to_go_is_an_error():
     with pytest.raises(settings.SettingsError, match="保存先がありません"):
-        ui.plan_writes([edit("app.url", "http://x", target=ui.NOWHERE)])
+        ui.plan_writes([edit("app.url", "http://x", target="")])
+
+
+def test_writing_to_the_wrong_layer_is_refused():
+    """機械の既定に app.url を書こうとしたら、黙って捨てずに止める."""
+    with pytest.raises(settings.SettingsError, match="app.url"):
+        ui.plan_writes([edit("app.url", "http://x", target=settings.MACHINE)])
 
 
 def test_a_bad_value_names_the_setting():
@@ -246,6 +250,7 @@ def window(tk_root, tmp_path, monkeypatch):
 
 def test_speaker_list_survives_a_reload(window, tmp_path):
     """プロジェクトを選び直すと行を作り直す. 話者一覧を入れ直さないと空になる."""
+    window.create_project_file()      # 声の行が出るようにする
     window.speakers = [{"name": "ずんだもん", "styles": [{"name": "ノーマル"}]}]
     window.reload()
 
@@ -291,7 +296,38 @@ def test_deleting_the_project_file_needs_a_yes(window, tmp_path, monkeypatch):
     assert "app.url" not in window.rows     # フォームも一緒に引っ込む
 
 
+def test_editing_a_project_never_touches_the_machine_default(window, tmp_path, monkeypatch):
+    """機械の既定から来ている値を直しても、書き先はプロジェクトのまま.
+
+    ここが行ごとの選択だったころは、既定 (= 全プロジェクト) を書き換えていた。
+    """
+    cfg = tmp_path / "config.toml"
+    monkeypatch.setattr(ui.paths, "config_path", lambda: cfg)
+    ui.paths.save_config({"voice": {"speaker": "ずんだもん"}})   # 機械の既定
+    window.create_project_file()
+
+    assert window.resolved.origin("voice.speaker").layer == settings.PROJECT
+    window.rows["voice.speaker"]["getter"] = lambda: "波音リツ"
+    writes = ui.plan_writes(window.edits())
+
+    assert writes == {settings.PROJECT: {"voice.speaker": "波音リツ"}}
+    assert settings.MACHINE not in writes
+
+
+def test_machine_mode_hides_project_only_settings(window):
+    window.create_project_file()
+    assert "app.url" in window.rows
+
+    window.layer.set(settings.MACHINE)
+    window.reload()
+
+    assert "app.url" not in window.rows          # 機械の既定には置けない
+    assert "render.font" in window.rows
+    assert window.rows["render.font"]["target"] == settings.MACHINE
+
+
 def test_reload_keeps_folded_groups_folded(window):
+    window.create_project_file()
     key = ("声と口調", ui.RARELY)
     assert window.folded[key] is True
     window.folded[key] = False
