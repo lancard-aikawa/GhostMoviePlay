@@ -111,7 +111,7 @@ def save_config(config: dict) -> Path:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        dump(config, header="GhostMoviePlay — この機械の設定 (gmp config で編集)"),
+        dump(config, header="GhostMoviePlay — グローバル設定 (この機械。gmp config で編集)"),
         encoding="utf-8",
     )
     return path

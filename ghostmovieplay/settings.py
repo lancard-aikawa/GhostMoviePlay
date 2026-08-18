@@ -2,7 +2,7 @@
 
 設定は 3 層ある (弱い順)。それぞれ「何を置いてよいか」が違う:
 
-  1. config.toml        この機械の既定。git に入らない
+  1. config.toml        グローバル設定 (この機械の既定)。git に入らない
   2. <project>/gmp.toml  プロジェクトの既定。**git に入る**
   3. video.md           1本ぶん。フロントマターで上書きする
 
@@ -57,7 +57,7 @@ ENV_PREFIX = "GHOSTMOVIEPLAY_"
 
 LAYER_LABEL = {
     DEFAULT: "コード既定",
-    MACHINE: "機械の設定",
+    MACHINE: "グローバル",
     ENV: "環境変数",
     PROJECT: "プロジェクト",
     VIDEO: "この1本",

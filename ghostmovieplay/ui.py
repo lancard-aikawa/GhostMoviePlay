@@ -1,8 +1,8 @@
 """設定画面 (tkinter). `gmp ui` から開く.
 
 **編集する層を先に 1 つ選び、そのファイルだけを編集する。**
-「このプロジェクト (gmp.toml)」と「この機械の既定 (config.toml)」は完全に分ける。
-行ごとに書込先を選ばせていたころは、機械の既定から来ている値をこのプロジェクト
+「このプロジェクト (gmp.toml)」と「グローバル設定 (config.toml)」は完全に分ける。
+行ごとに書込先を選ばせていたころは、グローバル設定から来ている値をこのプロジェクト
 だけのつもりで直すと、**既定 (= 全プロジェクト) を書き換えていた**。
 
 その中は**用途でタブを切り、行ごとに「値・由来」を並べる。**
@@ -228,7 +228,7 @@ TABS: tuple[Tab, ...] = (
         ),
     ),
     Tab(
-        "この機械", "この機械でだけ効く。plan.json には入らない",
+        "出力とツール", "この機械でだけ効く。plan.json には入らない",
         (
             Group("置き場所", (
                 _one("home", "生成物の置き場所"),
@@ -268,14 +268,15 @@ def affects_audio(path: str) -> bool:
 
 # --- 編集対象 ---------------------------------------------------------
 # **どの層を編集するかは画面で 1 回だけ選ぶ。**
-# 行ごとに書込先を選ばせると、機械の既定から来ている値を「このプロジェクトだけ
+# 行ごとに書込先を選ばせると、グローバル設定から来ている値を「このプロジェクトだけ
 # 変えたつもり」で直したときに、既定の側 (=全プロジェクト) を書き換えてしまう。
 # 由来を既定の書込先にしていたので、いちばん起こりやすい操作でそれが起きていた。
-EDITABLE = (settings.PROJECT, settings.MACHINE)
+# 並びは **広い方から狭い方へ**。既定で選ぶのは狭い方 (このプロジェクト)
+EDITABLE = (settings.MACHINE, settings.PROJECT)
 
 LAYER_TITLE = {
     settings.PROJECT: "このプロジェクト",
-    settings.MACHINE: "この機械の既定",
+    settings.MACHINE: "グローバル設定",
 }
 
 
@@ -300,7 +301,7 @@ def visible(row: Row, layer: str, has_project: bool, pinned: set[str]) -> bool:
 
     **いま編集している層に書けない行は出さない。** `gmp.toml` を作る前に
     「入力できない入力欄」を並べても、埋められないものを埋めようとして詰まる。
-    機械の既定を編集しているときに `app.url` を出しても同じ (もう一方の層へ
+    グローバル設定を編集しているときに `app.url` を出しても同じ (もう一方の層へ
     切り替えれば触れるので、こちらに引きずり出す意味が無い)。
 
     例外は `pinned` —— **UI では触れない層** (video.md や環境変数) で決まって
@@ -492,7 +493,7 @@ class SettingsWindow:
                 shown = str(resolved_spec)
         self.spec_path = tk.StringVar(value=shown)
         self.status = tk.StringVar(value="")
-        # 開いたときはプロジェクトを編集する (機械の既定を触るのは稀)
+        # 開いたときはプロジェクトを編集する (グローバル設定を触るのは稀)
         self.layer = tk.StringVar(value=settings.PROJECT)
 
         root.title("GhostMoviePlay 設定")
@@ -653,7 +654,7 @@ class SettingsWindow:
         machine_raw = paths.load_config()
         project_raw = settings.read_toml(project_file) if project_file else {}
         # **入力欄に出すのは、編集中の層が自分で持っている値だけ。**
-        # 解決後の値を出すと、機械の既定を編集しているのにプロジェクトの値が
+        # 解決後の値を出すと、グローバル設定を編集しているのにプロジェクトの値が
         # 入力欄に見え、それを直すと既定へ焼いてしまう (逆向きの同じ事故)
         self.own = settings.normalize(
             machine_raw if self.layer.get() == settings.MACHINE else project_raw
@@ -711,7 +712,7 @@ class SettingsWindow:
 
         for tab in TABS:
             self._fill(tab)
-            # その層に**そもそも置けない**タブは見せない (この機械の既定に
+            # その層に**そもそも置けない**タブは見せない (グローバル設定に
             # app.url は無い)。gmp.toml がまだ無いだけのときは、タブは残して
             # 「作ると出ます」を出す
             state = "normal" if holds(tab, layer) else "hidden"

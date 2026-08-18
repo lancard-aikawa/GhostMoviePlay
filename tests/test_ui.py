@@ -52,7 +52,7 @@ def test_rows_that_cannot_be_written_are_hidden():
     url = ui.Row("URL", (ui.Field("app.url"),))
     assert ui.visible(url, settings.PROJECT, has_project=True, pinned=set())
     assert not ui.visible(url, settings.PROJECT, has_project=False, pinned=set())
-    # 機械の既定を編集しているときは、そもそも置けないので出さない
+    # グローバル設定を編集しているときは、そもそも置けないので出さない
     assert not ui.visible(url, settings.MACHINE, has_project=True, pinned=set())
 
 
@@ -70,7 +70,7 @@ def test_machine_settings_show_without_a_project_file():
 
 
 def test_machine_tab_holds_exactly_the_runtime_settings():
-    machine = next(tab for tab in ui.TABS if tab.title == "この機械")
+    machine = next(tab for tab in ui.TABS if tab.title == "出力とツール")
     runtime = {s.path for s in settings.SCHEMA if s.bake == "runtime"}
     assert set(machine.keys) == runtime
 
@@ -93,7 +93,7 @@ def test_nothing_is_settable_on_a_project_without_a_file():
 
 
 def test_the_editing_layer_is_not_chosen_per_row():
-    """行ごとに書込先を選ばせると、機械の既定を意図せず書き換える."""
+    """行ごとに書込先を選ばせると、グローバル設定を意図せず書き換える."""
     assert set(ui.EDITABLE) == {settings.PROJECT, settings.MACHINE}
     assert settings.VIDEO not in ui.EDITABLE      # video.md は UI から書かない
 
@@ -170,7 +170,7 @@ def test_a_row_with_nowhere_to_go_is_an_error():
 
 
 def test_writing_to_the_wrong_layer_is_refused():
-    """機械の既定に app.url を書こうとしたら、黙って捨てずに止める."""
+    """グローバル設定に app.url を書こうとしたら、黙って捨てずに止める."""
     with pytest.raises(settings.SettingsError, match="app.url"):
         ui.plan_writes([edit("app.url", "http://x", target=settings.MACHINE)])
 
@@ -297,13 +297,13 @@ def test_deleting_the_project_file_needs_a_yes(window, tmp_path, monkeypatch):
 
 
 def test_editing_a_project_never_touches_the_machine_default(window, tmp_path, monkeypatch):
-    """機械の既定から来ている値を直しても、書き先はプロジェクトのまま.
+    """グローバル設定から来ている値を直しても、書き先はプロジェクトのまま.
 
     ここが行ごとの選択だったころは、既定 (= 全プロジェクト) を書き換えていた。
     """
     cfg = tmp_path / "config.toml"
     monkeypatch.setattr(ui.paths, "config_path", lambda: cfg)
-    ui.paths.save_config({"voice": {"speaker": "ずんだもん"}})   # 機械の既定
+    ui.paths.save_config({"voice": {"speaker": "ずんだもん"}})   # グローバル設定
     window.create_project_file()
 
     assert window.resolved.origin("voice.speaker").layer == settings.PROJECT
@@ -321,7 +321,7 @@ def test_machine_mode_hides_project_only_settings(window):
     window.layer.set(settings.MACHINE)
     window.reload()
 
-    assert "app.url" not in window.rows          # 機械の既定には置けない
+    assert "app.url" not in window.rows          # グローバル設定には置けない
     assert "render.font" in window.rows
     assert window.rows["render.font"]["target"] == settings.MACHINE
 

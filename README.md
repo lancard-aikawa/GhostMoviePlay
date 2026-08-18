@@ -80,7 +80,7 @@ uv run gmp build examples/demo/plan.json --voice
 | `gmp where [plan.json]` | 生成物の置き場所を見る |
 | `gmp ui [video.md]` | 設定画面を開く |
 | `gmp config [video.md]` | 効いている設定と由来を見る |
-| `gmp config --set KEY=VALUE` | この機械の設定を書く（`--set-home DIR` も可） |
+| `gmp config --set KEY=VALUE` | グローバル設定を書く（`--set-home DIR` も可） |
 | `gmp config --init-project [DIR]` | `<project>/gmp.toml` の雛形を置く |
 | `gmp init <dir>` | 1本ぶんのフォルダと `video.md` を作る |
 | `gmp plan [spec]` | video.md → 依頼文。`--run` で claude を起動し plan.json まで |
@@ -94,7 +94,7 @@ uv run gmp build examples/demo/plan.json --voice
 主なオプション: `--headed`（ブラウザを見ながら収録）、`--sync-offset`（字幕タイミング補正）、
 `--speaker` / `--style` / `--speed`、`--no-subtitles`、`--no-audio`、`--no-credit`。
 `--font` / `--crf` / `--preset` / `--url` / `--model` / `--permission-mode` を省略すると
-機械の設定（`render.*` / `engine.voicevox.url` / `agent.*`）が使われる。
+グローバル設定（`render.*` / `engine.voicevox.url` / `agent.*`）が使われる。
 
 ## ドキュメント
 

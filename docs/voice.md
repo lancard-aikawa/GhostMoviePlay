@@ -23,7 +23,7 @@ uv run gmp voice plan.json --speaker ずんだもん --style あまあま
 uv run gmp build plan.json --voice         # voice + record + render
 ```
 
-ENGINE の接続先は**機械の設定**（`gmp config --set engine.voicevox.url=...`）で、
+ENGINE の接続先は**グローバル設定**（`gmp config --set engine.voicevox.url=...`）で、
 plan.json には書かない。書くと別のマシンで繋がらない接続先が残る
 （`--url` は一時的な指定として扱い、`gmp voice` は plan.json に書き戻さない）。
 

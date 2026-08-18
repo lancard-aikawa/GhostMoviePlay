@@ -137,7 +137,7 @@ def _clip(text: str, width: int) -> str:
 
 
 def cmd_config(args) -> int:
-    """いま効いている設定と、その由来を見せる / 機械の設定を書き換える.
+    """いま効いている設定と、その由来を見せる / グローバル設定を書き換える.
 
     3 層あるので「どこ由来か」を出さないと必ず迷子になる。
     """
@@ -152,7 +152,7 @@ def cmd_config(args) -> int:
         print("  ここに書いた値は、下の video.md すべてに効きます")
         return 0
 
-    # 書き換え (機械の層だけ。プロジェクトと1本ぶんはファイルを直接編集する)
+    # 書き換え (グローバルだけ。プロジェクトと1本ぶんはファイルを直接編集する)
     pairs = list(args.set or [])
     removals = list(args.unset or [])
     if args.set_home:
@@ -173,7 +173,7 @@ def cmd_config(args) -> int:
             if settings.MACHINE not in setting.layers:
                 allowed = " / ".join(settings.LAYER_LABEL[x] for x in setting.layers)
                 return _err(
-                    f"{key!r} は機械の設定に置けません (置ける層: {allowed})\n"
+                    f"{key!r} はグローバル設定に置けません (置ける層: {allowed})\n"
                     f"  プロジェクト共通なら <project>/{settings.PROJECT_FILE} に、"
                     "1本だけなら video.md に書いてください"
                 )
@@ -201,7 +201,7 @@ def cmd_config(args) -> int:
         return _err(str(exc))
 
     print("  設定ファイル")
-    print(f"    機械の設定    {paths.config_path()}"
+    print(f"    グローバル設定  {paths.config_path()}"
           + ("" if paths.config_path().exists() else "   (未作成)"))
     project_file = resolved.sources.get(settings.PROJECT)
     if project_file:
@@ -645,11 +645,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("plan", nargs="?", help="plan.json (渡すとその1本の出力先を出す)")
     p.set_defaults(func=cmd_where)
 
-    p = sub.add_parser("config", help="効いている設定と由来を見る / 機械の設定を変える")
+    p = sub.add_parser("config", help="効いている設定と由来を見る / グローバル設定を変える")
     p.add_argument("spec", nargs="?", help="video.md (渡すとその1本の解決結果を出す)")
     p.add_argument("--set", action="append", metavar="KEY=VALUE",
-                   help="機械の設定を書く (例: --set voice.speaker=ずんだもん)")
-    p.add_argument("--unset", action="append", metavar="KEY", help="機械の設定を消す")
+                   help="グローバル設定を書く (例: --set voice.speaker=ずんだもん)")
+    p.add_argument("--unset", action="append", metavar="KEY", help="グローバル設定を消す")
     p.add_argument("--set-home", metavar="DIR", help="出力ルートを設定する (--set home= と同じ)")
     p.add_argument("--unset-home", action="store_true", help="出力ルートの設定を消す")
     p.add_argument("--init-project", nargs="?", const="", metavar="DIR",
