@@ -30,51 +30,6 @@ PREVIEW_TEXT = "こんにちは。この声と話速で読み上げます。"
 
 
 # --- どのタブに何を出すか ---------------------------------------------
-@dataclass(frozen=True)
-class Tab:
-    title: str
-    note: str
-    keys: tuple[str, ...]
-
-
-TABS: tuple[Tab, ...] = (
-    Tab(
-        "声と口調", "話者と口調。plan.json に焼かれ、say の文面と音声になる",
-        (
-            "voice.speaker", "voice.style", "voice.speed", "voice.pitch",
-            "voice.intonation", "voice.volume", "voice.pre", "voice.post",
-            "voice.engine", "persona.style", "voice.dict",
-        ),
-    ),
-    Tab(
-        "何を撮るか", "Pass1 への指示。plan.json には残らない",
-        (
-            "series.audience", "series.topics", "series.count",
-            "series.target_seconds", "series.tolerance", "series.avoid",
-            "subtitle.max_chars", "subtitle.max_lines",
-            "subtitle.reading_cps", "subtitle.pad",
-        ),
-    ),
-    Tab(
-        "対象と動画", "収録対象と絵の形。プロジェクト固有の事実はここ",
-        (
-            "project", "title", "lang",
-            "app.url", "app.ready", "app.start", "app.cwd", "app.start_timeout",
-            "video.width", "video.height", "video.fps", "video.leader", "video.trailer",
-            "determinism.seed", "determinism.time",
-        ),
-    ),
-    Tab(
-        "この機械", "この機械でだけ効く。plan.json には入らない",
-        (
-            "home", "engine.voicevox.url", "engine.voicevox.exe",
-            "render.font", "render.crf", "render.preset",
-            "agent.model", "agent.permission_mode",
-        ),
-    ),
-)
-
-
 # 行の見出し。キーの末尾をそのまま出すと voice.style と persona.style が
 # どちらも "style" になって見分けられない
 LABELS: dict[str, str] = {
@@ -127,6 +82,169 @@ LABELS: dict[str, str] = {
 
 def label_of(path: str) -> str:
     return LABELS.get(path, path.rpartition(".")[2])
+
+
+@dataclass(frozen=True)
+class Field:
+    """行の中の 1 項目."""
+
+    path: str
+    prefix: str = ""            # 項目の直前に置く小さな見出し / 区切り ("×" など)
+    width: int | None = None    # 数字は狭くする
+
+
+@dataclass(frozen=True)
+class Row:
+    """1 行。近い項目は横に並べる (幅と高さを 2 行に分けても得がない).
+
+    **同じ行に置けるのは書ける層が同じ設定だけ。** 書込先は行に 1 つなので、
+    層の違うものを並べると選べる先が嘘になる (tests/test_ui.py が見ている)。
+    """
+
+    label: str
+    fields: tuple[Field, ...]
+
+    @property
+    def paths(self) -> tuple[str, ...]:
+        return tuple(f.path for f in self.fields)
+
+
+@dataclass(frozen=True)
+class Group:
+    """タブの中の区切り. collapsed=True は既定で畳む (めったに変えないもの)."""
+
+    title: str
+    rows: tuple[Row, ...]
+    collapsed: bool = False
+
+
+@dataclass(frozen=True)
+class Tab:
+    title: str
+    note: str
+    groups: tuple[Group, ...]
+
+    @property
+    def keys(self) -> tuple[str, ...]:
+        return tuple(p for g in self.groups for r in g.rows for p in r.paths)
+
+
+def _one(path: str, label: str | None = None) -> Row:
+    return Row(label or LABELS.get(path, path), (Field(path),))
+
+
+RARELY = "めったに変えないもの"
+
+TABS: tuple[Tab, ...] = (
+    Tab(
+        "声と口調", "話者と口調。plan.json に焼かれ、say の文面と音声になる",
+        (
+            Group("話者と声", (
+                Row("話者", (Field("voice.speaker"),
+                             Field("voice.style", prefix="スタイル"))),
+                Row("声の調整", (
+                    Field("voice.speed", prefix="話速", width=6),
+                    Field("voice.pitch", prefix="音高", width=6),
+                    Field("voice.intonation", prefix="抑揚", width=6),
+                    Field("voice.volume", prefix="音量", width=6),
+                )),
+            )),
+            Group("原稿", (
+                _one("persona.style", "口調"),
+                _one("voice.dict", "読み辞書"),
+            )),
+            Group(RARELY, (
+                Row("発話の前後の無音", (
+                    Field("voice.pre", prefix="前", width=6),
+                    Field("voice.post", prefix="後", width=6),
+                )),
+                _one("voice.engine", "TTS エンジン"),
+            ), collapsed=True),
+        ),
+    ),
+    Tab(
+        "何を撮るか", "Pass1 への指示。plan.json には残らない",
+        (
+            Group("何を作るか", (
+                _one("series.audience", "狙う視聴者"),
+                _one("series.topics", "題材の候補"),
+                _one("series.count", "作る本数"),
+                _one("series.avoid", "触れないこと"),
+            )),
+            Group("1本の長さ", (
+                Row("目標尺", (
+                    Field("series.target_seconds", prefix="秒", width=8),
+                    Field("series.tolerance", prefix="許容超過", width=6),
+                )),
+            )),
+            Group("字幕の作り方", (
+                Row("字幕の大きさ", (
+                    Field("subtitle.max_chars", prefix="1行の文字数", width=6),
+                    Field("subtitle.max_lines", prefix="行数", width=6),
+                )),
+                Row("読み切る時間", (
+                    Field("subtitle.reading_cps", prefix="文字/秒", width=6),
+                    Field("subtitle.pad", prefix="余白(秒)", width=6),
+                )),
+            ), collapsed=True),
+        ),
+    ),
+    Tab(
+        "対象と動画", "収録対象と絵の形。プロジェクト固有の事実はここ",
+        (
+            Group("収録対象", (
+                _one("app.url", "URL"),
+                _one("app.ready", "準備完了のセレクタ"),
+                _one("app.start", "起動コマンド"),
+                _one("app.cwd", "ソースのフォルダ"),
+            )),
+            Group("素性", (
+                _one("project", "プロジェクト名"),
+                _one("title", "動画タイトル"),
+            )),
+            Group("再現性", (
+                _one("determinism.time", "固定する開始時刻"),
+                _one("determinism.seed", "乱数の seed"),
+            )),
+            Group(RARELY, (
+                Row("解像度", (
+                    Field("video.width", width=8),
+                    Field("video.height", prefix="×", width=8),
+                )),
+                Row("fps と前後の余白", (
+                    Field("video.fps", prefix="fps", width=6),
+                    Field("video.leader", prefix="冒頭(秒)", width=6),
+                    Field("video.trailer", prefix="末尾(秒)", width=6),
+                )),
+                _one("app.start_timeout", "起動待ち上限(秒)"),
+                _one("lang", "言語"),
+            ), collapsed=True),
+        ),
+    ),
+    Tab(
+        "この機械", "この機械でだけ効く。plan.json には入らない",
+        (
+            Group("置き場所", (
+                _one("home", "生成物の置き場所"),
+            )),
+            Group("VOICEVOX", (
+                _one("engine.voicevox.url", "接続先"),
+                _one("engine.voicevox.exe", "実行ファイル"),
+            )),
+            Group("書き出し", (
+                _one("render.font", "字幕フォント"),
+                Row("画質", (
+                    Field("render.crf", prefix="CRF", width=6),
+                    Field("render.preset", prefix="preset", width=10),
+                )),
+            )),
+            Group("Pass1 の claude", (
+                _one("agent.model", "モデル"),
+                _one("agent.permission_mode", "権限モード"),
+            ), collapsed=True),
+        ),
+    ),
+)
 
 
 def tab_of(path: str) -> str | None:
@@ -321,6 +439,8 @@ class SettingsWindow:
         self.root = root
         self.rows: dict[str, dict[str, Any]] = {}
         self.speakers: list[dict[str, Any]] = []
+        # 畳んだ状態は読み直しても保つ (開くたびに畳まれると邪魔になる)
+        self.folded: dict[tuple[str, str], bool] = {}
 
         start = Path(spec).parent if spec else Path.cwd()
         found = settings.find_project_file(start)
@@ -393,10 +513,13 @@ class SettingsWindow:
             tk.Label(outer, text=tab.note, fg="#666", anchor="w").pack(
                 fill=tk.X, padx=10, pady=(8, 4)
             )
-            body = self._scrollable(outer)
-            self.frames[tab.title] = body
+            # 下の帯は本体より**先に** pack する。本体は side=LEFT で cavity を
+            # 取るので、後から pack した帯は右側の残りから幅を持っていき、
+            # 本体が半分の幅になる (フッターのボタン行と同じ罠)
             if tab.title == "声と口調":
                 self._build_preview_row(outer)
+            body = self._scrollable(outer)
+            self.frames[tab.title] = body
 
     def _scrollable(self, parent: tk.Frame) -> tk.Frame:
         canvas = tk.Canvas(parent, highlightthickness=0)
@@ -476,88 +599,143 @@ class SettingsWindow:
             self._offer_project_file()
 
     def _offer_project_file(self) -> None:
-        frame = self.frames["対象と動画"]
         tk.Button(
-            frame, text=f"{settings.PROJECT_FILE} を作る",
+            self.frames["対象と動画"], text=f"{settings.PROJECT_FILE} を作る",
             command=self.create_project_file,
-        ).grid(row=999, column=0, sticky="w", padx=10, pady=10)
+        ).pack(anchor="w", padx=10, pady=10)
 
     def _fill(self, tab: Tab) -> None:
-        frame = self.frames[tab.title]
-        frame.columnconfigure(1, weight=1)
+        body = self.frames[tab.title]
+        for group in tab.groups:
+            self._fill_group(body, tab, group)
+
+    def _fill_group(self, body: tk.Frame, tab: Tab, group: Group) -> None:
+        """区切りごとに見出しを付け、めったに変えないものは畳んでおく."""
+        key = (tab.title, group.title)
+        folded = self.folded.setdefault(key, group.collapsed)
+
+        head = tk.Frame(body)
+        head.pack(fill=tk.X, padx=8, pady=(10, 0))
+        inner = tk.Frame(body)
+        inner.columnconfigure(1, weight=1)
+
+        mark = tk.Label(head, text="▶" if folded else "▼", fg="#888", cursor="hand2")
+        title = tk.Label(head, text=group.title, font=("", 9, "bold"),
+                         fg="#333", cursor="hand2")
+        mark.pack(side=tk.LEFT)
+        title.pack(side=tk.LEFT, padx=4)
+        tk.Frame(head, height=1, bg="#ddd").pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=8
+        )
+
+        def toggle(_event=None) -> None:
+            self.folded[key] = not self.folded[key]
+            if self.folded[key]:
+                inner.pack_forget()
+            else:
+                inner.pack(fill=tk.X, after=head)
+            mark.config(text="▶" if self.folded[key] else "▼")
+
+        for widget in (mark, title):
+            widget.bind("<Button-1>", toggle)
+        if not folded:
+            inner.pack(fill=tk.X)
+
+        for index, row in enumerate(group.rows):
+            self._fill_row(inner, index * 2, row)
+
+    def _fill_row(self, frame: tk.Frame, grid_row: int, row: Row) -> None:
         has_project = self.project_file is not None
+        origins = [self.resolved.origin(p) for p in row.paths]
 
-        for index, path in enumerate(tab.keys):
-            setting = settings.SETTINGS[path]
-            origin = self.resolved.origin(path)
-            value = format_value(path, self.resolved.values.get(path))
+        tk.Label(frame, text=row.label, anchor="w", font=("", 9, "bold")).grid(
+            row=grid_row, column=0, sticky="w", padx=(14, 6), pady=(6, 0)
+        )
 
-            row = index * 2
-            tk.Label(frame, text=label_of(path), anchor="w", font=("", 9, "bold")).grid(
-                row=row, column=0, sticky="w", padx=(10, 6), pady=(6, 0)
-            )
+        # 1 行に複数項目を置くので、入力は横並びの入れ物にまとめる
+        holder = tk.Frame(frame)
+        holder.grid(row=grid_row, column=1, sticky="ew", padx=6, pady=(6, 0))
+        writable = write_targets(row.paths[0], has_project)
 
-            if setting.kind == "table":
-                widget = tk.Text(frame, height=5, width=40)
-                widget.insert("1.0", value)
-                getter = lambda w=widget: w.get("1.0", "end-1c")   # noqa: E731
-            elif path == "voice.speaker":
-                widget = ttk.Combobox(frame)
-                widget.set(value)
-                getter = lambda w=widget: w.get()                  # noqa: E731
+        for field in row.fields:
+            if field.prefix:
+                tk.Label(holder, text=field.prefix, fg="#555").pack(
+                    side=tk.LEFT, padx=(0 if field is row.fields[0] else 8, 4)
+                )
+            widget, getter = self._widget(holder, field)
+            if not writable:
+                # 書ける先が無い行を編集させると、保存で必ず行き止まりになる
+                kind = settings.SETTINGS[field.path].kind
+                widget.configure(state="disabled" if kind == "table" else "readonly")
+            widget.pack(side=tk.LEFT, fill=tk.X, expand=field.width is None)
+            self.rows[field.path] = {"getter": getter, "targets": writable,
+                                     "original": format_value(
+                                         field.path, self.resolved.values.get(field.path))}
+
+        target = tk.StringVar(value=default_target(
+            row.paths[0], origins[0].layer, has_project
+        ))
+        box = ttk.Combobox(
+            frame, textvariable=target, state="readonly", width=12,
+            values=[settings.LAYER_LABEL[t] for t in writable] or [NOWHERE],
+        )
+        box.set(settings.LAYER_LABEL.get(target.get(), NOWHERE))
+        box.grid(row=grid_row, column=2, padx=(0, 10), pady=(6, 0))
+        for path in row.paths:
+            self.rows[path]["target"] = target      # 書込先は行に 1 つ
+
+        tk.Label(frame, text=self._note(row, origins), anchor="w",
+                 justify=tk.LEFT, wraplength=860,
+                 fg=self._note_color(origins), font=("", 8)).grid(
+            row=grid_row + 1, column=0, columnspan=3, sticky="w", padx=(16, 10)
+        )
+
+    def _widget(self, parent: tk.Frame, field: Field):
+        path = field.path
+        value = format_value(path, self.resolved.values.get(path))
+
+        if settings.SETTINGS[path].kind == "table":
+            widget = tk.Text(parent, height=5, width=40)
+            widget.insert("1.0", value)
+            return widget, lambda w=widget: w.get("1.0", "end-1c")
+        if path in ("voice.speaker", "voice.style"):
+            widget = ttk.Combobox(parent, width=field.width or 20)
+            widget.set(value)
+            if path == "voice.speaker":
                 self.speaker_box = widget
                 widget.bind("<<ComboboxSelected>>", lambda _e: self._refresh_styles())
-            elif path == "voice.style":
-                widget = ttk.Combobox(frame)
-                widget.set(value)
-                getter = lambda w=widget: w.get()                  # noqa: E731
-                self.style_box = widget
             else:
-                var = tk.StringVar(value=value)
-                widget = tk.Entry(frame, textvariable=var)
-                getter = lambda v=var: v.get()                     # noqa: E731
-            widget.grid(row=row, column=1, sticky="ew", padx=6, pady=(6, 0))
+                self.style_box = widget
+            return widget, lambda w=widget: w.get()
 
-            targets = write_targets(path, has_project)
-            if not targets:
-                # 書ける先が無い行を編集させると、保存で必ず行き止まりになる
-                widget.configure(state="disabled" if setting.kind == "table" else "readonly")
-            target = tk.StringVar(
-                value=default_target(path, origin.layer, has_project)
-            )
-            box = ttk.Combobox(
-                frame, textvariable=target, state="readonly", width=12,
-                values=[settings.LAYER_LABEL[t] for t in targets] or [NOWHERE],
-            )
-            box.set(settings.LAYER_LABEL.get(target.get(), NOWHERE))
-            box.grid(row=row, column=2, padx=(0, 10), pady=(6, 0))
+        var = tk.StringVar(value=value)
+        widget = tk.Entry(parent, textvariable=var, width=field.width or 20)
+        return widget, lambda v=var: v.get()
 
-            # 説明は横に長い。全列を使って折り返さないと途中で切れる
-            tk.Label(frame, text=self._note(path, origin, setting), anchor="w",
-                     justify=tk.LEFT, wraplength=860,
-                     fg=self._note_color(origin), font=("", 8)).grid(
-                row=row + 1, column=0, columnspan=3, sticky="w", padx=(12, 10)
-            )
-
-            self.rows[path] = {
-                "getter": getter, "original": value,
-                "target": target, "targets": targets,
-            }
-
-    def _note(self, path: str, origin, setting) -> str:
-        parts = [f"由来: {origin.short()}"]
-        if origin.layer == settings.VIDEO:
+    def _note(self, row: Row, origins) -> str:
+        """行の下に出す 1 行. 由来が項目ごとに違うなら項目ごとに書く."""
+        layers = {o.short() for o in origins}
+        if len(layers) == 1:
+            parts = [f"由来: {origins[0].short()}"]
+        else:
+            parts = ["由来: " + " / ".join(
+                f"{label_of(p)}={o.short()}" for p, o in zip(row.paths, origins)
+            )]
+        if any(o.layer == settings.VIDEO for o in origins):
             parts.append("! この1本が上書き中 (ここで直しても効きません)")
-        if affects_audio(path):
+        if any(affects_audio(p) for p in row.paths):
             parts.append("! 再合成")
-        if setting.help:
-            parts.append(setting.help)
+        helps = [settings.SETTINGS[p].help for p in row.paths]
+        if len(row.fields) == 1 and helps[0]:
+            parts.append(helps[0])
         return "   ".join(parts)
 
-    def _note_color(self, origin) -> str:
-        if origin.layer == settings.VIDEO:
+    def _note_color(self, origins) -> str:
+        if any(o.layer == settings.VIDEO for o in origins):
             return "#b26b00"
-        return "#666" if origin.layer == settings.DEFAULT else "#0a6"
+        if all(o.layer == settings.DEFAULT for o in origins):
+            return "#666"
+        return "#0a6"
 
     # --- 話者 --------------------------------------------------------
     def _load_speakers_async(self) -> None:

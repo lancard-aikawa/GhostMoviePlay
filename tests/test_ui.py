@@ -19,6 +19,34 @@ def test_every_setting_appears_in_exactly_one_tab():
     assert len(placed) == len(set(placed)), "2 つのタブに出ている項目がある"
 
 
+def test_a_row_only_holds_settings_with_the_same_write_targets():
+    """書込先は行に 1 つ. 層の違うものを並べると、選べる先が嘘になる."""
+    for tab in ui.TABS:
+        for group in tab.groups:
+            for row in group.rows:
+                layers = {settings.SETTINGS[p].layers for p in row.paths}
+                assert len(layers) == 1, f"{tab.title}/{row.label}: {row.paths}"
+
+
+def test_rarely_changed_groups_start_folded():
+    folded = [g.title for t in ui.TABS for g in t.groups if g.collapsed]
+    assert folded, "畳む区切りが 1 つも無い"
+    # 畳んだ中に、よく変えるものを入れていないこと
+    hidden = {p for t in ui.TABS for g in t.groups if g.collapsed for p in
+              (x for r in g.rows for x in r.paths)}
+    for key in ("voice.speaker", "app.url", "persona.style", "series.audience"):
+        assert key not in hidden, f"{key} を畳んではいけない"
+
+
+def test_every_group_and_row_has_a_label():
+    for tab in ui.TABS:
+        assert tab.groups
+        for group in tab.groups:
+            assert group.title and group.rows
+            for row in group.rows:
+                assert row.label and row.fields
+
+
 def test_machine_tab_holds_exactly_the_runtime_settings():
     machine = next(tab for tab in ui.TABS if tab.title == "この機械")
     runtime = {s.path for s in settings.SCHEMA if s.bake == "runtime"}
