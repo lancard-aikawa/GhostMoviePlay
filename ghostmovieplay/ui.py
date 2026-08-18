@@ -590,6 +590,7 @@ class SettingsWindow:
         self.rows.clear()
         for tab in TABS:
             self._fill(tab)
+        self._fill_speaker_boxes()   # 作り直したコンボボックスは中身が空
 
         warnings = len(self.resolved.warnings)
         self.status.set(
@@ -753,15 +754,24 @@ class SettingsWindow:
         threading.Thread(target=work, daemon=True).start()
 
     def _apply_speakers(self, found: list[dict[str, Any]]) -> None:
+        """ENGINE から話者一覧が返ってきたとき."""
         self.speakers = found
         if not found:
             self.status.set(
                 "VOICEVOX ENGINE に繋がりません (話者名は手で入力できます)"
             )
-            return
+        self._fill_speaker_boxes()
+
+    def _fill_speaker_boxes(self) -> None:
+        """話者一覧をコンボボックスへ入れる.
+
+        **行を作り直すたびに呼ぶ。** 取得は起動時に 1 回だけなので、
+        プロジェクトを選び直した後にここを通さないと一覧が空のままになる
+        (実際に空になった)。
+        """
         box = getattr(self, "speaker_box", None)
         if box is not None:
-            box["values"] = [s.get("name", "") for s in found]
+            box["values"] = [s.get("name", "") for s in self.speakers]
         self._refresh_styles()
 
     def _refresh_styles(self) -> None:

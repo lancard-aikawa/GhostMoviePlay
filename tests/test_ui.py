@@ -187,3 +187,40 @@ def test_save_writes_both_layers(tmp_path, monkeypatch):
 def test_save_without_a_project_file_is_an_error():
     with pytest.raises(settings.SettingsError):
         ui.save({settings.PROJECT: {"voice.speaker": "x"}}, None)
+
+
+# --- ウィンドウが要るぶん (画面が無ければ飛ばす) -----------------------
+@pytest.fixture
+def window(tmp_path, monkeypatch):
+    tk = pytest.importorskip("tkinter")
+    # 話者の取得は起動時に走る。テストでは ENGINE を叩かせない
+    monkeypatch.setattr(ui.SettingsWindow, "_load_speakers_async", lambda self: None)
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("画面が無い環境")
+    root.withdraw()
+    made = ui.SettingsWindow(root, None)
+    made.project_dir.set(str(tmp_path))
+    yield made
+    root.destroy()
+
+
+def test_speaker_list_survives_a_reload(window, tmp_path):
+    """プロジェクトを選び直すと行を作り直す. 話者一覧を入れ直さないと空になる."""
+    window.speakers = [{"name": "ずんだもん", "styles": [{"name": "ノーマル"}]}]
+    window.reload()
+
+    assert list(window.speaker_box["values"]) == ["ずんだもん"]
+
+    window.speaker_box.set("ずんだもん")
+    window._refresh_styles()
+    assert list(window.style_box["values"]) == ["ノーマル"]
+
+
+def test_reload_keeps_folded_groups_folded(window):
+    key = ("声と口調", ui.RARELY)
+    assert window.folded[key] is True
+    window.folded[key] = False
+    window.reload()
+    assert window.folded[key] is False
