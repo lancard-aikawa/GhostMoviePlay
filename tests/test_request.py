@@ -167,17 +167,117 @@ def test_init_template_inherits_the_project_name(project):
     assert values["app"]["cwd"] == "../../.."
 
 
-def test_init_writes_the_full_template_without_a_project_file(tmp_path):
+def test_init_never_writes_a_configured_looking_lie(tmp_path):
+    """**雛形は「設定済みに見える嘘」を焼かない。**
+
+    見本の URL を焼くと、`app.url` は project と video にしか置けず設定画面は
+    video.md を書かないので、**画面から直せない値がプロジェクトに焼き付く**
+    (しかも video.md のほうが強いので gmp.toml で直しても効かない)。
+    """
     import yaml
 
     assert main(["init", str(tmp_path / "intro")]) == 0
     text = (tmp_path / "intro" / "video.md").read_text(encoding="utf-8")
     meta = yaml.safe_load(text.split("---")[1])
-    assert meta["app"]["url"]          # 1本目は全部ここに書く
-    assert meta["persona"]["voice"]
+    assert not (meta.get("app") or {}).get("url"), "見本の URL が焼かれている"
+    assert "http://localhost:5173" in text, "書き方の見本はコメントで残す"
+    assert meta["persona"]["voice"]       # 声のような無害な既定は焼いてよい
 
 
 def test_plan_warns_when_no_url_is_configured(tmp_path, capsys):
     (tmp_path / "video.md").write_text("---\ntitle: x\n---\n", encoding="utf-8")
     assert main(["plan", str(tmp_path / "video.md")]) == 0
     assert "app.url" in capsys.readouterr().out
+
+
+# --- 雛形の見本値 -----------------------------------------------------
+def test_the_sample_values_match_the_template():
+    """**TEMPLATE_HINTS は TEMPLATE の写し。** ずれると検出できなくなる."""
+    from ghostmovieplay.spec import TEMPLATE, TEMPLATE_HINTS
+
+    for sample, _label in TEMPLATE_HINTS.values():
+        assert sample in TEMPLATE, f"雛形に無い見本値: {sample}"
+
+
+def test_untouched_defaults_are_reported():
+    """雛形のまま Pass1 を呼ぶと、AI は「本物を指してくれ」と訊いて終わる."""
+    from ghostmovieplay import settings
+    from ghostmovieplay.spec import unfilled
+
+    fresh = settings.load(video={
+        "app": {"url": "http://localhost:5173", "start": "npm run dev",
+                "ready": "text=スタート"},
+    })
+    assert len(unfilled(fresh)) == 3
+
+    filled = settings.load(video={
+        "app": {"url": "http://127.0.0.1:7474/", "start": "bun run dev",
+                "ready": "#app"},
+    })
+    assert unfilled(filled) == []
+
+
+def test_a_single_coincidence_is_not_enough():
+    """Vite の既定は本当に 5173. 1 つだけで「雛形のまま」と言わない."""
+    from ghostmovieplay import settings
+    from ghostmovieplay.spec import unfilled
+
+    real = settings.load(video={
+        "app": {"url": "http://localhost:5173", "start": "bun run dev",
+                "ready": "#app"},
+    })
+    assert len(unfilled(real)) == 1      # 画面と CLI は 2 つ以上で言う
+
+
+def test_stripping_samples_keeps_everything_a_person_wrote(tmp_path):
+    """GUI が video.md を書く**唯一の例外**. 消すのは見本と一字一句同じ行だけ."""
+    from ghostmovieplay.spec import strip_samples
+
+    spec = tmp_path / "video.md"
+    spec.write_text(
+        "---\n"
+        "title: 手で書いたタイトル\n"
+        "app:\n"
+        "  # 収録対象のメモ\n"
+        "  url: http://localhost:5173\n"
+        '  ready: "text=スタート"      # これが見えたら\n'
+        "  start: bun run dev\n"          # 人が直した行は残る
+        "  cwd: ../..\n"
+        "scenes:\n"
+        "  - id: fail\n"
+        "    goal: 手で書いた狙い\n"
+        "---\n"
+        "\n## 補足\n\n人が書いた散文。url: http://localhost:5173 と書いてあっても消さない。\n",
+        encoding="utf-8",
+    )
+
+    removed = strip_samples(spec)
+    text = spec.read_text(encoding="utf-8")
+
+    assert set(removed) == {"収録する URL", "準備完了のセレクタ"}
+    assert "url: http://localhost:5173\n" not in text.split("---")[1]
+    assert "text=スタート" not in text.split("---")[1]
+    assert "start: bun run dev" in text          # 人が直した行
+    assert "cwd: ../.." in text
+    assert "# 収録対象のメモ" in text            # コメント
+    assert "手で書いたタイトル" in text
+    assert "手で書いた狙い" in text
+    assert "人が書いた散文" in text              # 本文は触らない
+    assert "url: http://localhost:5173 と書いてあっても" in text
+
+
+def test_stripping_a_video_md_without_front_matter_does_nothing(tmp_path):
+    from ghostmovieplay.spec import strip_samples
+
+    spec = tmp_path / "video.md"
+    spec.write_text("フロントマターが無い\n", encoding="utf-8")
+    assert strip_samples(spec) == []
+    assert spec.read_text(encoding="utf-8") == "フロントマターが無い\n"
+
+
+def test_a_freshly_made_video_md_has_nothing_to_strip(tmp_path):
+    """雛形が見本値を焼かなくなったので、作った直後は剥がすものが無い."""
+    from ghostmovieplay.spec import strip_samples
+
+    assert main(["init", str(tmp_path / "intro")]) == 0
+    assert strip_samples(tmp_path / "intro" / "video.md") == []

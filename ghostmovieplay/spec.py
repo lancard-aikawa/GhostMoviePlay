@@ -7,6 +7,7 @@ Pass1 は現状 Claude Code に依頼文を渡す運用。gmp plan がその依�
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -37,11 +38,12 @@ TEMPLATE = """---
 project: MyProject
 
 app:
-  # 収録対象。ローカルファイルなら file:///C:/... でも良い
-  url: http://localhost:5173
-  ready: "text=スタート"      # これが見えたら準備完了とみなす
-  cwd: .                      # ソースを読ませたいプロジェクトフォルダ
-  start: npm run dev          # 起動コマンド (自分で起動する場合は空でよい)
+  # **収録対象。ここを埋めないと台本は書けない** (何を撮るのか決まらない)。
+  # 見本のままにせず、実際の値に書き換えてコメントを外すこと。
+  # url: http://localhost:5173   # ローカルファイルなら file:///C:/... でも良い
+  # ready: "text=スタート"        # これが見えたら準備完了とみなす
+  # start: npm run dev           # 起動コマンド (自分で起動するなら要らない)
+  cwd: .                         # ソースを読ませたいプロジェクトフォルダ
 
 persona:
   voice: zundamon
@@ -53,6 +55,71 @@ video:
   lang: ja
 
 """ + SCENES_BLOCK
+
+
+# `gmp init` の雛形が置く見本値。**ここを直さずに Pass1 を呼ぶと、AI は
+# 「本物のアプリを指してくれ」と訊いてくる** —— `-p` (対話なし) には答える人が
+# いないので、台本を書かずに終わる。呼ぶ前に気づけるように 1 か所に持つ。
+# TEMPLATE と同じ値を書くこと (tests/test_request.py が突き合わせている)。
+TEMPLATE_HINTS: dict[str, tuple[str, str]] = {
+    "app.url": ("http://localhost:5173", "収録する URL"),
+    "app.start": ("npm run dev", "起動コマンド"),
+    "app.ready": ("text=スタート", "準備完了のセレクタ"),
+}
+
+
+def strip_samples(path: Path) -> list[str]:
+    """フロントマターから**雛形の見本値のままの行だけ**を消す. 戻り値は見出し.
+
+    GUI は原則 video.md を書かない (本文の散文とコメントを壊すため)。ここだけが
+    例外で、消すのは**値が見本と一字一句同じ行**に限る —— 定義から言って人が
+    書いた行ではない。行単位で落とすので、他の行・コメント・本文は触らない。
+
+    これが無いと行き止まる: `app.url` は project と video にしか置けず、設定画面は
+    video.md を書かない。しかも video.md のほうが強いので、**見本値が video.md に
+    ある限り設定画面で直しても効かない**。
+    """
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return []
+    try:
+        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    except StopIteration:
+        return []
+
+    removed: list[str] = []
+    kept: list[str] = []
+    for index, line in enumerate(lines):
+        hit = None
+        if 0 < index < end:
+            for dotted, (sample, label) in TEMPLATE_HINTS.items():
+                key = dotted.rpartition(".")[2]
+                pattern = rf'^\s*{key}:\s*"?{re.escape(sample)}"?\s*(#.*)?$'
+                if re.match(pattern, line.rstrip("\n")):
+                    hit = label
+                    break
+        if hit:
+            removed.append(hit)
+        else:
+            kept.append(line)
+
+    if removed:
+        path.write_text("".join(kept), encoding="utf-8")
+    return removed
+
+
+def unfilled(resolved) -> list[str]:
+    """雛形の見本値のままの項目 (画面に出す見出し).
+
+    `app.cwd = '.'` は入れない —— 本当にそこを指すことがある。
+    1 つだけなら偶然もある (Vite の既定は本当に 5173) ので、**2 つ以上
+    そろって初めて**「雛形のまま」と言う。呼ぶ側で数を見る。
+    """
+    return [
+        label for path, (sample, label) in TEMPLATE_HINTS.items()
+        if resolved.get(path) == sample
+    ]
 
 
 # gmp.toml から継承できるもののうち、1本ごとに変えたくなるもの。
@@ -91,7 +158,7 @@ def _inherited_block(resolved) -> str:
         )
     return (
         "# 下は gmp.toml から継承している値。**書かなくても効く。**\n"
-        "# この1本だけ変えたいときだけ、コメントを外して書き換える。\n"
+        "# この動画だけ変えたいときだけ、コメントを外して書き換える。\n"
         + "\n".join(lines)
         + "\n"
     )
@@ -101,20 +168,122 @@ def template(resolved=None, project_file: Path | None = None) -> str:
     """video.md の雛形.
 
     プロジェクトの既定 (gmp.toml) がある場合、共通の項目を雛形に書き込むと
-    **1本ぶんが常にプロジェクトを上書きしてしまう**。継承されるものは
-    コメントにして、この1本ぶんの指示 (title と scenes) だけ残す。
+    **この動画が常にプロジェクトを上書きしてしまう**。継承されるものは
+    コメントにして、この動画の指示 (title と scenes) だけ残す。
     """
     if resolved is None or project_file is None:
         return TEMPLATE
 
     return f"""---
-# この1本ぶんの指示。共通の既定は {project_file.name} にある:
+# この動画の指示。共通の既定は {project_file.name} にある:
 #   {project_file}
 # いま効いている値と由来: gmp config <このファイル>
 title: 動画タイトル
 
 {_inherited_block(resolved)}
 {SCENES_BLOCK}"""
+
+
+def split_front(text: str) -> tuple[str, str]:
+    """(フロントマター, 本文). フロントマターが無ければ ("", 全部)."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return "", text
+    try:
+        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    except StopIteration:
+        return "", text
+    return "".join(lines[1:end]), "".join(lines[end + 1:])
+
+
+def rebuild_text(text: str, resolved=None, project_file: Path | None = None,
+                 without_video=None) -> tuple[str, list[str]]:
+    """構成を雛形から作り直す. 戻り値は (新しい中身, 落とした上書き).
+
+    **人が書いたものは必ず残す** —— `title` と `scenes` と本文の散文。
+    落とすのは**他の層と同じ値になっている上書き**だけで、それは書き写された
+    共通の値。残っていると「この動画が常にプロジェクトを上書きし続ける」
+    (CLAUDE.md) ので、雛形もわざと書き写さないようにしてある。
+
+    `gmp init --force` と違って**上書き保存はしない**。呼び出し側 (エディタ) が
+    中身として見せ、人が見てから保存する。
+    """
+    import yaml
+
+    from . import settings
+
+    front, body = split_front(text)
+    try:
+        data = yaml.safe_load(front) if front.strip() else {}
+    except yaml.YAMLError:
+        data = {}       # 壊れていても作り直せること (直したくて押すのだから)
+    if not isinstance(data, dict):
+        data = {}
+
+    title = data.get("title") or "動画タイトル"
+    scenes = data.get("scenes")
+    rest = {k: v for k, v in data.items() if k not in ("title", "scenes")}
+
+    dropped: list[str] = []
+    if without_video is not None:
+        for path, value in settings.normalize(rest).items():
+            setting = settings.SETTINGS.get(path)
+            if setting is None or setting.kind == "path":
+                # **相対パスは層をまたいで比べられない。** `app.cwd = '.'` は
+                # video.md では動画のフォルダ、gmp.toml ではプロジェクトルート
+                # で、文字列が同じでも別の場所を指す (CLAUDE.md)。同じに見えた
+                # からと落とすと、黙って収録対象がずれる
+                continue
+            if without_video.get(path) == value:
+                dropped.append(path)
+        rest = _prune(rest, dropped)
+
+    head = ["---"]
+    if project_file is not None:
+        head += [f"# この動画の指示。共通の既定は {project_file.name} にある:",
+                 f"#   {project_file}"]
+    head.append("# いま効いている値と由来: gmp config <このファイル>")
+    head.append(f"title: {title}")
+    head.append("")
+    if resolved is not None and project_file is not None:
+        head.append(_inherited_block(resolved).rstrip("\n"))
+        head.append("")
+    if rest:
+        head.append("# この動画だけの上書き")
+        head.append(yaml.safe_dump(rest, allow_unicode=True,
+                                   sort_keys=False, default_flow_style=False).rstrip("\n"))
+        head.append("")
+    if scenes:
+        head.append(yaml.safe_dump({"scenes": scenes}, allow_unicode=True,
+                                   sort_keys=False, default_flow_style=False).rstrip("\n"))
+    else:
+        head.append(SCENES_BLOCK.split("---")[0].rstrip("\n"))
+    head.append("---")
+
+    tail = body if body.strip() else "\n## 補足\n\nここに自由に書く。\n"
+    return "\n".join(head) + "\n" + tail, dropped
+
+
+def _prune(raw: dict, paths: list[str]) -> dict:
+    """ドット区切りのキーを nested dict から落とす. 空になった枝も落とす."""
+    import copy
+
+    out = copy.deepcopy(raw)
+    for dotted in paths:
+        *head, leaf = dotted.split(".")
+        node = out
+        chain = [out]
+        for part in head:
+            node = node.get(part) if isinstance(node, dict) else None
+            if node is None:
+                break
+            chain.append(node)
+        if isinstance(node, dict):
+            node.pop(leaf, None)
+        for parent, key in zip(reversed(chain[:-1]), reversed(head)):
+            if isinstance(parent.get(key), dict) and not parent[key]:
+                parent.pop(key)
+    return out
 
 
 @dataclass

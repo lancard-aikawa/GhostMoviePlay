@@ -4,7 +4,7 @@
 
   1. config.toml        グローバル設定 (この機械の既定)。git に入らない
   2. <project>/gmp.toml  プロジェクトの既定。**git に入る**
-  3. video.md           1本ぶん。フロントマターで上書きする
+  3. video.md           動画 1 本ぶん。フロントマターで上書きする
 
 `config.toml` に置けるのは **機械が変われば変わる値** (出力ルート、ENGINE の
 接続先、入っているフォント) と **好みの既定** (声、口調、目標尺) だけ。
@@ -57,7 +57,7 @@ LAYER_LABEL = {
     MACHINE: "グローバル",
     ENV: "環境変数",
     PROJECT: "プロジェクト",
-    VIDEO: "この1本",
+    VIDEO: "この動画",
     CLI: "コマンド引数",
 }
 
@@ -706,16 +706,15 @@ def parse_value(path: str, text: str) -> Any:
 PROJECT_TEMPLATE = """# GhostMoviePlay — このプロジェクトの既定
 #
 # ここに置いた値は、下の video.md すべてに効く。**git に入れる。**
-# 1本だけ変えたいものは video.md のフロントマターで上書きする。
+# この動画だけ変えたいものは video.md のフロントマターで上書きする。
 # いま効いている値と、その由来は `gmp config` で見られる。
 
 project = '{project}'
 
+# **収録対象。ここを埋めないと台本は書けない。**
+# 設定画面 (gmp ui) の「対象と動画」からも入れられる。
 [app]
-url = 'http://localhost:5173'
-# ready = 'text=スタート'      # これが見えたら準備完了
-# start = 'npm run dev'        # 既に応答していれば起動しない
-cwd = '.'                      # ソースを読ませるフォルダ (このファイルからの相対)
+{app}cwd = '.'                        # ソースを読ませるフォルダ (このファイルからの相対)
 
 [voice]
 speaker = 'ずんだもん'
@@ -746,14 +745,54 @@ seed = 12345
 """
 
 
+# 何も推測できなかったときに置く見本。**値としては書かない** ——
+# 「設定済みに見える嘘」は、画面から直せない値としてプロジェクトに残る
+APP_SAMPLE = """# url = 'http://localhost:5173'  # ← 実際の URL に書き換えてコメントを外す
+# ready = 'text=スタート'        # これが見えたら準備完了
+# start = 'npm run dev'          # 既に応答していれば起動しない
+"""
+
+
+def app_block(guesses) -> str:
+    """推測を [app] の行にする. **由来をコメントで必ず添える.**"""
+    if not guesses:
+        return APP_SAMPLE
+    lines = []
+    for guess in guesses:
+        leaf = guess.path.rpartition(".")[2]
+        lines.append(f"{leaf} = {guess.value!r}".replace('"', "'")
+                     + f"   # ← {guess.why}")
+    lines.append("# 当たっていなければ書き換える (設定画面の「対象と動画」からでも)")
+    return "\n".join(lines) + "\n"
+
+
 def init_project(directory: str | Path, project: str | None = None,
-                 force: bool = False) -> Path:
-    """<project>/gmp.toml の雛形を置く. 戻り値は書いたファイル."""
+                 force: bool = False, detect: bool = True) -> Path:
+    """<project>/gmp.toml の雛形を置く. 戻り値は書いたファイル.
+
+    収録対象は**プロジェクトを読んで埋める** (`detect.probe`)。ここが空だと
+    Pass1 が「本物のアプリを指してくれ」と訊いて終わるので、埋められるものは
+    埋めておく。推測なので当たらないことがあり、**由来をコメントで添えて**
+    人が見て直せるようにする。
+    """
     given = Path(directory)
     target = given if given.name == PROJECT_FILE else given / PROJECT_FILE
     if target.exists() and not force:
         raise SettingsError(f"{target} は既にあります")
     target.parent.mkdir(parents=True, exist_ok=True)
     name = project or target.parent.resolve().name
-    target.write_text(PROJECT_TEMPLATE.format(project=name), encoding="utf-8")
+
+    guesses = []
+    if detect:
+        from .detect import probe
+
+        try:
+            guesses = probe(target.parent)
+        except OSError:
+            guesses = []            # 読めないだけ。雛形は置く
+
+    target.write_text(
+        PROJECT_TEMPLATE.format(project=name, app=app_block(guesses)),
+        encoding="utf-8",
+    )
     return target

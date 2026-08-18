@@ -33,13 +33,16 @@ uv run gmp doctor            # ffmpeg / chromium の確認
 
 cd <対象プロジェクト>
 uv run gmp config --init-project .                    # 共通の既定 (gmp.toml) を置く
-uv run gmp ui                                         # 設定画面で埋める (対象URL・声・口調・題材)
+uv run gmp ui                                         # 画面で埋める (対象URL・声・口調・題材)
 uv run gmp init docs/video/getting-started            # 1本ぶんのフォルダを掘る
 #   docs/video/getting-started/video.md を編集（タイトルとシーン構成）
-uv run gmp plan  docs/video/getting-started/video.md --run    # 台本を作らせる
+uv run gmp plan  docs/video/getting-started/video.md --open   # 台本を作らせる
 uv run gmp kana  docs/video/getting-started/plan.json         # 読みを確認する
 uv run gmp build docs/video/getting-started/plan.json --voice # → output.mp4
 ```
+
+画面から回してもよい。`gmp ui --run` の「撮る」面に、いまどこまで出来ているか
+（台本・音声・収録・完成）と、各段のボタン・実行ログ・完成した動画の再生が並ぶ。
 
 `gmp.toml` に置いた対象URL・声・口調・題材は、以降の全部に効く。画面を使わず
 `gmp.toml` を直に書いてもよく、いま何が効いているかは `gmp config` で見られる
@@ -82,18 +85,46 @@ uv run gmp build docs/video/intro/plan.json --voice   # 約 100 秒
 収録対象は `docs/video/intro/site/index.html`（説明ページ）で、`app.start` の
 簡易サーバ越しに開く。設定は `gmp.toml`（このプロジェクトの既定）から来る。
 
+## 呼び名
+
+画面・ドキュメント・コミットで同じ言葉を使う。
+
+| 呼び名 | 実体 | 中身 |
+|---|---|---|
+| プロジェクト | `gmp.toml` のあるフォルダ | 撮る対象のアプリ |
+| 動画 | `video.md` のあるフォルダ | 1 本ぶんの入れ物 |
+| **構成** | `video.md` | タイトル、シーンと狙い、上書き設定、補足の散文。**人が書く** |
+| 依頼文 | `PLAN_REQUEST.md` | Pass1 に渡す指示 |
+| **台本** | `plan.json` | セリフ（`say`）、字幕、ト書き（`actions`）、尺。**AI が書き、人が直せる** |
+| 音声 | `voice/*.wav` | `say` を読み上げたもの |
+| 素材 | `raw.webm` | 収録した無音の映像 |
+| 収録 | `timing.json` | ビートの実測時刻 |
+| 字幕 | `subs.ass` | |
+| 完成 | `output.mp4` | |
+
+セリフとト書きが入っているのは `plan.json` だけなので、**台本は `plan.json`**。
+`video.md` が持っているのはシーンと狙いなので **構成**。
+
+**`1本` は数え方としてしか使わない**（「動画が 1 本もありません」「動画 1 本ぶんの
+フォルダ」）。物の名前に使うと、`台本を作る` の隣の `1本を作る` が台本の数のことに
+読めるし、選ぶ欄の見出しにすると何を選ぶのか言えていない（画像を選ぶ欄に
+「この一枚」と出ているのと同じ）。
+
+設定の層は `グローバル` / `プロジェクト` / `この動画`（`gmp config` の由来欄と同じ語）。
+
 ## コマンド
 
 | | |
 |---|---|
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
 | `gmp where [plan.json]` | 生成物の置き場所を見る |
-| `gmp ui [video.md]` | 設定画面を開く |
+| `gmp ui [video.md]` | 画面を開く（設定 / 撮る）。`--run` で「撮る」面から |
 | `gmp config [video.md]` | 効いている設定と由来を見る |
 | `gmp config --set KEY=VALUE` | グローバル設定を書く（`--set-home DIR` も可） |
 | `gmp config --init-project [DIR]` | `<project>/gmp.toml` の雛形を置く |
-| `gmp init <dir>` | 1本ぶんのフォルダと `video.md` を作る |
-| `gmp plan [spec]` | video.md → 依頼文。`--run` で claude を起動し plan.json まで |
+| `gmp init <dir>` | 動画 1 本ぶんのフォルダと `video.md` を作る |
+| `gmp init <dir> --open` | 構成を対話の claude に書かせる（収録対象とシーン構成） |
+| `gmp plan [spec]` | video.md → 依頼文。`--open` で対話の claude、`--run` で `-p` |
 | `gmp kana <plan.json>` | 各ビートの読みを確認する（合成しない） |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |

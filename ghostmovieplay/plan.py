@@ -137,14 +137,19 @@ class Plan:
 
 
 def wav_seconds(path: Path) -> float | None:
-    """wav の尺. 読めなければ None (合成前・欠落を区別せず扱えるように)."""
+    """wav の尺. 読めなければ None (合成前・欠落を区別せず扱えるように).
+
+    合成を中断すると 0 バイトの wav が残る。wave は空ファイルに wave.Error
+    ではなく **EOFError** を投げるので、これも「読めない」に混ぜる
+    (見積りを出すだけの場所で落ちてはいけない)。
+    """
     import wave
 
     try:
         with wave.open(str(path), "rb") as handle:
             rate = handle.getframerate()
             return handle.getnframes() / rate if rate else None
-    except (OSError, wave.Error):
+    except (OSError, EOFError, wave.Error):
         return None
 
 

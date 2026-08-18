@@ -213,34 +213,16 @@ def test_save_without_a_project_file_is_an_error():
 
 
 # --- ウィンドウが要るぶん (画面が無ければ飛ばす) -----------------------
-@pytest.fixture(scope="session")
-def tk_root():
-    """Tk の root はセッションに 1 つだけ作る.
-
-    1 プロセスで Tk() を作り直すと、たまに init.tcl を読めずに落ちる。
-    テストごとに作ると「画面が無い」で不安定に飛ぶので、root は使い回して
-    テストごとには Toplevel を作る。
-    """
-    tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError as exc:
-        # 理由を書かないと、本当の不具合を「画面が無い」で握り潰してしまう
-        pytest.skip(f"ウィンドウを作れない: {exc}")
-    root.withdraw()
-    yield root
-    root.destroy()
-
-
+# tk_root (セッションに 1 つだけの Tk) は tests/conftest.py にある
 @pytest.fixture
 def window(tk_root, tmp_path, monkeypatch):
     import tkinter as tk
 
     # 話者の取得は起動時に走る。テストでは ENGINE を叩かせない
-    monkeypatch.setattr(ui.SettingsWindow, "_load_speakers_async", lambda self: None)
+    monkeypatch.setattr(ui.SettingsPane, "_load_speakers_async", lambda self: None)
     top = tk.Toplevel(tk_root)
     top.withdraw()
-    made = ui.SettingsWindow(top, None)
+    made = ui.SettingsPane(top, ui.AppState())
     # 開いた場所 (カレント) の gmp.toml に左右されないよう、空の場所へ移す
     made.project_dir.set(str(tmp_path))
     made.reload()

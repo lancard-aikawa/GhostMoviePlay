@@ -1,4 +1,11 @@
-"""設定画面 (tkinter). `gmp ui` から開く.
+"""画面 (tkinter). `gmp ui` から開く.
+
+ウィンドウは 1 つで、中は **「撮る」(ui_run.RunPane) と「設定」(SettingsPane)**
+の 2 面。プロジェクトと動画の選択だけを上に出して両方で共有する
+(AppState)。撮る直前に設定を直すのがいちばん多い流れなので、別ウィンドウに
+分けると「保存したのに反映されない」が起きる。
+
+以下はこのファイルの本体である設定面の決まりごと。
 
 **編集する層を先に 1 つ選び、そのファイルだけを編集する。**
 「このプロジェクト (gmp.toml)」と「グローバル設定 (config.toml)」は完全に分ける。
@@ -460,22 +467,37 @@ def play_wav(path: Path) -> None:
 
 
 # --- ウィンドウ -------------------------------------------------------
-class SettingsWindow:
-    def __init__(self, root: tk.Tk, spec: Path | None = None):
-        self.root = root
-        self.rows: dict[str, dict[str, Any]] = {}
-        self.speakers: list[dict[str, Any]] = []
-        self.speaker_box: ttk.Combobox | None = None
-        self.style_box: ttk.Combobox | None = None
-        # 畳んだ状態は読み直しても保つ (開くたびに畳まれると邪魔になる)
-        self.folded: dict[tuple[str, str], bool] = {}
+def _project_guess(start: Path) -> Path:
+    """`gmp.toml` がまだ無いときのプロジェクト.
 
+    **動画のフォルダを既定にしない。** 1 本ぶんのフォルダをプロジェクトだと
+    思われると、そこに `gmp.toml` を作ってしまい、プロジェクト共通のはずの
+    既定が 1 本にしか効かなくなる (実際にそこへ作った)。`gmp ui` は普通
+    プロジェクトルートで起動するので、start がその下にあるならそちらを採る。
+    """
+    here = Path.cwd()
+    try:
+        start.resolve().relative_to(here.resolve())
+    except (ValueError, OSError):
+        return start
+    return here
+
+
+class AppState:
+    """撮る面と設定面で共有する選択.
+
+    **プロジェクトと動画は画面で 1 回だけ選ぶ。** 面ごとに選ばせると、
+    設定を直した相手と撮った相手がずれる (しかも画面のどこにも出ない)。
+    層を 1 回だけ選ぶのと同じ理由で、選択は上に 1 つだけ置く。
+    """
+
+    def __init__(self, spec: Path | None = None):
         start = Path(spec).parent if spec else Path.cwd()
         found = settings.find_project_file(start)
-        directory = found.parent if found else start
+        directory = found.parent if found else _project_guess(start)
         self.project_dir = tk.StringVar(value=str(directory))
         # 一覧は相対で並べるので、渡された 1 本も相対に揃える
-        shown = ""
+        shown = NO_SPEC
         if spec:
             resolved_spec = Path(spec).resolve()
             try:
@@ -484,46 +506,100 @@ class SettingsWindow:
                 shown = str(resolved_spec)
         self.spec_path = tk.StringVar(value=shown)
         self.status = tk.StringVar(value="")
+        self._listeners: list = []
+        # 一覧そのものを作り直す (動画を新しく作ったとき)。AppWindow が差し替える
+        self.rescan = lambda: None
+        # 面を切り替えて、直すべき欄まで運ぶ。撮る面から設定面へ渡すための口で、
+        # **画面から直せない値を画面が指摘する**という行き止まりを作らないため
+        self.show = lambda mode, tab=None: None
+
+    def watch(self, callback) -> None:
+        """選択が変わったときに呼ぶものを足す (面ごとに 1 つ)."""
+        self._listeners.append(callback)
+
+    def changed(self) -> None:
+        for callback in self._listeners:
+            callback()
+
+    @property
+    def directory(self) -> Path:
+        return Path(self.project_dir.get())
+
+    @property
+    def project_file(self) -> Path | None:
+        candidate = self.directory / settings.PROJECT_FILE
+        return candidate if candidate.is_file() else None
+
+    @property
+    def spec(self) -> Path | None:
+        """選ばれている video.md の絶対パス. 選ばれていなければ None."""
+        chosen = self.spec_path.get()
+        if not chosen or chosen == NO_SPEC:
+            return None
+        path = Path(chosen)
+        return path if path.is_absolute() else self.directory / path
+
+    def specs(self) -> list[Path]:
+        """プロジェクトの下の video.md."""
+        try:
+            return sorted(self.directory.glob("**/video.md"))[:50]
+        except OSError:
+            return []
+
+
+class SettingsPane:
+    """設定を編集する面. 親フレームに収まる (ウィンドウは AppWindow が持つ)."""
+
+    def __init__(self, parent: tk.Misc, state: AppState):
+        self.body = parent
+        self.state = state
+        self.rows: dict[str, dict[str, Any]] = {}
+        self.speakers: list[dict[str, Any]] = []
+        self.speaker_box: ttk.Combobox | None = None
+        self.style_box: ttk.Combobox | None = None
+        # 畳んだ状態は読み直しても保つ (開くたびに畳まれると邪魔になる)
+        self.folded: dict[tuple[str, str], bool] = {}
         # 開いたときはプロジェクトを編集する (グローバル設定を触るのは稀)
         self.layer = tk.StringVar(value=settings.PROJECT)
-
-        root.title("GhostMoviePlay 設定")
-        root.geometry("960x720")
 
         # フッターを先に (side=BOTTOM)。本体を先に pack すると cavity を
         # 食い尽くしてボタン行が画面外に出る
         self._build_footer()
-        self._build_status()
         self._build_header()
         self._build_tabs()
 
         self.reload()
         self._load_speakers_async()
 
+    # 選ぶのは AppState。ここからは読むだけ
+    @property
+    def project_dir(self) -> tk.StringVar:
+        return self.state.project_dir
+
+    @property
+    def spec_path(self) -> tk.StringVar:
+        return self.state.spec_path
+
+    @property
+    def status(self) -> tk.StringVar:
+        return self.state.status
+
     # --- 組み立て ----------------------------------------------------
     def _build_footer(self) -> None:
-        bar = tk.Frame(self.root)
+        bar = tk.Frame(self.body)
         bar.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=6)
-        tk.Button(bar, text="閉じる", width=10, command=self.root.destroy).pack(side=tk.RIGHT)
         tk.Button(bar, text="保存", width=10, command=self.on_save).pack(side=tk.RIGHT, padx=6)
         tk.Button(bar, text="読み直す", width=10, command=self.reload).pack(side=tk.RIGHT)
 
-    def _build_status(self) -> None:
-        bar = tk.Frame(self.root)
-        bar.pack(side=tk.BOTTOM, fill=tk.X)
-        tk.Label(bar, textvariable=self.status, anchor="w", fg="#444").pack(
-            side=tk.LEFT, fill=tk.X, padx=10, pady=2
-        )
-
     def _build_header(self) -> None:
-        head = tk.Frame(self.root)
+        head = tk.Frame(self.body)
         head.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 4))
         head.columnconfigure(1, weight=1)
 
         # **編集する層はここで 1 回だけ選ぶ。** 行ごとに選ばせない
-        tk.Label(head, text="編集対象").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        tk.Label(head, text="編集対象").grid(row=0, column=0, sticky="w")
         picker = tk.Frame(head)
-        picker.grid(row=3, column=1, sticky="w", padx=6, pady=(8, 0))
+        picker.grid(row=0, column=1, sticky="w", padx=6)
         for value in EDITABLE:
             tk.Radiobutton(
                 picker, text=LAYER_TITLE[value], value=value, variable=self.layer,
@@ -531,36 +607,35 @@ class SettingsWindow:
             ).pack(side=tk.LEFT, padx=(0, 12))
         self.layer_note = tk.Label(head, text="", anchor="w", fg="#666",
                                    justify=tk.LEFT, wraplength=780)
-        self.layer_note.grid(row=4, column=1, sticky="ew", padx=6)
+        self.layer_note.grid(row=1, column=1, sticky="ew", padx=6)
 
-        tk.Label(head, text="プロジェクト").grid(row=0, column=0, sticky="w")
-        tk.Entry(head, textvariable=self.project_dir).grid(row=0, column=1, sticky="ew", padx=6)
-        tk.Button(head, text="選択", command=self.choose_project).grid(row=0, column=2)
-
-        # gmp.toml の有無はフォルダの性質なので、フォルダを選ぶ場所に出す
+        # gmp.toml があるかどうかは「このプロジェクトに保存できるか」なので、
+        # 保存先を選ぶすぐ下に出す
         note = tk.Frame(head)
-        note.grid(row=1, column=1, sticky="ew", padx=6)
+        note.grid(row=2, column=1, sticky="ew", padx=6, pady=(4, 0))
         self.project_note = tk.Label(note, text="", anchor="w", fg="#666")
         self.project_note.pack(side=tk.LEFT)
         self.project_action = tk.Button(note, text="", command=self.create_project_file)
         self.project_action.pack(side=tk.LEFT, padx=8)
 
-        # ここは編集する場所ではなく、**1本ぶんの上書きを確かめる**ための欄。
-        # video.md が 1 つも無いプロジェクトでは行ごと出さない
-        self.spec_row = tk.Frame(head)
-        self.spec_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-        self.spec_row.columnconfigure(1, weight=1)
-        tk.Label(self.spec_row, text="上書きの確認").grid(row=0, column=0, sticky="w")
-        self.spec_box = ttk.Combobox(
-            self.spec_row, textvariable=self.spec_path, state="readonly"
-        )
-        self.spec_box.grid(row=0, column=1, sticky="ew", padx=6)
-        self.spec_box.bind("<<ComboboxSelected>>", lambda _event: self.reload())
-        self.spec_note = tk.Label(self.spec_row, text="", anchor="w", fg="#666")
-        self.spec_note.grid(row=1, column=1, sticky="ew", padx=6)
+        # 上で選ばれている 1 本が何を上書きしているか。**ここは編集する場所では
+        # ない** (video.md を GUI から書き戻すと人の書いた本文とコメントが壊れる)
+        self.spec_note = tk.Label(head, text="", anchor="w", fg="#666",
+                                  justify=tk.LEFT, wraplength=780)
+        self.spec_note.grid(row=3, column=1, sticky="ew", padx=6, pady=(4, 0))
+
+    def focus_tab(self, title: str) -> None:
+        """そのタブを手前に出す (無い / 隠れているときは何もしない)."""
+        page = self.pages.get(title)
+        if page is None:
+            return
+        try:
+            self.notebook.select(page)
+        except tk.TclError:
+            pass                    # その層に置けないタブは hidden になっている
 
     def _build_tabs(self) -> None:
-        self.notebook = ttk.Notebook(self.root, style=ensure_notebook_style())
+        self.notebook = ttk.Notebook(self.body, style=ensure_notebook_style())
         self.notebook.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=6)
         self.frames: dict[str, tk.Frame] = {}
         self.pages: dict[str, tk.Frame] = {}
@@ -615,25 +690,11 @@ class SettingsWindow:
     # --- 中身の入れ替え ----------------------------------------------
     @property
     def project_file(self) -> Path | None:
-        candidate = Path(self.project_dir.get()) / settings.PROJECT_FILE
-        return candidate if candidate.is_file() else None
+        return self.state.project_file
 
     def reload(self) -> None:
         """3 層を読み直して行を作り直す."""
-        directory = Path(self.project_dir.get())
-        found = sorted(directory.glob("**/video.md"))[:50]
-        self.spec_box["values"] = [NO_SPEC] + [str(p.relative_to(directory)) for p in found]
-        if found:
-            self.spec_row.grid()
-        else:
-            self.spec_row.grid_remove()     # 選ぶものが無い欄は出さない
-        if self.spec_path.get() in ("", NO_SPEC) or not found:
-            self.spec_path.set(NO_SPEC)
-
-        chosen = self.spec_path.get()
-        spec = None if chosen == NO_SPEC else Path(chosen)
-        if spec and not spec.is_absolute():
-            spec = directory / spec
+        spec = self.state.spec
 
         video_meta: dict = {}
         if spec and spec.is_file():
@@ -676,7 +737,7 @@ class SettingsWindow:
             )
         else:
             self.spec_note.config(
-                text="1本ぶん (video.md) を選ぶと、その動画が上書きしている項目が分かります"
+                text="上の「動画の構成」を選ぶと、その動画が上書きしている項目が分かります"
             )
 
         layer = self.layer.get()
@@ -876,7 +937,7 @@ class SettingsWindow:
             parts = [f"未設定 — いま効いている値: {shown}"]
         # 「直せない」理由は 1 つだけ言う。2 つ並べると同じことの言い換えになる
         if any(o.layer == settings.VIDEO for o in origins):
-            parts.append("! この1本 (video.md) が決めています。ここからは直せません")
+            parts.append("! この動画 (video.md) が決めています。ここからは直せません")
         elif not writable:
             parts.append("! ここでは直せません (表示のみ)")
         if any(affects_audio(p) for p in row.paths):
@@ -904,7 +965,7 @@ class SettingsWindow:
                 found = VoiceVox(Voice()).speakers()
             except Exception:
                 found = []
-            self.root.after(0, lambda: self._apply_speakers(found))
+            self.body.after(0, lambda: self._apply_speakers(found))
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -940,13 +1001,6 @@ class SettingsWindow:
                 return
 
     # --- 操作 --------------------------------------------------------
-    def choose_project(self) -> None:
-        chosen = filedialog.askdirectory(initialdir=self.project_dir.get())
-        if chosen:
-            self.project_dir.set(chosen)
-            self.spec_path.set("")
-            self.reload()
-
     def create_project_file(self) -> None:
         try:
             written = settings.init_project(self.project_dir.get())
@@ -1008,7 +1062,7 @@ class SettingsWindow:
         if overridden:
             messagebox.showwarning(
                 "保存しましたが効きません",
-                "この1本 (video.md) が上書きしているので、次の項目は効きません:\n\n"
+                "この動画 (video.md) が上書きしているので、次の項目は効きません:\n\n"
                 + "\n".join(overridden)
                 + "\n\nvideo.md 側の記述を消してください。",
             )
@@ -1048,17 +1102,152 @@ class SettingsWindow:
                 message = f"試聴: {voice.speaker} ({voice.style or '既定'})"
             except Exception as exc:                      # noqa: BLE001
                 message = f"試聴できません: {exc}"
-            self.root.after(0, lambda: self.status.set(message))
+            self.body.after(0, lambda: self.status.set(message))
 
         threading.Thread(target=work, daemon=True).start()
 
 
-def open_window(spec: str | Path | None = None) -> int:
+class AppWindow:
+    """1 つのウィンドウに「撮る」と「設定」を並べる.
+
+    別ウィンドウに分けなかったのは、**撮る直前に設定を直す**のがいちばん多い
+    流れだから。分けると「保存したのに反映されない」「どちらのプロジェクトを
+    見ているのか分からない」が起きる。共有するのは選択 (AppState) だけで、
+    面ごとの操作 (保存 / 収録) はそれぞれの面のフッターに置く。
+
+    設定タブの Notebook の中に「撮る」を足さないのは、ヘッダの「編集対象」が
+    設定にしか意味を持たないため。並べると撮る面でも居座って嘘になる。
+    """
+
+    MODES = (("run", "撮る"), ("settings", "設定"))
+
+    def __init__(self, root: tk.Tk, spec: Path | None = None, mode: str = "settings"):
+        from .ui_run import RunPane
+
+        self.root = root
+        self.state = AppState(spec)
+        self.mode = tk.StringVar(value=mode if dict(self.MODES).get(mode) else "settings")
+
+        root.title("GhostMoviePlay")
+        root.geometry("1000x760")
+
+        # 下の帯を先に (side=BOTTOM)。本体を先に pack すると押し出される
+        self._build_status()
+        self._build_header()
+
+        self.container = tk.Frame(root)
+        self.container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.panes = {key: tk.Frame(self.container) for key, _ in self.MODES}
+
+        self.state.rescan = self.refresh_specs
+        self.state.show = self.show_pane
+        self.refresh_specs()
+        self.run_pane = RunPane(self.panes["run"], self.state)
+        self.settings_pane = SettingsPane(self.panes["settings"], self.state)
+        # 面を作り終えてから繋ぐ (組み立て中の reload を二重に走らせない)
+        self.state.watch(self.settings_pane.reload)
+        self.state.watch(self.run_pane.refresh)
+        self._show()
+
+    # --- 組み立て ----------------------------------------------------
+    def _build_status(self) -> None:
+        bar = tk.Frame(self.root)
+        bar.pack(side=tk.BOTTOM, fill=tk.X)
+        tk.Button(bar, text="閉じる", width=10, command=self.on_close).pack(
+            side=tk.RIGHT, padx=8, pady=4
+        )
+        tk.Label(bar, textvariable=self.state.status, anchor="w", fg="#444").pack(
+            side=tk.LEFT, fill=tk.X, padx=10, pady=2
+        )
+
+    def _build_header(self) -> None:
+        head = tk.Frame(self.root)
+        head.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 4))
+        head.columnconfigure(1, weight=1)
+
+        tk.Label(head, text="プロジェクト").grid(row=0, column=0, sticky="w")
+        tk.Entry(head, textvariable=self.state.project_dir).grid(
+            row=0, column=1, sticky="ew", padx=6
+        )
+        tk.Button(head, text="選択", command=self.choose_project).grid(row=0, column=2)
+
+        # **選ぶ対象は名前で言う。** 「この1本」は数え方で、何を選ぶのかを
+        # 表していない (画像を選ぶ欄に「この一枚」と出ているのと同じ)
+        tk.Label(head, text="動画の構成").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.spec_box = ttk.Combobox(
+            head, textvariable=self.state.spec_path, state="readonly"
+        )
+        self.spec_box.grid(row=1, column=1, sticky="ew", padx=6, pady=(6, 0))
+        self.spec_box.bind("<<ComboboxSelected>>", lambda _event: self.state.changed())
+
+        switch = tk.Frame(self.root)
+        switch.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(8, 0))
+        for value, title in self.MODES:
+            tk.Radiobutton(
+                switch, text=title, value=value, variable=self.mode,
+                indicatoron=False, width=14, padx=10, pady=5, command=self._show,
+            ).pack(side=tk.LEFT, padx=(0, 4))
+
+    # --- 操作 --------------------------------------------------------
+    def refresh_specs(self) -> None:
+        directory = self.state.directory
+        found = self.state.specs()
+        values = [NO_SPEC] + [str(p.relative_to(directory)) for p in found]
+        self.spec_box["values"] = values
+        current = self.state.spec_path.get()
+        # コマンドラインから渡された 1 本がプロジェクトの外にあることがある。
+        # 実在するなら一覧に無くても残す
+        if current not in values and not (self.state.spec and self.state.spec.is_file()):
+            self.state.spec_path.set(NO_SPEC)
+
+    def choose_project(self) -> None:
+        chosen = filedialog.askdirectory(initialdir=self.state.project_dir.get())
+        if not chosen:
+            return
+        self.state.project_dir.set(chosen)
+        self.state.spec_path.set(NO_SPEC)
+        self.refresh_specs()
+        self.state.changed()
+
+    def show_pane(self, mode: str, tab: str | None = None) -> None:
+        """面を切り替える. tab を渡すと設定面のそのタブまで開く."""
+        self.mode.set(mode if mode in dict(self.MODES) else "settings")
+        self._show()
+        if mode == "settings":
+            # 収録対象はプロジェクトにしか置けないので、層も合わせておく
+            self.settings_pane.layer.set(settings.PROJECT)
+            self.settings_pane.reload()
+            if tab:
+                self.settings_pane.focus_tab(tab)
+
+    def _show(self) -> None:
+        current = self.mode.get()
+        for key, frame in self.panes.items():
+            if key == current:
+                frame.pack(fill=tk.BOTH, expand=True)
+            else:
+                frame.pack_forget()
+        if current == "run":
+            self.run_pane.refresh()     # 裏で撮り進んでいることがある
+
+    def on_close(self) -> None:
+        if self.run_pane.runner.busy and not messagebox.askyesno(
+            "実行中です",
+            "収録か書き出しが走っています。閉じると中止します。",
+            default=messagebox.NO,
+        ):
+            return
+        self.run_pane.runner.stop()
+        self.root.destroy()
+
+
+def open_window(spec: str | Path | None = None, mode: str = "settings") -> int:
     try:
         root = tk.Tk()
     except tk.TclError as exc:
         print(f"gmp: 画面を開けません ({exc})", file=sys.stderr)
         return 1
-    SettingsWindow(root, Path(spec) if spec else None)
+    window = AppWindow(root, Path(spec) if spec else None, mode=mode)
+    root.protocol("WM_DELETE_WINDOW", window.on_close)
     root.mainloop()
     return 0

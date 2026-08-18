@@ -52,6 +52,19 @@ def cmd_doctor(args) -> int:
         print("  NG   playwright 未インストール (`uv sync`)")
         ok = False
 
+    # Pass1 (gmp plan --run) は claude を起動する。無くても録画と書き出しは
+    # できるので落第にはしないが、**「台本を作る」だけが exit 1 になる**理由に
+    # 気づけるように出す
+    import shutil
+
+    claude = shutil.which("claude")
+    if claude:
+        print(f"  OK   claude  ({claude})")
+    else:
+        print("  --   claude が見つかりません"
+              " (gmp plan --run と画面の「台本を作る」が使えません。\n"
+              "       Claude Code を入れるか、gmp plan で依頼文だけ書き出してください)")
+
     print("\n準備完了" if ok else "\n不足があります")
     return 0 if ok else 1
 
@@ -73,7 +86,7 @@ def cmd_where(args) -> int:
         print(f"  プロジェクトの既定 {project_file}")
 
     if not args.plan:
-        print("\n  plan.json を渡すとその1本の出力先が出ます: gmp where plan.json")
+        print("\n  plan.json を渡すとその動画の出力先が出ます: gmp where plan.json")
         return 0
 
     from .plan import PlanError
@@ -149,10 +162,15 @@ def cmd_config(args) -> int:
         except settings.SettingsError as exc:
             return _err(str(exc))
         print(f"作成: {written}")
+        from .detect import probe
+
+        for guess in probe(written.parent):
+            print(f"  {guess.path:10} {guess.value}   ({guess.why})")
         print("  ここに書いた値は、下の video.md すべてに効きます")
+        print("  収録対象は推測です。違っていたら書き換えてください")
         return 0
 
-    # 書き換え (グローバルだけ。プロジェクトと1本ぶんはファイルを直接編集する)
+    # 書き換え (グローバルだけ。プロジェクトと動画はファイルを直接編集する)
     pairs = list(args.set or [])
     removals = list(args.unset or [])
     if args.set_home:
@@ -175,7 +193,7 @@ def cmd_config(args) -> int:
                 return _err(
                     f"{key!r} はグローバル設定に置けません (置ける層: {allowed})\n"
                     f"  プロジェクト共通なら <project>/{settings.PROJECT_FILE} に、"
-                    "1本だけなら video.md に書いてください"
+                    "その動画だけなら video.md に書いてください"
                 )
             try:
                 _assign(config, key, settings.parse_value(key, raw.strip()))
@@ -209,7 +227,7 @@ def cmd_config(args) -> int:
     else:
         print("    プロジェクト  (無し / gmp config --init-project で作れます)")
     if spec_path:
-        print(f"    この1本      {spec_path}")
+        print(f"    この動画     {spec_path}")
 
     for bake, note in (
         ("plan", "plan.json に焼かれる (Pass2/3 が読む)"),
@@ -239,17 +257,17 @@ def cmd_config(args) -> int:
 
 
 def cmd_ui(args) -> int:
-    """設定画面を開く (書けるのは機械とプロジェクトだけ)."""
+    """画面を開く. 設定 (書けるのは機械とプロジェクトだけ) と、撮る面."""
     try:
         from .ui import open_window
     except ImportError as exc:      # tkinter が入っていない Python
-        return _err(f"設定画面を開けません: {exc}\n  gmp config で同じことができます")
-    return open_window(args.spec)
+        return _err(f"画面を開けません: {exc}\n  gmp config / gmp build で同じことができます")
+    return open_window(args.spec, mode="run" if args.run else "settings")
 
 
 # --- init -------------------------------------------------------------
 def cmd_init(args) -> int:
-    """1本ぶんのディレクトリを掘って video.md を置く.
+    """動画 1 本ぶんのディレクトリを掘って video.md を置く.
 
     生成物はユーザフォルダ側に出るので、ここに .gitignore は要らない。
     """
@@ -265,7 +283,7 @@ def cmd_init(args) -> int:
     spec.parent.mkdir(parents=True, exist_ok=True)
 
     # プロジェクトの既定があるなら、雛形はそれを繰り返さない。
-    # 共通の値を書き写すと、1本ぶんが常にプロジェクトを上書きしてしまう。
+    # 共通の値を書き写すと、この動画が常にプロジェクトを上書きしてしまう。
     project_file = settings.find_project_file(spec.parent)
     resolved = settings.load(spec=spec.parent) if project_file else None
     spec.write_text(template(resolved, project_file), encoding="utf-8")
@@ -282,8 +300,42 @@ def cmd_init(args) -> int:
         print("    gmp config --init-project <プロジェクトルート>")
         print(f"\n  1. {spec} を編集 (対象URL・口調・シーン構成)")
 
-    print(f"  2. gmp plan {spec} --run     台本 plan.json を作らせる")
+    print(f"  2. gmp plan {spec} --open    台本 plan.json を作らせる")
     print(f"  3. gmp build {spec.parent / 'plan.json'} --voice")
+
+    if getattr(args, "open", False):
+        # **収録対象とシーン構成は、そのプロジェクトを読まないと書けない。**
+        # 「URL と起動コマンドとセレクタを調べて書いてください」がいちばん詰まる
+        from .agent import AgentError, open_session, spec_prompt
+        from .detect import probe
+        from .settings import load
+
+        root = project_file.parent if project_file else spec.parent
+        try:
+            hints = probe(root)
+        except OSError:
+            hints = []
+        try:
+            resolved = load(spec=spec)
+            model = resolved.get("agent.model")
+        except Exception:                                   # noqa: BLE001
+            resolved, model = None, None
+        # **依頼文はファイルにする。** 窓に出す 1 行が短くなり、人が貼り直せる。
+        # 中身は claude が読むので、長い指示はそちらへ置く (台本と同じ形)
+        outdir = paths.resolve_outdir(spec, project=resolved.get("project") if resolved else None)
+        outdir.mkdir(parents=True, exist_ok=True)
+        request = outdir / "SPEC_REQUEST.md"
+        request.write_text(spec_prompt(spec, hints), encoding="utf-8")
+        print(f"作成: {request}")
+        try:
+            open_session(
+                f"@{request} の指示に従って {spec} を書いてください。"
+                "分からないことは訊いてください。",
+                root, allow={spec.parent, outdir}, model=model, where=outdir,
+                title="構成 (video.md) を書きます",
+            )
+        except AgentError as exc:
+            return _err(str(exc))
     return 0
 
 
@@ -317,6 +369,16 @@ def cmd_plan(args) -> int:
         print("  ! app.url がどこにも設定されていません"
               f" ({settings.PROJECT_FILE} か video.md に書いてください)")
 
+    # **雛形の見本値のまま呼ぶと、AI は「本物を指してくれ」と訊いて終わる。**
+    # --run では答える人がいないので、AI を 1 回焼いてから気づくことになる
+    from .spec import unfilled
+
+    stale = unfilled(resolved)
+    if len(stale) >= 2:
+        print(f"  ! 構成が雛形の既定のままです: {' / '.join(stale)}"
+              f"\n    {spec_path} を直してから呼んでください"
+              " (収録対象が決まっていないと台本は書けません)")
+
     # 依頼文は生成物なので出力側に置く。プロジェクトには video.md と
     # plan.json しか残らないので .gitignore が要らない。
     outdir = paths.resolve_outdir(
@@ -329,22 +391,41 @@ def cmd_plan(args) -> int:
     out.write_text(request, encoding="utf-8")
     print(f"作成: {out}")
 
+    # claude を動かすのは対象プロジェクト。app.cwd を書いたファイルからの
+    # 相対として解いた実体を渡す
+    relative = resolved.rebase_path("app.cwd", Path.cwd())
+    work = (Path.cwd() / relative).resolve() if relative else spec_path.parent.resolve()
+
+    if getattr(args, "open", False):
+        # **訊かれたら人が答えられる。** 収録対象やセレクタは、そのプロジェクトを
+        # 見ないと決まらないことが多い
+        from .agent import AgentError, open_session
+
+        try:
+            open_session(
+                f"@{out} の指示に従って {plan_path} に plan.json を作ってください。"
+                "分からないことは訊いてください。",
+                work, allow={out.parent, plan_path.parent},
+                model=args.model or resolved.get("agent.model"), where=out.parent,
+                title="台本 (plan.json) を作ります",
+            )
+        except AgentError as exc:
+            return _err(str(exc))
+        print(f"\n出来たら: gmp build {plan_path} --voice")
+        return 0
+
     if not args.run:
         print("\n次にやること -- 対象プロジェクトを開いた Claude Code に、この依頼文を渡す:")
         print(f'  claude "@{out} の指示に従って plan.json を作って"')
-        print(f"\n自動でやらせるなら: gmp plan {spec_path} --run")
+        print(f"\n訊かれても答えられるように開くなら: gmp plan {spec_path} --open")
+        print(f"自動でやらせるなら: gmp plan {spec_path} --run")
         return 0
 
     from .agent import AgentError, run
 
-    # claude を動かすのは対象プロジェクト。app.cwd を書いたファイルからの
-    # 相対として解いた実体を渡す
-    relative = resolved.rebase_path("app.cwd", Path.cwd())
-    cwd = (Path.cwd() / relative).resolve() if relative else spec_path.parent.resolve()
-
     try:
         run(
-            out, plan_path, cwd,
+            out, plan_path, work,
             model=args.model or resolved.get("agent.model"),
             permission_mode=args.permission_mode or resolved.get("agent.permission_mode"),
             timeout=args.timeout,
@@ -642,11 +723,11 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("where", help="生成物の置き場所を見る")
-    p.add_argument("plan", nargs="?", help="plan.json (渡すとその1本の出力先を出す)")
+    p.add_argument("plan", nargs="?", help="plan.json (渡すとその動画の出力先を出す)")
     p.set_defaults(func=cmd_where)
 
     p = sub.add_parser("config", help="効いている設定と由来を見る / グローバル設定を変える")
-    p.add_argument("spec", nargs="?", help="video.md (渡すとその1本の解決結果を出す)")
+    p.add_argument("spec", nargs="?", help="video.md (渡すとその動画の解決結果を出す)")
     p.add_argument("--set", action="append", metavar="KEY=VALUE",
                    help="グローバル設定を書く (例: --set voice.speaker=ずんだもん)")
     p.add_argument("--unset", action="append", metavar="KEY", help="グローバル設定を消す")
@@ -657,11 +738,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--force", action="store_true", help="--init-project で上書きする")
     p.set_defaults(func=cmd_config)
 
-    p = sub.add_parser("ui", help="設定画面を開く")
-    p.add_argument("spec", nargs="?", help="video.md (渡すとその1本を選んだ状態で開く)")
+    p = sub.add_parser("ui", help="画面を開く (設定 / 撮る)")
+    p.add_argument("spec", nargs="?", help="video.md (渡すとその動画を選んだ状態で開く)")
+    p.add_argument("--run", action="store_true", help="「撮る」面から開く")
     p.set_defaults(func=cmd_ui)
 
-    p = sub.add_parser("init", help="1本ぶんのフォルダと video.md を作る")
+    p = sub.add_parser("init", help="動画 1 本ぶんのフォルダと video.md を作る")
+    p.add_argument("--open", action="store_true",
+                   help="対話の claude を開いて構成を書かせる")
     p.add_argument("path", nargs="?", default="video.md",
                    help="ディレクトリ、または video.md のパス")
     p.add_argument("--force", action="store_true")
@@ -670,7 +754,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("plan", help="video.md から Pass1 の依頼文を書き出す / 実行する")
     p.add_argument("spec", nargs="?", default="video.md")
     p.add_argument("--out", help="依頼文の書き出し先 (既定: PLAN_REQUEST.md)")
-    p.add_argument("--run", action="store_true", help="claude を起動して plan.json まで作る")
+    p.add_argument("--run", action="store_true",
+                   help="claude を -p で回して plan.json まで作る (訊かれても答えられない)")
+    p.add_argument("--open", action="store_true",
+                   help="対話の claude を開いて台本を作らせる (訊かれたら答えられる)")
     p.add_argument("--plan-out", help="plan.json の書き出し先")
     p.add_argument("--model", help="claude に渡すモデル (既定: 設定の agent.model)")
     p.add_argument("--permission-mode",
