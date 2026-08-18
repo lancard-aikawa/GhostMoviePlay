@@ -31,6 +31,8 @@ from .plan import Voice
 from .tts import NON_AUDIO_KEYS
 
 PREVIEW_TEXT = "こんにちは。この声と話速で読み上げます。"
+# 空欄だと「壊れている」ように見えるので、選ばないことも選択肢として出す
+NO_SPEC = "(選ばない)"
 
 
 # --- どのタブに何を出すか ---------------------------------------------
@@ -551,11 +553,19 @@ class SettingsWindow:
         self.project_action = tk.Button(note, text="", command=self.create_project_file)
         self.project_action.pack(side=tk.LEFT, padx=8)
 
-        tk.Label(head, text="この1本").grid(row=2, column=0, sticky="w", pady=(6, 0))
-        self.spec_box = ttk.Combobox(head, textvariable=self.spec_path, state="readonly")
-        self.spec_box.grid(row=2, column=1, sticky="ew", padx=6, pady=(6, 0))
+        # ここは編集する場所ではなく、**1本ぶんの上書きを確かめる**ための欄。
+        # video.md が 1 つも無いプロジェクトでは行ごと出さない
+        self.spec_row = tk.Frame(head)
+        self.spec_row.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        self.spec_row.columnconfigure(1, weight=1)
+        tk.Label(self.spec_row, text="上書きの確認").grid(row=0, column=0, sticky="w")
+        self.spec_box = ttk.Combobox(
+            self.spec_row, textvariable=self.spec_path, state="readonly"
+        )
+        self.spec_box.grid(row=0, column=1, sticky="ew", padx=6)
         self.spec_box.bind("<<ComboboxSelected>>", lambda _event: self.reload())
-        tk.Label(head, text="(表示のみ)", fg="#666").grid(row=2, column=2, pady=(6, 0))
+        self.spec_note = tk.Label(self.spec_row, text="", anchor="w", fg="#666")
+        self.spec_note.grid(row=1, column=1, sticky="ew", padx=6)
 
     def _build_tabs(self) -> None:
         self.notebook = ttk.Notebook(self.root, style=ensure_notebook_style())
@@ -619,11 +629,17 @@ class SettingsWindow:
     def reload(self) -> None:
         """3 層を読み直して行を作り直す."""
         directory = Path(self.project_dir.get())
-        self.spec_box["values"] = [""] + [
-            str(p.relative_to(directory)) for p in sorted(directory.glob("**/video.md"))[:50]
-        ]
+        found = sorted(directory.glob("**/video.md"))[:50]
+        self.spec_box["values"] = [NO_SPEC] + [str(p.relative_to(directory)) for p in found]
+        if found:
+            self.spec_row.grid()
+        else:
+            self.spec_row.grid_remove()     # 選ぶものが無い欄は出さない
+        if self.spec_path.get() in ("", NO_SPEC) or not found:
+            self.spec_path.set(NO_SPEC)
 
-        spec = Path(self.spec_path.get()) if self.spec_path.get() else None
+        chosen = self.spec_path.get()
+        spec = None if chosen == NO_SPEC else Path(chosen)
         if spec and not spec.is_absolute():
             spec = directory / spec
 
@@ -658,6 +674,18 @@ class SettingsWindow:
                 text=f"{settings.PROJECT_FILE} が無いので、共通の既定を保存できません"
             )
             self.project_action.config(text="作る", command=self.create_project_file)
+
+        pinned = self._pinned_paths()
+        if spec:
+            self.spec_note.config(
+                text=f"この動画は {len(pinned)} 項目を上書きしています"
+                     "（該当する行に印が付きます。ここからは直せません）"
+                if pinned else "この動画は何も上書きしていません"
+            )
+        else:
+            self.spec_note.config(
+                text="1本ぶん (video.md) を選ぶと、その動画が上書きしている項目が分かります"
+            )
 
         layer = self.layer.get()
         if layer == settings.PROJECT:
@@ -854,14 +882,15 @@ class SettingsWindow:
                 for p, o in zip(row.paths, origins)
             )
             parts = [f"未設定 — いま効いている値: {shown}"]
-        if not writable:
-            parts.append("! ここでは直せません (表示のみ)")
+        # 「直せない」理由は 1 つだけ言う。2 つ並べると同じことの言い換えになる
         if any(o.layer == settings.VIDEO for o in origins):
-            parts.append("! この1本が上書き中 (ここで直しても効きません)")
+            parts.append("! この1本 (video.md) が決めています。ここからは直せません")
+        elif not writable:
+            parts.append("! ここでは直せません (表示のみ)")
         if any(affects_audio(p) for p in row.paths):
             parts.append("! 再合成")
         helps = [settings.SETTINGS[p].help for p in row.paths]
-        if len(row.fields) == 1 and helps[0]:
+        if len(row.fields) == 1 and helps[0] and helps[0] != row.label:
             parts.append(helps[0])
         return "   ".join(parts)
 
