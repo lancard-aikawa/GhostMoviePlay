@@ -205,13 +205,11 @@ scripts とロックファイルから起動コマンド、スクリプトの `-
 - **マウント先は id で選ぶ** (`MOUNT_IDS`)。先頭の `<div id>` を無条件に採ると
   ただの章立ての id を掴む (紹介ページの `<div id="pass1">` を実際に掴んだ)
 
-それでも古い video.md には残っているので、剥がす道を用意してある。
+それでも古い video.md には残っているので、**撮る面の `claude に書かせる` で
+書き換えさせる**。画面が代わりに剥がす道 (`収録対象を直す`) も持っていたが、
+`claude に書かせる` の下位互換にしかならず、同じ場所にボタンが 2 つ並ぶだけ
+だった (「画面は Claude の代わりをしない」)。
 
-- `spec.strip_samples()` —— **GUI が video.md を書く唯一の例外**。消すのは
-  値が見本と一字一句同じ行だけで、定義から言って人が書いた行ではない。
-  行単位で落とすので、他の行・コメント・本文は触らない
-- 撮る面の `収録対象を直す` が「gmp.toml を作る → 見本値を剥がす →
-  設定の『対象と動画』を開く」までを 1 回で運ぶ。**指摘して終わりにしない**
 - 見本値は `spec.TEMPLATE_HINTS` に 1 か所だけ持つ (`tests/test_request.py` が
   `TEMPLATE` と突き合わせている)。**2 つ以上そろって初めて言う** —— Vite の
   既定は本当に 5173 なので、1 つだけだと当たっていることがある。
@@ -257,9 +255,12 @@ scripts とロックファイルから起動コマンド、スクリプトの `-
 - 数分かかる決定論的な段を回す（進捗・中止・ログ）
 - 出来た動画を再生する、構成を読んで直す
 
-`収録対象を直す` のような「画面が代わりに決める」機能を足したくなったら、
-まず `claude に書かせる` で済まないかを見ること。定型の頼み方は
+「画面が代わりに決める」機能を足したくなったら、まず `claude に書かせる` で
+済まないかを見ること。定型の頼み方は
 [README の「Claude に頼む」](README.md#claude-に頼む) にある。
+
+`detect.py` を残してあるのは、**Claude に渡すヒント** (`spec_prompt`) と
+`gmp config --init-project` の下ごしらえだから。**画面の操作としては持たない。**
 
 ### 撮る面は CLI を呼ぶだけ
 
@@ -455,6 +456,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
+| 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |
 
 ## サンプルと実例

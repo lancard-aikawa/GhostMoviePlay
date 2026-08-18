@@ -101,53 +101,6 @@ def test_an_unset_url_is_flagged_too(one):
     assert "URL" in found.warning
 
 
-def test_the_screen_can_actually_fix_the_target(tk_root, tmp_path, monkeypatch):
-    """**画面から直せない値を画面が指摘する、で終わらせない。**
-
-    収録対象は project か video にしか置けず、設定画面は video.md を書かない。
-    しかも video.md のほうが強いので、見本値が構成に残っている限り設定画面で
-    直しても効かない —— 押す直し口が無いと完全な行き止まりになる。
-    """
-    import tkinter as tk
-
-    from ghostmovieplay import settings, ui
-
-    spec = tmp_path / "docs" / "video" / "demo" / "video.md"
-    spec.parent.mkdir(parents=True)
-    spec.write_text(
-        "---\nproject: X\napp:\n  url: http://localhost:5173\n"
-        "  start: npm run dev\n  ready: \"text=スタート\"\n---\n本文\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(ui_run.messagebox, "askyesno", lambda *a, **k: True)
-
-    top = tk.Toplevel(tk_root)
-    top.withdraw()
-    state = ui.AppState()
-    state.project_dir.set(str(tmp_path))
-    state.spec_path.set(str(spec))
-    landed: list = []
-    state.show = lambda mode, tab=None: landed.append((mode, tab))
-    pane = ui_run.RunPane(top, state)
-    try:
-        assert pane.survey.warning
-        assert pane.fix_button.winfo_manager(), "直し口が出ていない"
-
-        pane.on_fix_target()
-
-        # 1. 収録対象を置ける先ができた
-        assert (tmp_path / settings.PROJECT_FILE).is_file()
-        # 2. 構成の見本値が消えた (残っているとそちらが勝つ)
-        assert "localhost:5173" not in spec.read_text(encoding="utf-8")
-        assert "本文" in spec.read_text(encoding="utf-8")
-        # 3. 直す欄まで運んだ
-        assert landed == [("settings", "対象と動画")]
-        # 見本値は消えたが URL はまだ空なので、言うことは残る
-        assert "URL" in pane.survey.warning
-    finally:
-        top.destroy()
-
-
 def test_the_project_defaults_to_where_gmp_ui_was_started(tk_root, tmp_path, monkeypatch):
     """**動画のフォルダをプロジェクトの既定にしない。**
 
@@ -171,7 +124,7 @@ def test_the_project_defaults_to_where_gmp_ui_was_started(tk_root, tmp_path, mon
     assert ui.AppState(outside).directory == outside.parent
 
 
-def test_the_fix_button_hides_once_the_target_is_set(tk_root, one):
+def test_the_remedy_hides_once_the_target_is_set(tk_root, one):
     import tkinter as tk
 
     from ghostmovieplay import ui
@@ -184,9 +137,20 @@ def test_the_fix_button_hides_once_the_target_is_set(tk_root, one):
     pane = ui_run.RunPane(top, ui.AppState(one))
     try:
         assert pane.survey.warning == ""
-        assert not pane.fix_button.winfo_manager()
+        assert not pane.write_button.winfo_manager()
     finally:
         top.destroy()
+
+
+def test_the_screen_does_not_decide_the_target_itself(tk_root, one):
+    """**画面が Claude の代わりをしない。**
+
+    収録対象を画面から直す道 (`収録対象を直す`) も持っていたが、
+    `claude に書かせる` が上位互換 (シーン構成まで書く) で、同じ場所に 2 つ
+    並ぶだけだった。詰まるたびに widget を足したのが操作の多さの正体。
+    """
+    assert not hasattr(ui_run.RunPane, "on_fix_target")
+    assert not hasattr(ui_run, "strip_samples")
 
 
 # --- 台本 -------------------------------------------------------------

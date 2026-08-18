@@ -172,10 +172,11 @@ def _template_warning(resolved) -> str:
     stale = _stale_fields(resolved)
     if stale:
         return ("構成が雛形の見本値のままです (" + " / ".join(stale) + ")。"
-                "収録対象が決まっていないと台本は書けません")
+                "「claude に書かせる」で埋められます")
     if resolved is not None and not resolved.get("app.url"):
         # 見本値を焼かなくなったぶん、こちらが普通の未設定状態になる
-        return "収録する URL が決まっていません。台本を書くには先に要ります"
+        return ("収録する URL が決まっていません。"
+                "「claude に書かせる」でソースから調べさせられます")
     return ""
 
 
@@ -588,11 +589,11 @@ class RunPane:
         # 置けず、設定画面は video.md を書かない。押せる直し口が無いと、
         # 「画面から直せない値を画面が指摘する」行き止まりになる
         # **素人に「URL と起動コマンドとセレクタを調べて書いて」は無理筋。**
-        # 読める者に読ませるほうが素直なので、claude を開く道を先に置く
+        # 読める者に読ませる。**画面が代わりに決める機能を並べない** ——
+        # 収録対象を画面から直す道も持っていたが、claude に書かせるほうが
+        # 上位互換 (シーン構成まで書く) で、同じ場所に 2 つ並ぶだけだった
         self.write_button = tk.Button(note, text="claude に書かせる",
                                       command=self.on_write_spec)
-        self.fix_button = tk.Button(note, text="収録対象を直す",
-                                    command=self.on_fix_target)
         self.step_note = tk.Label(note, text="", anchor="w", fg="#666",
                                   justify=tk.LEFT, wraplength=760)
         self.step_note.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -707,10 +708,8 @@ class RunPane:
             fg="#b06000" if (self.survey.warning and not busy) else "#666",
         )
         if self.survey.warning and not busy:
-            self.fix_button.pack(side=tk.RIGHT, padx=(6, 0))
             self.write_button.pack(side=tk.RIGHT, padx=(6, 0))
         else:
-            self.fix_button.pack_forget()
             self.write_button.pack_forget()
 
         # **失敗はボタンのすぐ下に残す。** 下の帯 (status) は次の操作で
@@ -799,81 +798,13 @@ class RunPane:
         else:
             self.state.status.set(f"{item.what} はまだありません")
 
-    def on_fix_target(self) -> None:
-        """収録対象を直せる状態にして、設定の欄まで運ぶ.
-
-        1. `gmp.toml` が無ければ作る（**収録対象はそこにしか置けない**）
-        2. 構成に残っている雛形の見本値を剥がす（video.md のほうが強いので、
-           残っていると設定画面で直しても効かない）
-        3. 設定面の「対象と動画」を開く
-
-        1 と 2 は人が書いた値には触らない。2 が消すのは、値が雛形の見本と
-        一字一句同じ行だけ。
-        """
-        from . import settings
-        from .detect import probe
-        from .spec import strip_samples
-
-        if self.survey.spec is None:
-            return
-        project_file = self.state.project_file
-        resolved = _resolve(self.survey.spec)
-        stale = _stale_fields(resolved)
-
-        # **プロジェクトを読んで埋められるものは埋める。** 見本値を剥がしただけ
-        # だと空欄が並ぶので、起動コマンドとポートとマウント先を先に入れておく。
-        # 推測なので**由来を必ず見せて**から書く (当たっていなければ人が直す)
-        guesses = probe(self.state.directory)
-        if resolved is not None and not stale:
-            guesses = [g for g in guesses if not resolved.get(g.path)]
-
-        steps = []
-        if project_file is None:
-            steps.append(f"{self.state.directory / settings.PROJECT_FILE} を作る")
-        if stale:
-            steps.append("構成 (video.md) から雛形の見本値を消す: " + " / ".join(stale))
-        for guess in guesses:
-            steps.append(f"{guess.path} = {guess.value}   ({guess.why})")
-        if steps and not messagebox.askyesno(
-            "収録対象を直す",
-            "次をしてから、設定の「対象と動画」を開きます。\n\n・"
-            + "\n・".join(steps)
-            + "\n\n収録対象はプロジェクト (gmp.toml) にしか置けません。"
-            "構成に見本値が残っていると、そちらが強いので直しても効きません。\n"
-            "値はプロジェクトを読んだ推測です。違っていたら次の画面で直せます。",
-        ):
-            return
-
-        try:
-            if project_file is None:
-                # init_project が同じ推測を雛形へ書く (由来もコメントで残る)
-                self.append(f"作成: {settings.init_project(self.state.directory)}")
-            if stale:
-                gone = strip_samples(self.survey.spec)
-                self.append(f"構成から見本値を消しました: {' / '.join(gone)}")
-            if guesses and project_file is not None:
-                settings.write_layer(
-                    project_file, {g.path: g.value for g in guesses})
-            for guess in guesses:
-                self.append(f"  {guess.path} = {guess.value}   ({guess.why})")
-        except (settings.SettingsError, OSError) as exc:
-            messagebox.showerror("直せません", str(exc))
-            return
-
-        self.refresh()
-        self.state.changed()
-        self.state.show("settings", tab="対象と動画")
-        self.state.status.set(
-            "収録対象を入れました (推測です)。合っているか見て、違えば直して保存してください"
-            if guesses else
-            "収録する URL・起動コマンド・準備完了のセレクタを入れて保存してください"
-        )
-
     def on_write_spec(self) -> None:
         """対話の claude を開いて構成を書かせる.
 
         収録対象もシーン構成も、そのプロジェクトを読まないと決まらない。
         人に調べさせるのがいちばん詰まるので、読める者に読ませる。
+        **画面が代わりに決める道は持たない** —— 持っていたが、これの下位互換に
+        しかならず、同じ場所にボタンが 2 つ並ぶだけだった。
         """
         if self.runner.busy or self.survey.spec is None:
             return

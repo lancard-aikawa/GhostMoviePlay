@@ -7,7 +7,6 @@ Pass1 は現状 Claude Code に依頼文を渡す運用。gmp plan がその依�
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -66,47 +65,6 @@ TEMPLATE_HINTS: dict[str, tuple[str, str]] = {
     "app.start": ("npm run dev", "起動コマンド"),
     "app.ready": ("text=スタート", "準備完了のセレクタ"),
 }
-
-
-def strip_samples(path: Path) -> list[str]:
-    """フロントマターから**雛形の見本値のままの行だけ**を消す. 戻り値は見出し.
-
-    GUI は原則 video.md を書かない (本文の散文とコメントを壊すため)。ここだけが
-    例外で、消すのは**値が見本と一字一句同じ行**に限る —— 定義から言って人が
-    書いた行ではない。行単位で落とすので、他の行・コメント・本文は触らない。
-
-    これが無いと行き止まる: `app.url` は project と video にしか置けず、設定画面は
-    video.md を書かない。しかも video.md のほうが強いので、**見本値が video.md に
-    ある限り設定画面で直しても効かない**。
-    """
-    text = path.read_text(encoding="utf-8")
-    lines = text.splitlines(keepends=True)
-    if not lines or lines[0].strip() != "---":
-        return []
-    try:
-        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
-    except StopIteration:
-        return []
-
-    removed: list[str] = []
-    kept: list[str] = []
-    for index, line in enumerate(lines):
-        hit = None
-        if 0 < index < end:
-            for dotted, (sample, label) in TEMPLATE_HINTS.items():
-                key = dotted.rpartition(".")[2]
-                pattern = rf'^\s*{key}:\s*"?{re.escape(sample)}"?\s*(#.*)?$'
-                if re.match(pattern, line.rstrip("\n")):
-                    hit = label
-                    break
-        if hit:
-            removed.append(hit)
-        else:
-            kept.append(line)
-
-    if removed:
-        path.write_text("".join(kept), encoding="utf-8")
-    return removed
 
 
 def unfilled(resolved) -> list[str]:
