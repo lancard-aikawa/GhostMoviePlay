@@ -220,6 +220,10 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 
 ## サンプルと実例
 
+- `docs/video/intro/` —— **このツール自身の紹介動画**（約 100 秒）。収録対象は
+  `site/index.html` という説明ページで、`app.start` の簡易サーバ越しに開く。
+  `gmp.toml` がこのリポジトリのプロジェクト設定になっている。**設定・読み辞書・
+  尺の見積りを実際に通す唯一の場所**なので、それらを変えたらここを撮り直す
 - `examples/demo/` —— 手で書いた plan.json。タイル取りゲームで
   「大きい数から取ると損をする」を実演する 3 幕構成
 - `C:\Repos\mywork\GlossPop\docs\video\gloss-scope\` —— 実プロジェクトの 1 本目。

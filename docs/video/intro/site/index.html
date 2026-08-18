@@ -1,0 +1,153 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>GhostMoviePlay</title>
+<style>
+  :root { --ink:#1b1b1f; --sub:#5b6068; --line:#d8dbe0; --bg:#fbfbfc; --key:#0a6b4a; --warn:#b26b00; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family:"Yu Gothic UI","Meiryo",sans-serif; font-size:19px; line-height:1.7; }
+  section { min-height:720px; padding:64px 72px; display:flex; flex-direction:column;
+            justify-content:center; border-bottom:1px solid var(--line); }
+  h1 { font-size:56px; margin:0 0 12px; letter-spacing:.02em; }
+  h2 { font-size:34px; margin:0 0 28px; }
+  .lead { font-size:24px; color:var(--sub); margin:0; }
+  .big { font-size:28px; line-height:1.8; }
+  em { font-style:normal; background:linear-gradient(transparent 62%, #ffe9a8 62%); font-weight:700; }
+  .hl { outline:4px solid #ffb020; outline-offset:6px; border-radius:8px; }
+
+  .flow { display:flex; gap:20px; align-items:stretch; }
+  .step { flex:1; background:#fff; border:2px solid var(--line); border-radius:12px; padding:22px 24px; }
+  .step .no { font-size:15px; color:var(--sub); letter-spacing:.14em; }
+  .step .cmd { font-family:Consolas,monospace; font-size:22px; font-weight:700; margin:6px 0 10px; }
+  .step .ai { display:inline-block; font-size:14px; padding:3px 10px; border-radius:99px; }
+  .step .yes { background:#e6f4ec; color:var(--key); }
+  .step .no2 { background:#eef0f3; color:var(--sub); }
+  .step p { margin:12px 0 0; font-size:17px; color:var(--sub); }
+
+  pre { background:#fff; border:2px solid var(--line); border-radius:12px; padding:22px 26px;
+        font-family:Consolas,monospace; font-size:19px; line-height:1.6; margin:0; overflow:hidden; }
+  .k { color:#0b5fa5; } .s { color:#0a6b4a; } .c { color:#8a9099; }
+
+  table { border-collapse:collapse; width:100%; background:#fff; font-size:20px; }
+  th,td { border:2px solid var(--line); padding:16px 20px; text-align:left; }
+  th { background:#f2f4f7; width:230px; white-space:nowrap; }
+  td .file { font-family:Consolas,monospace; color:var(--key); }
+
+  .win { background:#fff; border:2px solid var(--line); border-radius:10px; overflow:hidden; }
+  .win .bar { background:#f2f4f7; padding:10px 16px; font-size:16px; color:var(--sub);
+              border-bottom:2px solid var(--line); }
+  .win .body { padding:20px 24px; }
+  .pick { display:flex; gap:28px; align-items:center; font-size:20px; margin-bottom:14px; }
+  .pick b { font-weight:700; }
+  .radio { width:14px; height:14px; border:2px solid #888; border-radius:99px; display:inline-block;
+           vertical-align:-2px; margin-right:8px; }
+  .radio.on { border-color:#0b5fa5; background:radial-gradient(#0b5fa5 40%, #fff 45%); }
+  .field { display:flex; align-items:center; gap:14px; margin:10px 0; }
+  .field .lb { width:170px; font-weight:700; }
+  .field .in { flex:1; border:2px solid var(--line); border-radius:6px; padding:8px 12px;
+               font-size:19px; background:#fff; }
+  .field .from { font-size:15px; color:var(--key); }
+  .note { font-size:16px; color:var(--warn); margin-top:6px; }
+</style>
+
+<section id="title">
+  <h1>GhostMoviePlay</h1>
+  <p class="lead">AI がアプリを実際に操作して、<em>失敗とその理由、正解ルートまで</em>を<br>
+     字幕と音声つきで解説する動画を作る</p>
+</section>
+
+<section id="problem">
+  <h2>素朴にやると、観られない動画になる</h2>
+  <p class="big">AI に 1 手ずつ操作させながら録画すると、<br>
+     考えるたびに<em>無音の数十秒</em>が入る。<br>
+     撮り直すたびに絵も変わる。</p>
+</section>
+
+<section id="passes">
+  <h2>だから、AI を使う段を 1 つに閉じ込める</h2>
+  <div class="flow">
+    <div class="step" id="pass1">
+      <div class="no">PASS 1</div><div class="cmd">gmp plan</div>
+      <span class="ai yes">AI あり</span>
+      <p>ソースを読んで、何を実演するかを設計する。<br>成果物は plan.json だけ。</p>
+    </div>
+    <div class="step" id="pass2">
+      <div class="no">PASS 2</div><div class="cmd">gmp record</div>
+      <span class="ai no2">AI なし</span>
+      <p>plan.json をそのままリプレイして録画する。<br>同じ台本なら、何度撮っても同じ絵。</p>
+    </div>
+    <div class="step" id="pass3">
+      <div class="no">PASS 3</div><div class="cmd">gmp render</div>
+      <span class="ai no2">AI なし</span>
+      <p>字幕を焼き、音声を重ねて mp4 にする。</p>
+    </div>
+  </div>
+  <p class="big" id="benefit" style="margin-top:34px">
+     AI が動くのは最初の一度だけ。<em>撮り直しは何度でも無料</em>。</p>
+</section>
+
+<section id="plan">
+  <h2>台本 plan.json は、人が読んで直せる</h2>
+<pre id="plancode">{
+  <span class="k">"say"</span>: <span class="s">"大きい数から取ってしまいます"</span>,
+  <span class="k">"hold"</span>: 2.4,           <span class="c">// 読み切れる長さだけ画面を保つ</span>
+  <span class="k">"actions"</span>: [
+    { <span class="k">"type"</span>: <span class="s">"click"</span>,     <span class="k">"selector"</span>: <span class="s">"#tile-9"</span> },
+    { <span class="k">"type"</span>: <span class="s">"highlight"</span>, <span class="k">"selector"</span>: <span class="s">"#score"</span> }
+  ]
+}</pre>
+  <p class="big" style="margin-top:26px">
+     AI の作った失敗例が的外れなら、<em>その場で書き換えればいい</em>。</p>
+</section>
+
+<section id="layers">
+  <h2>設定は 3 層。下に行くほど強い</h2>
+  <table>
+    <tr id="layer-global">
+      <th>グローバル</th>
+      <td><span class="file">config.toml</span> — この機械の既定。出力先、VOICEVOX の接続先、フォント</td>
+    </tr>
+    <tr id="layer-project">
+      <th>このプロジェクト</th>
+      <td><span class="file">gmp.toml</span> — 対象 URL、声と口調、<em>読み辞書</em>、題材。git に入れる</td>
+    </tr>
+    <tr id="layer-video">
+      <th>この 1 本</th>
+      <td><span class="file">video.md</span> — その動画だけの上書き</td>
+    </tr>
+  </table>
+  <p class="big" style="margin-top:26px">
+     読みの指定はプロジェクトに置く。<br>
+     1 本ずつ持つと、<em>1 本目で直した読みが 2 本目で戻る</em>。</p>
+</section>
+
+<section id="ui">
+  <h2>設定画面は、層を選んでから編集する</h2>
+  <div class="win" id="uiwin">
+    <div class="bar">gmp ui — 設定</div>
+    <div class="body">
+      <div class="pick" id="uipick">
+        <span><span class="radio"></span>グローバル設定</span>
+        <span><span class="radio on"></span><b>このプロジェクト</b></span>
+      </div>
+      <div class="field"><span class="lb">話者</span>
+        <span class="in">ずんだもん</span><span class="from">この層で設定</span></div>
+      <div class="field"><span class="lb">口調</span>
+        <span class="in">落ち着いた解説口調</span><span class="from">この層で設定</span></div>
+      <div class="field" id="uifield"><span class="lb">画質 (CRF)</span>
+        <span class="in" style="color:#9aa0a8">20</span>
+        <span class="from" style="color:#8a9099">グローバル</span></div>
+      <div class="note">値がどの層から来ているかを行ごとに出す。書ける層が違う項目は、そもそも出さない</div>
+    </div>
+  </div>
+  <p class="big" style="margin-top:26px">
+     行ごとに保存先を選ばせると、<em>全プロジェクトの既定を書き換えてしまう</em>。</p>
+</section>
+
+<section id="output">
+  <h2>出来上がり</h2>
+  <p class="big"><span class="file" style="font-family:Consolas,monospace">output.mp4</span> —
+     字幕・音声・クレジットまで入った 1 本。<br>
+     プロジェクトの git には <em>台本と設定だけ</em>が残る。</p>
+  <p class="lead" style="margin-top:28px">この動画も GhostMoviePlay で撮っています。</p>
+</section>

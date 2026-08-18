@@ -186,3 +186,24 @@ def test_unknown_speaker_lists_choices():
 def test_unknown_style_lists_choices():
     with pytest.raises(VoiceVoxError, match="あまあま"):
         engine_for(speaker="ずんだもん", style="ささやき").resolve_speaker()
+
+
+# --- CLI 経由 ---------------------------------------------------------
+def test_voice_command_runs_standalone(plan_file, fake, capsys):
+    """gmp voice 単体で通ること.
+
+    build --voice 経由でしか使っていなかったころ、voice のパーサにだけ --out が
+    無く、cmd_voice が args.out を見て落ちていた (README の手順が通らなかった)。
+    """
+    from ghostmovieplay.cli import main
+
+    assert main(["voice", str(plan_file)]) == 0
+    assert "書き戻し" in capsys.readouterr().out
+
+
+def test_voice_command_takes_an_output_dir(plan_file, fake, tmp_path):
+    from ghostmovieplay.cli import main
+
+    out = tmp_path / "elsewhere"
+    assert main(["voice", str(plan_file), "--out", str(out)]) == 0
+    assert (out / "voice").is_dir()

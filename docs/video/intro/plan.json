@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "GhostMoviePlay とは",
+    "lang": "ja",
+    "project": "GhostMoviePlay"
+  },
+  "app": {
+    "url": "http://127.0.0.1:8765/",
+    "ready": "#title",
+    "start": "python -m http.server 8765 --directory docs/video/intro/site",
+    "cwd": "../../..",
+    "start_timeout": 60.0
+  },
+  "video": {
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "leader": 2.5,
+    "trailer": 1.2
+  },
+  "voice": {
+    "engine": "voicevox",
+    "speaker": "ずんだもん",
+    "style": "ノーマル",
+    "speed": 1.05,
+    "pitch": 0.0,
+    "intonation": 1.0,
+    "volume": 1.0,
+    "pre": 0.1,
+    "post": 0.1,
+    "credit": "VOICEVOX:ずんだもん",
+    "dict": {
+      "段": "ダン",
+      "尺": "シャク",
+      "層": "ソウ",
+      "mp4": "エムピーフォー",
+      "JSON": "ジェイソン",
+      "URL": "ユーアールエル"
+    }
+  },
+  "determinism": {
+    "seed": 12345,
+    "time": "2026-01-01T09:00:00"
+  },
+  "scenes": [
+    {
+      "id": "why",
+      "title": "何のためのツールか",
+      "beats": [
+        {
+          "say": "GhostMoviePlay は、AI がアプリを実際に操作して解説する動画を作るツールです。",
+          "subtitle": "AI がアプリを操作して解説する動画を作る",
+          "hold": 3.0,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#title"
+            }
+          ],
+          "audio": "voice/000_why.wav"
+        },
+        {
+          "say": "素朴に作ると、観るに耐えない動画になります。",
+          "hold": 2.2,
+          "actions": [
+            {
+              "type": "scroll_to",
+              "selector": "#problem"
+            }
+          ],
+          "audio": "voice/001_why.wav"
+        },
+        {
+          "say": "AI に一手ずつ操作させながら録画すると、考えるたびに無音の数十秒が入るからです。",
+          "subtitle": "一手ずつ操作させると、考えるたびに無音が入る",
+          "hold": 3.4,
+          "audio": "voice/002_why.wav"
+        }
+      ]
+    },
+    {
+      "id": "passes",
+      "title": "AI を使う段を 1 つに閉じ込める",
+      "beats": [
+        {
+          "say": "そこで、AI を使う段を一つに閉じ込めます。",
+          "hold": 2.4,
+          "actions": [
+            {
+              "type": "scroll_to",
+              "selector": "#passes"
+            }
+          ],
+          "audio": "voice/003_passes.wav"
+        },
+        {
+          "say": "AI が動くのは最初の段だけ。ソースを読んで、何を実演するかを台本に書き出します。",
+          "subtitle": "AI は最初の段だけ。台本を書き出す",
+          "hold": 3.4,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#pass1"
+            }
+          ],
+          "audio": "voice/004_passes.wav"
+        },
+        {
+          "say": "二段目は、その台本をそのままリプレイして録画します。何度撮っても同じ絵になります。",
+          "subtitle": "台本をリプレイして録画。何度撮っても同じ絵",
+          "hold": 3.4,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#pass2"
+            }
+          ],
+          "audio": "voice/005_passes.wav"
+        },
+        {
+          "say": "三段目で字幕を焼き、音声を重ねて mp4 にします。",
+          "hold": 2.6,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#pass3"
+            }
+          ],
+          "audio": "voice/006_passes.wav"
+        },
+        {
+          "say": "AI が動くのは最初の一度だけなので、撮り直しは何度でも無料です。",
+          "subtitle": "AI は最初の一度だけ。撮り直しは無料",
+          "hold": 3.0,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#benefit"
+            }
+          ],
+          "audio": "voice/007_passes.wav"
+        }
+      ]
+    },
+    {
+      "id": "plan",
+      "title": "台本は人が直せる",
+      "beats": [
+        {
+          "say": "台本は JSON です。何を喋り、何を操作するかがそのまま書いてあります。",
+          "subtitle": "台本は JSON。喋る内容と操作が書いてある",
+          "hold": 3.2,
+          "actions": [
+            {
+              "type": "scroll_to",
+              "selector": "#plan"
+            }
+          ],
+          "audio": "voice/008_plan.wav"
+        },
+        {
+          "say": "AI の作った失敗例が的外れなら、その場で書き換えられます。",
+          "hold": 2.8,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#plancode"
+            }
+          ],
+          "audio": "voice/009_plan.wav"
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "設定の 3 層",
+      "beats": [
+        {
+          "say": "設定は三つの層に分かれています。",
+          "hold": 2.0,
+          "actions": [
+            {
+              "type": "scroll_to",
+              "selector": "#layers"
+            }
+          ],
+          "audio": "voice/010_settings.wav"
+        },
+        {
+          "say": "対象の URL や声、読みの指定はプロジェクトに置きます。動画をまたいで効きます。",
+          "subtitle": "URL・声・読みはプロジェクトに置く",
+          "hold": 3.2,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#layer-project"
+            }
+          ],
+          "audio": "voice/011_settings.wav"
+        },
+        {
+          "say": "設定画面は、編集する層を先に選ぶ形にしてあります。",
+          "hold": 2.6,
+          "actions": [
+            {
+              "type": "scroll_to",
+              "selector": "#ui"
+            },
+            {
+              "type": "highlight",
+              "selector": "#uipick"
+            }
+          ],
+          "audio": "voice/012_settings.wav"
+        },
+        {
+          "say": "どの層から来た値なのかを、行ごとに出します。",
+          "hold": 2.4,
+          "actions": [
+            {
+              "type": "highlight",
+              "selector": "#uifield"
+            }
+          ],
+          "audio": "voice/013_settings.wav"
+        }
+      ]
+    },
+    {
+      "id": "output",
+      "title": "出来上がり",
+      "beats": [
+        {
+          "say": "出来上がりは、字幕と音声の入った mp4 が一本。",
+          "hold": 2.6,
+          "actions": [
+            {
+              "type": "scroll_to",
+              "selector": "#output"
+            }
+          ],
+          "audio": "voice/014_output.wav"
+        },
+        {
+          "say": "この動画も、GhostMoviePlay で撮っています。",
+          "hold": 3.4,
+          "audio": "voice/015_output.wav"
+        }
+      ]
+    }
+  ]
+}

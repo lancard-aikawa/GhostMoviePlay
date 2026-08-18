@@ -681,6 +681,9 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("voice", help="ビートの say を音声化して plan.json に書き戻す")
     p.add_argument("plan")
+    # --out は _add_voice_opts に入れない。build は record 側からも --out を
+    # 足すので、両方に入れると argparse が衝突する
+    p.add_argument("--out", help="出力ディレクトリ (既定: gmp where の場所)")
     _add_voice_opts(p)
     p.set_defaults(func=cmd_voice)
 

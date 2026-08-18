@@ -72,6 +72,15 @@ uv run gmp build examples/demo/plan.json --voice
 *大きい数から取る* という典型的な悪手を実演 → 何を失ったか解説 → 満点ルート、
 という 3 幕構成の動画が出る。plan.json を手で書いた例でもある。
 
+**このリポジトリ自身の紹介動画**も同じ仕組みで作っている:
+
+```bash
+uv run gmp build docs/video/intro/plan.json --voice   # 約 100 秒
+```
+
+収録対象は `docs/video/intro/site/index.html`（説明ページ）で、`app.start` の
+簡易サーバ越しに開く。設定は `gmp.toml`（このプロジェクトの既定）から来る。
+
 ## コマンド
 
 | | |
