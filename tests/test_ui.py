@@ -47,6 +47,25 @@ def test_every_group_and_row_has_a_label():
                 assert row.label and row.fields
 
 
+def test_rows_that_cannot_be_written_are_hidden():
+    """gmp.toml を作る前に「入力できない入力欄」を並べない."""
+    url = ui.Row("URL", (ui.Field("app.url"),))
+    assert ui.visible(url, has_project=True, explicit=set())
+    assert not ui.visible(url, has_project=False, explicit=set())
+
+
+def test_effective_values_stay_visible_even_when_unwritable():
+    """直せなくても「いまこうなっている」は見せる (video.md の上書きなど)."""
+    title = ui.Row("動画タイトル", (ui.Field("title"),))
+    assert not ui.visible(title, has_project=True, explicit=set())
+    assert ui.visible(title, has_project=True, explicit={"title"})
+
+
+def test_machine_settings_show_without_a_project_file():
+    font = ui.Row("字幕フォント", (ui.Field("render.font"),))
+    assert ui.visible(font, has_project=False, explicit=set())
+
+
 def test_machine_tab_holds_exactly_the_runtime_settings():
     machine = next(tab for tab in ui.TABS if tab.title == "この機械")
     runtime = {s.path for s in settings.SCHEMA if s.bake == "runtime"}
@@ -190,20 +209,39 @@ def test_save_without_a_project_file_is_an_error():
 
 
 # --- ウィンドウが要るぶん (画面が無ければ飛ばす) -----------------------
-@pytest.fixture
-def window(tmp_path, monkeypatch):
+@pytest.fixture(scope="session")
+def tk_root():
+    """Tk の root はセッションに 1 つだけ作る.
+
+    1 プロセスで Tk() を作り直すと、たまに init.tcl を読めずに落ちる。
+    テストごとに作ると「画面が無い」で不安定に飛ぶので、root は使い回して
+    テストごとには Toplevel を作る。
+    """
     tk = pytest.importorskip("tkinter")
-    # 話者の取得は起動時に走る。テストでは ENGINE を叩かせない
-    monkeypatch.setattr(ui.SettingsWindow, "_load_speakers_async", lambda self: None)
     try:
         root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("画面が無い環境")
+    except tk.TclError as exc:
+        # 理由を書かないと、本当の不具合を「画面が無い」で握り潰してしまう
+        pytest.skip(f"ウィンドウを作れない: {exc}")
     root.withdraw()
-    made = ui.SettingsWindow(root, None)
-    made.project_dir.set(str(tmp_path))
-    yield made
+    yield root
     root.destroy()
+
+
+@pytest.fixture
+def window(tk_root, tmp_path, monkeypatch):
+    import tkinter as tk
+
+    # 話者の取得は起動時に走る。テストでは ENGINE を叩かせない
+    monkeypatch.setattr(ui.SettingsWindow, "_load_speakers_async", lambda self: None)
+    top = tk.Toplevel(tk_root)
+    top.withdraw()
+    made = ui.SettingsWindow(top, None)
+    # 開いた場所 (カレント) の gmp.toml に左右されないよう、空の場所へ移す
+    made.project_dir.set(str(tmp_path))
+    made.reload()
+    yield made
+    top.destroy()
 
 
 def test_speaker_list_survives_a_reload(window, tmp_path):
@@ -216,6 +254,41 @@ def test_speaker_list_survives_a_reload(window, tmp_path):
     window.speaker_box.set("ずんだもん")
     window._refresh_styles()
     assert list(window.style_box["values"]) == ["ノーマル"]
+
+
+def test_project_form_appears_only_after_the_file_is_made(window, tmp_path, monkeypatch):
+    """作る前は収録対象のフォームを出さず、作ると出る."""
+    def titles() -> list[str]:
+        body = window.frames["対象と動画"]
+        return [
+            child.winfo_children()[1].cget("text")
+            for child in body.winfo_children()
+            if child.winfo_children()
+            and child.winfo_children()[0].cget("text") in ("▼", "▶")
+        ]
+
+    assert "収録対象" not in titles()
+    assert "app.url" not in window.rows
+
+    window.create_project_file()
+
+    assert (tmp_path / settings.PROJECT_FILE).is_file()
+    assert "収録対象" in titles()
+    assert "app.url" in window.rows
+
+
+def test_deleting_the_project_file_needs_a_yes(window, tmp_path, monkeypatch):
+    window.create_project_file()
+    target = tmp_path / settings.PROJECT_FILE
+
+    monkeypatch.setattr(ui.messagebox, "askyesno", lambda *a, **k: False)
+    window.delete_project_file()
+    assert target.is_file(), "訊いて No なのに消してはいけない"
+
+    monkeypatch.setattr(ui.messagebox, "askyesno", lambda *a, **k: True)
+    window.delete_project_file()
+    assert not target.exists()
+    assert "app.url" not in window.rows     # フォームも一緒に引っ込む
 
 
 def test_reload_keeps_folded_groups_folded(window):

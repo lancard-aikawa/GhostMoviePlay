@@ -275,6 +275,19 @@ def write_targets(path: str, has_project: bool) -> list[str]:
     return out
 
 
+def visible(row: Row, has_project: bool, explicit: set[str]) -> bool:
+    """その行を画面に出すか.
+
+    **書ける先が無い行は、いま効いている値があるときだけ読み取り専用で出す。**
+    `gmp.toml` を作る前に「入力できない入力欄」を並べても、埋められないものを
+    埋めようとして詰まるだけ。一方、video.md が上書きしている値は、直せなくても
+    「いまこうなっている」を見せる価値がある。
+    """
+    if write_targets(row.paths[0], has_project):
+        return True
+    return any(path in explicit for path in row.paths)
+
+
 def default_target(path: str, origin_layer: str, has_project: bool) -> str:
     """既定の書込先. いま効いている層に上書きするのが素直."""
     choices = write_targets(path, has_project)
@@ -493,8 +506,14 @@ class SettingsWindow:
         tk.Label(head, text="プロジェクト").grid(row=0, column=0, sticky="w")
         tk.Entry(head, textvariable=self.project_dir).grid(row=0, column=1, sticky="ew", padx=6)
         tk.Button(head, text="選択", command=self.choose_project).grid(row=0, column=2)
-        self.project_note = tk.Label(head, text="", anchor="w", fg="#666")
-        self.project_note.grid(row=1, column=1, sticky="ew", padx=6)
+
+        # gmp.toml の有無はフォルダの性質なので、フォルダを選ぶ場所に出す
+        note = tk.Frame(head)
+        note.grid(row=1, column=1, sticky="ew", padx=6)
+        self.project_note = tk.Label(note, text="", anchor="w", fg="#666")
+        self.project_note.pack(side=tk.LEFT)
+        self.project_action = tk.Button(note, text="", command=self.create_project_file)
+        self.project_action.pack(side=tk.LEFT, padx=8)
 
         tk.Label(head, text="この1本").grid(row=2, column=0, sticky="w", pady=(6, 0))
         self.spec_box = ttk.Combobox(head, textvariable=self.spec_path, state="readonly")
@@ -534,9 +553,15 @@ class SettingsWindow:
 
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        canvas.bind_all(
-            "<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120), "units")
-        )
+
+        # ホイールはポインタが乗っている間だけ受ける。bind_all を出しっぱなしに
+        # すると、タブごとの canvas が同じ束縛を上書きし合って、**最後に作った
+        # タブしかスクロールしなくなる**
+        def wheel(event: tk.Event) -> None:
+            canvas.yview_scroll(int(-event.delta / 120), "units")
+
+        canvas.bind("<Enter>", lambda _e: canvas.bind_all("<MouseWheel>", wheel))
+        canvas.bind("<Leave>", lambda _e: canvas.unbind_all("<MouseWheel>"))
         return body
 
     def _build_preview_row(self, parent: tk.Frame) -> None:
@@ -579,10 +604,14 @@ class SettingsWindow:
             project_path=project_file,
             video_path=spec,
         )
-        self.project_note.config(
-            text=f"{settings.PROJECT_FILE} あり" if project_file
-            else f"{settings.PROJECT_FILE} が無いので、共通の既定を保存できません (作成 で作れます)"
-        )
+        if project_file:
+            self.project_note.config(text=f"{settings.PROJECT_FILE} あり")
+            self.project_action.config(text="削除", command=self.delete_project_file)
+        else:
+            self.project_note.config(
+                text=f"{settings.PROJECT_FILE} が無いので、共通の既定を保存できません"
+            )
+            self.project_action.config(text="作る", command=self.create_project_file)
 
         for frame in self.frames.values():
             for child in frame.winfo_children():
@@ -596,22 +625,43 @@ class SettingsWindow:
         self.status.set(
             f"読み込みました ({'警告 %d 件' % warnings if warnings else '警告なし'})"
         )
-        if not project_file:
-            self._offer_project_file()
 
-    def _offer_project_file(self) -> None:
-        tk.Button(
-            self.frames["対象と動画"], text=f"{settings.PROJECT_FILE} を作る",
-            command=self.create_project_file,
-        ).pack(anchor="w", padx=10, pady=10)
+    def _explicit_paths(self) -> set[str]:
+        return {p for p in settings.SETTINGS if self.resolved.is_explicit(p)}
 
     def _fill(self, tab: Tab) -> None:
         body = self.frames[tab.title]
-        for group in tab.groups:
-            self._fill_group(body, tab, group)
+        has_project = self.project_file is not None
+        explicit = self._explicit_paths()
 
-    def _fill_group(self, body: tk.Frame, tab: Tab, group: Group) -> None:
+        hidden = sum(
+            not visible(row, has_project, explicit)
+            for group in tab.groups for row in group.rows
+        )
+        if hidden and not has_project:
+            # 「入力できない入力欄」を並べる代わりに、何をすれば出るかを言う
+            box = tk.Frame(body, bg="#fff8e1")
+            box.pack(fill=tk.X, padx=8, pady=(8, 0))
+            tk.Label(
+                box, bg="#fff8e1", fg="#8a6d00", justify=tk.LEFT, anchor="w",
+                wraplength=860,
+                text=f"{settings.PROJECT_FILE} を作ると、ここに {hidden} 行出ます"
+                     "（対象URL・起動コマンド・seed などはプロジェクトにしか置けません）。",
+            ).pack(side=tk.LEFT, padx=8, pady=6)
+            tk.Button(box, text="作る", command=self.create_project_file).pack(
+                side=tk.LEFT, padx=8
+            )
+
+        for group in tab.groups:
+            self._fill_group(body, tab, group, has_project, explicit)
+
+    def _fill_group(self, body: tk.Frame, tab: Tab, group: Group,
+                    has_project: bool, explicit: set[str]) -> None:
         """区切りごとに見出しを付け、めったに変えないものは畳んでおく."""
+        rows = [row for row in group.rows if visible(row, has_project, explicit)]
+        if not rows:
+            return      # 全部出ない区切りは見出しごと出さない
+
         key = (tab.title, group.title)
         folded = self.folded.setdefault(key, group.collapsed)
 
@@ -642,7 +692,7 @@ class SettingsWindow:
         if not folded:
             inner.pack(fill=tk.X)
 
-        for index, row in enumerate(group.rows):
+        for index, row in enumerate(rows):
             self._fill_row(inner, index * 2, row)
 
     def _fill_row(self, frame: tk.Frame, grid_row: int, row: Row) -> None:
@@ -799,6 +849,28 @@ class SettingsWindow:
             messagebox.showerror("作れません", str(exc))
             return
         self.status.set(f"作成: {written}")
+        self.reload()
+
+    def delete_project_file(self) -> None:
+        """gmp.toml を消す. 消えると困るものが入っているので必ず訊く."""
+        target = self.project_file
+        if not target:
+            return
+        if not messagebox.askyesno(
+            "削除しますか",
+            f"{target}\n\nを削除します。ここに書いた共通の既定"
+            "（対象URL・起動コマンド・声・口調・題材・読み辞書・seed）は失われ、\n"
+            "以降の動画はコードの既定に戻ります。\n\n"
+            "git に入れてあれば戻せます。",
+            default=messagebox.NO,
+        ):
+            return
+        try:
+            target.unlink()
+        except OSError as exc:
+            messagebox.showerror("削除できません", str(exc))
+            return
+        self.status.set(f"削除: {target}")
         self.reload()
 
     def edits(self) -> list[Edit]:
