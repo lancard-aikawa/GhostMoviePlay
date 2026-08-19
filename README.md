@@ -215,6 +215,7 @@ gmp.toml の voice.dict に読みを足して。
 | [docs/settings.md](docs/settings.md) | 設定の 3 層、`gmp ui`、生成物の置き場所 |
 | [docs/voice.md](docs/voice.md) | VOICEVOX、読みの指定、クレジット表記 |
 | [docs/plan.md](docs/plan.md) | plan.json の書式、action 一覧、尺の見積り |
+| [docs/governance.md](docs/governance.md) | 運用そのものを題材にする撮り方（統治・習慣・荒れたデータの仕込み） |
 | [docs/internals.md](docs/internals.md) | 実装メモ（なぜこの実装なのか） |
 | [CLAUDE.md](CLAUDE.md) | 設計の前提、壊しやすい不変条件、実測値 |
 
@@ -231,4 +232,11 @@ uv run pytest -m "not slow"   # 実プロセスを起動するものを除く
 - BGM・効果音、シーン間のトランジション
 - canvas / WebGL アプリ向けの状態取得ヘルパ
 - 収録前後のフック（アプリの状態を仕込む・後片付けする）。いまは `app.start` に
-  起動スクリプトを噛ませて代用している（GlossPop の `serve.py` がその例）
+  起動スクリプトを噛ませて代用している（GlossPop の `serve.py` がその例）。
+  [統治と習慣を撮る](docs/governance.md)はこの仕込みが主役になる題材なので、
+  そちらを続けるなら優先度が上がる
+- 2 本を並べて出す（良い状態と悪い状態の対比）。`gmp render` は 1 本しか扱わないので、
+  いまは 2 回撮って ffmpeg を自分で叩くことになる
+
+道具の形そのものを変える案（媒体の差し替え、Android、検査への転用）は
+[docs/ideas/](docs/ideas/README.md) に置いてある。

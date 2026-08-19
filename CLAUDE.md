@@ -2,7 +2,7 @@
 
 使い方は [README.md](README.md)、詳細は `docs/` にある（[環境の用意](docs/setup.md) /
 [設定](docs/settings.md) / [音声](docs/voice.md) / [plan.json](docs/plan.md) /
-[実装メモ](docs/internals.md)）。
+[実装メモ](docs/internals.md) / [統治と習慣](docs/governance.md) / [アイデア](docs/ideas/README.md)）。
 ここには **それらを読んでも分からないこと**（設計の前提、壊しやすい不変条件、
 実測して初めて分かった落とし穴）だけを書く。
 
@@ -438,6 +438,10 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
   `voice.dict` で読みを渡す。複合語（用語・物語）は長い一致が優先されるので巻き添えにならない
 - **`page.clock.install()` だけだと時計が止まる。** `setTimeout` も凍ってアプリが
   動かなくなるので `resume()` まで打つ
+- **台本が違う画面を指していても収録は止まらない。** `highlight` の相手が見つからない
+  のは警告だけ（飾りを 1 つ光らせ損ねただけで撮り直しにしないため）。実際に、開始 URL が
+  ダッシュボードのままの台本が**エラーも出さずに 47 秒間まちがった画面を映した**。
+  `gmp record` が通ったことは**中身が合っている証明にはならない**
 
 ## 変更時に一緒に直すもの
 
@@ -455,6 +459,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
+| Pass1 に別ジャンルを足す | `spec.GUIDE` の 2 番（**品質規則とジャンル指定が混ざっている**。1・3〜7 はジャンルに依らないが 2 だけが「失敗を作れ」と言う）、`skills/ghostplay/SKILL.md` の description と手順 3、`docs/governance.md`、`tests/test_request.py`。**`video.md` の `scenes` はジャンルを変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る |
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
