@@ -227,3 +227,19 @@ def test_a_single_coincidence_is_not_enough():
                 "ready": "#app"},
     })
     assert len(unfilled(real)) == 1      # 画面と CLI は 2 つ以上で言う
+
+
+def test_schema_doc_lists_every_action():
+    """AI に渡す仕様が action を取りこぼしていないか.
+
+    `PLAN_SCHEMA_DOC` は **AI に渡す仕様として正** なので、ここに無い action は
+    「無い」ものとして扱われる。実際に `select` が漏れていたときは、AI が
+    `<select>` を `eval` で書き換える台本を書いた (操作として不自然な上に、
+    change イベントを見ているアプリでは動かない)。
+    """
+    from ghostmovieplay.plan import ACTION_SPECS
+    from ghostmovieplay.spec import PLAN_SCHEMA_DOC
+
+    missing = [kind for kind in ACTION_SPECS
+               if f'"type": "{kind}"' not in PLAN_SCHEMA_DOC]
+    assert not missing, f"AI に渡す仕様から漏れている action: {missing}"

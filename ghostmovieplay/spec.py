@@ -297,15 +297,19 @@ PLAN_SCHEMA_DOC = """```jsonc
           "subtitle": "字幕(省略時は say をそのまま使う)",
           "hold": 1.6,          // 操作後の最低保持秒。読み切れる長さにする
           "actions": [
-            { "type": "click",     "selector": "#start" },
-            { "type": "wait_for",  "selector": ".board", "state": "visible" },
-            { "type": "highlight", "selector": "#tile-0", "duration": 1.2 },
-            { "type": "type",      "selector": "#name", "text": "ghost" },
-            { "type": "press",     "key": "Enter" },
-            { "type": "scroll_to", "selector": "#result" },
-            { "type": "sleep",     "seconds": 0.6 },
-            { "type": "eval",      "expr": "window.scrollTo(0,0)" },
-            { "type": "goto",      "url": "..." }
+            { "type": "click",       "selector": "#start" },
+            { "type": "dblclick",    "selector": "#row-3" },
+            { "type": "hover",       "selector": "#menu" },
+            { "type": "wait_for",    "selector": ".board", "state": "visible" },
+            { "type": "highlight",   "selector": "#tile-0", "duration": 1.2 },
+            { "type": "type",        "selector": "#name", "text": "ghost" },
+            { "type": "press",       "key": "Enter" },
+            { "type": "select",      "selector": "#plan", "value": "pro" },
+            { "type": "select_text", "text": "なぞりたい文字列" },
+            { "type": "scroll_to",   "selector": "#result" },
+            { "type": "sleep",       "seconds": 0.6 },
+            { "type": "eval",        "expr": "window.scrollTo(0,0)" },
+            { "type": "goto",        "url": "..." }
           ]
         }
       ]
