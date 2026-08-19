@@ -298,6 +298,12 @@ class Recorder:
                 box = None
             if box:
                 self.js("(r) => window.__gmp && window.__gmp.highlight(r)", box)
+            elif self.verbose:
+                # **収録は止めない** (飾りを 1 つ光らせ損ねただけで撮り直しにしない) が、
+                # 黙っていると「台本が違うページを指している」ことに気づけない。
+                # 実際に、開始 URL がダッシュボードのまま LP 詳細の帯を指した台本が、
+                # **エラーも出さずに 47 秒間まちがった画面を映した**。
+                print(f"      ! 光らせる相手が見つかりません: {sel}")
             dur = float(action.get("duration", 0) or 0)
             if dur:
                 self.sleep(dur)
