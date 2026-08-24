@@ -277,6 +277,52 @@ def test_the_recorded_length_is_shown(one):
     assert "12.5 秒" in after.item("timing").detail
 
 
+def test_a_recording_with_warnings_is_flagged(one):
+    """**通ったことは、狙った画面が映っている証明にはならない。**
+
+    光らせ損ねや選択のずれは録画を止めないので、timing.json に残った警告を
+    画面が拾わないと、ログを閉じた時点で消える。ただし**仕上げは止めない**
+    (撮れてはいるので、直すのは台本のほう)。
+    """
+    plan_path = write_plan(one)
+    outdir = ui_run.survey(one).outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+    timing = outdir / "timing.json"
+    timing.write_text(json.dumps({
+        "duration": 12.5,
+        "warnings": [
+            {"kind": "highlight_missing", "where": "s1#0",
+             "message": "光らせる相手が見つかりません: #tile"},
+            {"kind": "audio_missing", "where": "s1#1", "message": "音声が見つかりません"},
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+    touch(plan_path, 1_000)
+    touch(timing, 2_000)
+
+    found = ui_run.survey(one)
+    assert found.state("timing") == ui_run.STALE
+    detail = found.item("timing").detail
+    assert "警告 2 件" in detail
+    # 件数だけでは何を直すのか分からないので、先頭の 1 件は文ごと出す
+    assert "#tile" in detail
+    render = next(s for s in ui_run.STEPS if s.key == "render")
+    assert ui_run.blocker(render, found) == ""
+
+
+def test_a_recording_without_warnings_stays_clean(one):
+    plan_path = write_plan(one)
+    outdir = ui_run.survey(one).outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+    timing = outdir / "timing.json"
+    timing.write_text(json.dumps({"duration": 12.5, "warnings": []}), encoding="utf-8")
+    touch(plan_path, 1_000)
+    touch(timing, 2_000)
+
+    found = ui_run.survey(one)
+    assert found.state("timing") == ui_run.READY
+    assert "警告" not in found.item("timing").detail
+
+
 def test_an_output_older_than_the_recording_is_stale(one):
     write_plan(one)
     outdir = ui_run.survey(one).outdir

@@ -241,10 +241,21 @@ def _record_item(plan_path: Path, outdir: Path) -> Item:
         # 尺そのもの**なので、そのときは本当に撮り直しが要る
         return Item("timing", "収録", "timing.json", timing, STALE,
                     "plan.json のほうが新しい (撮り直しが要ります)")
+    facts = _timing(timing)
     detail = _stamp(made)
-    length = _duration(timing)
-    if length is not None:
-        detail += f"   {length:.1f} 秒"
+    try:
+        detail += f"   {float(facts['duration']):.1f} 秒"
+    except (KeyError, TypeError, ValueError):
+        pass
+
+    # **収録が通ったことは、狙った画面が映っている証明にはならない。**
+    # 光らせ損ね・選択のずれ・音声の欠落は録画を止めないので、残っている
+    # 警告をここで出す。仕上げは止めない (blocker が見るのは MISSING だけ) ——
+    # 撮れてはいるので、直すのは台本のほうだと言えれば足りる
+    warnings = facts.get("warnings") or []
+    if warnings:
+        detail += f"   ! 警告 {len(warnings)} 件: {_first_message(warnings)}"
+        return Item("timing", "収録", "timing.json", timing, STALE, detail)
     return Item("timing", "収録", "timing.json", timing, READY, detail)
 
 
@@ -260,13 +271,21 @@ def _output_item(outdir: Path) -> Item:
     return Item("output", "完成", "output.mp4", video, READY, _stamp(made))
 
 
-def _duration(timing: Path) -> float | None:
+def _timing(timing: Path) -> dict:
+    """timing.json の中身. 読めなければ空 (画面は落ちない)."""
     import json
 
     try:
-        return float(json.loads(timing.read_text(encoding="utf-8"))["duration"])
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+        data = json.loads(timing.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _first_message(warnings: list) -> str:
+    """いちばん上の警告の文. 件数だけでは何を直すのか分からない."""
+    head = warnings[0]
+    return str(head.get("message", "")) if isinstance(head, dict) else str(head)
 
 
 # --- 段 ---------------------------------------------------------------

@@ -600,6 +600,18 @@ def cmd_record(args) -> int:
     )
     print(f"\n  video   {result.video}  ({result.duration:.2f}s)")
     print(f"  timing  {result.timing}  (sync skew {result.skew:+.3f}s)")
+
+    # **通ったことは中身が合っている証明にはならない。** 光らせ損ねや選択の
+    # ずれは収録を止めないので、ここで数えて言わないと、流れていくログを目で
+    # 追っていた人にしか届かない
+    if result.warnings:
+        print(f"\n  ! 警告 {len(result.warnings)} 件 (timing.json の warnings に残ります)")
+        for warning in result.warnings:
+            where = warning.get("where")
+            print(f"      {where + ': ' if where else ''}{warning['message']}")
+        if args.strict:
+            return _err("--strict: 警告があるので失敗にします")
+
     print(f"\n次: gmp render {result.timing}")
     return 0
 
@@ -664,6 +676,56 @@ def cmd_build(args) -> int:
     return cmd_render(args)
 
 
+# --- check ------------------------------------------------------------
+def cmd_check(args) -> int:
+    """全部の台本を撮り直して、まだアプリに当たっているかを見る.
+
+    **本物の収録**をする (render も AI も要らないが、絵は撮る)。成果物は
+    いつもの出力先に出るので、CI で回すなら `GHOSTMOVIEPLAY_HOME` を
+    捨ててよい場所に向けること。尺は動画の長さの合計とほぼ同じかかる。
+    """
+    from . import check as checker
+    from .record import record
+
+    root = Path(args.dir)
+    plans = checker.find_plans(root)
+    if not plans:
+        return _err(f"{root} の下に plan.json がありません")
+
+    if args.list:
+        for path in plans:
+            print(path)
+        return 0
+
+    def record_one(plan, path):
+        outdir = paths.resolve_outdir(path, project=plan.project, app_cwd=plan.app.cwd)
+        return record(plan, outdir, headless=True, verbose=args.verbose)
+
+    print(f"確認: {len(plans)} 本の台本を撮り直します (動画の尺ぶんかかります)")
+    report = checker.Report()
+    for i, path in enumerate(plans, start=1):
+        print(f"\n[{i}/{len(plans)}] {path}")
+        result = checker.check_one(path, record_one)
+        report.results.append(result)
+        length = f"   {result.seconds:.1f} 秒" if result.seconds else ""
+        # 環境の警告はここまでに何行も流れている。**赤ではないと言うだけでなく
+        # 件数を添える** —— 流れた行と判定が結び付かないと、通ったのか
+        # 見逃したのか読めない
+        env = f"   (環境の警告 {len(result.ignored)} 件)" if result.ignored else ""
+        print(f"  {checker.MARK[result.state]:<2} {result.detail}{env}{length}")
+
+    print("\n" + report.summary())
+    # **赤はもう一度まとめて出す。** 収録は 1 本ずつ長いので、上に流れた
+    # 警告は CI のログでは遠すぎる
+    for result in report.red:
+        print(f"\n  {checker.MARK[result.state]} {result.plan}")
+        print(f"      {result.detail}")
+        for warning in result.stale:
+            where = warning.get("where")
+            print(f"      {where + ': ' if where else ''}{warning['message']}")
+    return 1 if report.red else 0
+
+
 # --- パーサ -----------------------------------------------------------
 def _add_record_opts(p) -> None:
     p.add_argument("--out", help="出力ディレクトリ (既定: plan.json の隣の out/)")
@@ -675,6 +737,10 @@ def _add_record_opts(p) -> None:
     p.add_argument(
         "--sync-offset", type=float, default=None,
         help="字幕タイミングの手動補正(秒)。既定は自動推定",
+    )
+    p.add_argument(
+        "--strict", action="store_true",
+        help="止めない失敗 (光らせ損ね・選択のずれ・音声の欠落) があれば非0で終わる",
     )
 
 
@@ -804,6 +870,16 @@ def main(argv: list[str] | None = None) -> int:
     _add_record_opts(p)
     _add_render_opts(p)
     p.set_defaults(func=cmd_build)
+
+    p = sub.add_parser(
+        "check", help="全部の台本を撮り直して、まだアプリに当たっているか見る",
+    )
+    p.add_argument("dir", nargs="?", default=".", help="探す場所 (既定: カレント)")
+    p.add_argument("--list", action="store_true",
+                   help="見つかった plan.json を並べるだけ (撮らない)")
+    p.add_argument("-v", "--verbose", action="store_true",
+                   help="ビートごとの進行も出す")
+    p.set_defaults(func=cmd_check)
 
     args = parser.parse_args(argv)
     try:

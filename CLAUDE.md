@@ -2,7 +2,8 @@
 
 使い方は [README.md](README.md)、詳細は `docs/` にある（[環境の用意](docs/setup.md) /
 [設定](docs/settings.md) / [音声](docs/voice.md) / [plan.json](docs/plan.md) /
-[実装メモ](docs/internals.md) / [統治と習慣](docs/governance.md) / [アイデア](docs/ideas/README.md)）。
+[実装メモ](docs/internals.md) / [統治と習慣](docs/governance.md) /
+[腐敗検知](docs/check.md) / [アイデア](docs/ideas/README.md)）。
 ここには **それらを読んでも分からないこと**（設計の前提、壊しやすい不変条件、
 実測して初めて分かった落とし穴）だけを書く。
 
@@ -441,7 +442,11 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 - **台本が違う画面を指していても収録は止まらない。** `highlight` の相手が見つからない
   のは警告だけ（飾りを 1 つ光らせ損ねただけで撮り直しにしないため）。実際に、開始 URL が
   ダッシュボードのままの台本が**エラーも出さずに 47 秒間まちがった画面を映した**。
-  `gmp record` が通ったことは**中身が合っている証明にはならない**
+  `gmp record` が通ったことは**中身が合っている証明にはならない**。
+  だから止めない失敗は `Recorder.warn()` が `timing.json` の `warnings` に残す
+  （`gmp record --strict` が終了コードに、撮る面が収録の行に出す）。
+  **`verbose` で隠さない** —— 隠していたころは、台本が別の画面を指していても
+  画面にもログにも何も出なかった
 
 ## 変更時に一緒に直すもの
 
@@ -454,6 +459,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 設定の層を足した | `settings.LAYER_LABEL`、`resolve()` の layers 組み立て、`gmp config` のヘッダ表示、`docs/settings.md` の 3 層の表 |
 | voice の設定項目 | `plan.Voice`、`tts/voicevox.py`、**音に影響するなら `NON_AUDIO_KEYS` に入れない**、機械ごとに違う値なら `MACHINE_KEYS` に入れる、`settings.SCHEMA` の `voice.*`、`tests/test_reading.py` |
 | TTS エンジンを足した | `tts/__init__.py` の `_engine()`、`resolve_speaker` / `synthesize` / `credit` / `push_dict` / `pop_dict` を実装（`hasattr` で見ているので辞書系は任意） |
+| 止めない失敗を足した | `record.Recorder.warn()` の呼び出し（**print で済ませない**）、`timing.json` の `warnings`、`ui_run._record_item`、`cli.cmd_record` の一覧、`tests/test_record.py`。**当たっているときに出さない** —— 件数が信用されなくなる。**撮った環境の話なら `check.ENV_KINDS` に入れる** —— 入れないと `gmp check` が CI で必ず赤になる（知らない kind は赤に倒してある） |
 | 字幕の見た目 | `subtitles.py` の Style 行。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
 | CLI のサブコマンド | `cli.py` の `main()`、README のコマンド表 |
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |

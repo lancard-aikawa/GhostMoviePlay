@@ -94,8 +94,14 @@ uv run gmp config --set voice.speaker=ずんだもん --set render.crf=18
 | 構成 | `video.md` | （鎖の先頭） |
 | 台本 | `plan.json` | `video.md` のほうが新しい |
 | 音声 | `voice/*.wav` | （見ない。下記） |
-| 収録 | `timing.json` | `plan.json` のほうが新しい |
+| 収録 | `timing.json` | `plan.json` のほうが新しい / **警告が残っている** |
 | 完成 | `output.mp4` | `timing.json` のほうが新しい |
+
+収録は更新時刻のほかに **`timing.json` の `warnings`** も見る。光らせる相手が
+見つからない・選択がずれた・音声が無いは録画を止めないので、件数と先頭の 1 件を
+行に出す（**通ったことは、狙った画面が映っている証明にはならない**）。ただし
+`仕上げる` は止めない —— 撮れてはいて、直すのは台本のほうだから。CI から回すなら
+`gmp record --strict` が同じものを終了コードにする。
 
 音声だけは**揃っているか（何ビートに wav があるか）しか見ない**。新しいかどうかは
 `voice/manifest.json` のフィンガープリント（原稿と声のハッシュ）が判定するもので、

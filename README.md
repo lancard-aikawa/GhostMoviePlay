@@ -198,11 +198,13 @@ gmp.toml の voice.dict に読みを足して。
 | `gmp kana <plan.json>` | 各ビートの読みを確認する（合成しない） |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |
-| `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json` |
+| `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json`（止めない失敗は `warnings` に残る） |
 | `gmp render [timing.json]` | 字幕・音声を乗せて `output.mp4` |
 | `gmp build <plan.json>` | (voice +) record + render |
+| `gmp check [DIR]` | 全部の台本を撮り直して、まだアプリに当たっているか見る |
 
-主なオプション: `--headed`（ブラウザを見ながら収録）、`--sync-offset`（字幕タイミング補正）、
+主なオプション: `--headed`（ブラウザを見ながら収録）、`--strict`（止めない失敗が
+あれば非0で終わる）、`--sync-offset`（字幕タイミング補正）、
 `--speaker` / `--style` / `--speed`、`--no-subtitles`、`--no-audio`、`--no-credit`。
 `--font` / `--crf` / `--preset` / `--url` / `--model` / `--permission-mode` を省略すると
 グローバル設定（`render.*` / `engine.voicevox.url` / `agent.*`）が使われる。
@@ -215,6 +217,7 @@ gmp.toml の voice.dict に読みを足して。
 | [docs/settings.md](docs/settings.md) | 設定の 3 層、`gmp ui`、生成物の置き場所 |
 | [docs/voice.md](docs/voice.md) | VOICEVOX、読みの指定、クレジット表記 |
 | [docs/plan.md](docs/plan.md) | plan.json の書式、action 一覧、尺の見積り |
+| [docs/check.md](docs/check.md) | 台本が古くなっていないかを CI で見る (`gmp check`) |
 | [docs/governance.md](docs/governance.md) | 運用そのものを題材にする撮り方（統治・習慣・荒れたデータの仕込み） |
 | [docs/internals.md](docs/internals.md) | 実装メモ（なぜこの実装なのか） |
 | [CLAUDE.md](CLAUDE.md) | 設計の前提、壊しやすい不変条件、実測値 |

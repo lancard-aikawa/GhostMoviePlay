@@ -8,13 +8,19 @@ AI は一切呼ばない。同じ plan.json からは何度でも同じ動画が
       skew = (実測の経過時間) - (webm の尺)
   で開始側の遅れを推定し、全ビートの時刻から差し引いて timing.json に書く。
   ズレが残る場合は --sync-offset で手動補正できる。
+
+**止めない失敗は timing.json に残す。** 光らせる相手が見つからない、選択が
+ずれた、音声が無い —— どれも収録は続けるが、黙って捨てると「通ったのだから
+合っている」と読めてしまう (開始 URL がダッシュボードのままの台本が、エラーも
+出さずに 47 秒間まちがった画面を映した)。Recorder.warn() が数えて timing.json
+の `warnings` に書き、`gmp record --strict` がそれを終了コードにする。
 """
 
 from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from playwright.sync_api import Error as PWError
@@ -93,6 +99,8 @@ class Recorded:
     timing: Path
     duration: float
     skew: float
+    # 収録は止めなかったが、狙いどおりに撮れていないかもしれない箇所
+    warnings: list[dict] = field(default_factory=list)
 
 
 class Recorder:
@@ -103,6 +111,19 @@ class Recorder:
         self.subtitle_mode = subtitle_mode
         self.verbose = verbose
         self.t0 = 0.0
+        self.warnings: list[dict] = []
+        self.where: str | None = None   # いま撮っているビート (警告の指し先)
+
+    # --- 止めない失敗 -------------------------------------------------
+    def warn(self, kind: str, message: str) -> None:
+        """収録は続けるが、あとから数えられる形で残す.
+
+        **verbose では隠さない。** 隠していたころは、台本が別の画面を指して
+        いても画面にもログにも何も出なかった。print はその場で気づくため、
+        timing.json への記録は**ログを閉じたあとでも分かる**ため。
+        """
+        self.warnings.append({"kind": kind, "where": self.where, "message": message})
+        print(f"    ! {message}")
 
     # --- 時刻 ---------------------------------------------------------
     def now(self) -> float:
@@ -150,12 +171,14 @@ class Recorder:
         for attempt in range(3):
             got = self._drag_select(text, selector, occurrence)
             if got is None:
-                print(f"    ! 選択できません: {text!r} が {selector} に見つかりません")
+                self.warn("select_text_missing",
+                          f"選択できません: {text!r} が {selector} に見つかりません")
                 return
             if got.strip() == text:
                 break
             if attempt == 2:
-                print(f"    ! 選択がずれました: {text!r} のつもりが {got.strip()!r}")
+                self.warn("select_text_mismatch",
+                          f"選択がずれました: {text!r} のつもりが {got.strip()!r}")
             else:
                 self.sleep(0.4)  # レイアウトが落ち着くのを待って測り直す
         self.sleep(pause)
@@ -298,12 +321,12 @@ class Recorder:
                 box = None
             if box:
                 self.js("(r) => window.__gmp && window.__gmp.highlight(r)", box)
-            elif self.verbose:
+            else:
                 # **収録は止めない** (飾りを 1 つ光らせ損ねただけで撮り直しにしない) が、
                 # 黙っていると「台本が違うページを指している」ことに気づけない。
                 # 実際に、開始 URL がダッシュボードのまま LP 詳細の帯を指した台本が、
                 # **エラーも出さずに 47 秒間まちがった画面を映した**。
-                print(f"      ! 光らせる相手が見つかりません: {sel}")
+                self.warn("highlight_missing", f"光らせる相手が見つかりません: {sel}")
             dur = float(action.get("duration", 0) or 0)
             if dur:
                 self.sleep(dur)
@@ -326,6 +349,7 @@ class Recorder:
 
     # --- ビート -------------------------------------------------------
     def play_beat(self, scene: Scene, beat: Beat, index: int) -> dict:
+        self.where = f"{scene.id}#{index}"
         start = self.now()
         caption = beat.caption
 
@@ -346,7 +370,8 @@ class Recorder:
             if dur:
                 floor = max(floor, dur + AUDIO_TAIL)
         elif beat.audio:
-            print(f"    ! 音声が見つかりません: {beat.audio} (hold を使います)")
+            self.warn("audio_missing",
+                      f"音声が見つかりません: {beat.audio} (hold を使います)")
             audio_path = None
 
         elapsed = self.now() - start
@@ -459,10 +484,13 @@ def record(
     skew = max(0.0, min(skew, 10.0))
 
     if sync_offset is None and skew > v.leader and entries:
-        print(
-            f"\n  ! 録画開始の遅れ ({skew:.2f}s) が leader ({v.leader:.2f}s) を超えました。\n"
-            f"    冒頭のビートが動画に入っていない可能性があります。\n"
-            f"    plan.json の video.leader を {skew + 0.5:.1f} 以上にして録り直してください。"
+        # ビートに紐づかない警告 (動画全体の話) なので where は空にする
+        rec.where = None
+        rec.warn(
+            "leader_short",
+            f"録画開始の遅れ ({skew:.2f}s) が leader ({v.leader:.2f}s) を超えました。"
+            f"冒頭のビートが動画に入っていない可能性があります。"
+            f"plan.json の video.leader を {skew + 0.5:.1f} 以上にして録り直してください",
         )
 
     for e in entries:
@@ -479,9 +507,13 @@ def record(
         "duration": round(video_duration, 3),
         "wall_duration": round(wall_total, 3),
         "sync_skew": round(skew, 3),
+        # **通ったことは中身が合っている証明にはならない。** 止めなかった
+        # 失敗をここに残す。gmp record --strict と撮る面がこれを見る
+        "warnings": rec.warnings,
         "beats": entries,
     }
     timing_path = outdir / "timing.json"
     timing_path.write_text(json.dumps(timing, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return Recorded(video=dest, timing=timing_path, duration=video_duration, skew=skew)
+    return Recorded(video=dest, timing=timing_path, duration=video_duration, skew=skew,
+                    warnings=rec.warnings)
