@@ -5,6 +5,10 @@ gmp record を叩くのが普通なので、二重起動しない方が嬉しい
 
 Windows では npm/uv 経由で起動すると子プロセスがぶら下がるため、
 taskkill /T でプロセスツリーごと落とす。
+
+収録の前後に走らせるコマンド (`app.setup` / `app.teardown`) もここが持つ。
+**仕込みはサーバの起動より前**でなければならない —— 仕込んだデータを
+サーバが読むので、逆順だと空のまま起動する。
 """
 
 from __future__ import annotations
@@ -57,6 +61,69 @@ def _kill_tree(proc: subprocess.Popen) -> None:
 
 class ServerError(RuntimeError):
     pass
+
+
+class HookError(ServerError):
+    """収録前の仕込みが失敗した."""
+
+
+# 仕込みはデータ生成やマイグレーションを含むので、サーバの起動待ちより長く取る
+HOOK_TIMEOUT = 300.0
+
+
+def run_hook(command: str, cwd: Path, label: str, verbose: bool = True) -> None:
+    """収録の前後に走らせる 1 コマンド.
+
+    **落ちたら理由を持って落ちる。** 仕込みは「画面に何が映るか」を決めるので、
+    黙って失敗されると*荒れていないデータ*を撮った動画が出来上がる。
+    """
+    if not cwd.is_dir():
+        raise HookError(f"app.cwd が見つかりません: {cwd}")
+    if verbose:
+        print(f"  {label}: {command}  (cwd={cwd})")
+    try:
+        proc = subprocess.run(
+            command, shell=True, cwd=str(cwd),
+            capture_output=True, text=True, timeout=HOOK_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HookError(
+            f"{label}が {HOOK_TIMEOUT:.0f} 秒で終わりません: {command}") from exc
+    except OSError as exc:
+        raise HookError(f"{label}を実行できません: {command} ({exc})") from exc
+
+    if proc.returncode != 0:
+        # 出力が空のときに改行だけ足さない (警告の 1 行として timing.json に
+        # 入るので、末尾の空行がそのまま残る)
+        tail = "\n".join(((proc.stderr or proc.stdout or "").strip().splitlines())[-10:])
+        detail = f"{label}が失敗しました (exit {proc.returncode}): {command}"
+        raise HookError(f"{detail}\n{tail}" if tail else detail)
+
+
+@contextmanager
+def prepared(app: App, base: Path, verbose: bool = True,
+             problems: list[str] | None = None):
+    """app.setup を先に走らせ、抜けるときに app.teardown を走らせる.
+
+    **仕込みが落ちたら収録を止める。** 仕込めていない画面を撮っても意味が無い。
+    **後片付けが落ちても止めない** —— 撮り終えたものを片付けの失敗で捨てない。
+    ただし黙りもしない: `problems` に積んで、呼び側が timing.json の警告に混ぜる。
+    """
+    cwd = (base / app.cwd).resolve() if app.cwd else base
+    if app.setup:
+        run_hook(app.setup, cwd, "仕込み", verbose)
+    try:
+        yield
+    finally:
+        if app.teardown:
+            try:
+                run_hook(app.teardown, cwd, "後片付け", verbose)
+            except HookError as exc:
+                # HookError の文面が既に「後片付けが失敗しました…」なので足さない
+                if problems is None:
+                    print(f"    ! {exc}")
+                else:
+                    problems.append(str(exc))
 
 
 @contextmanager

@@ -234,10 +234,6 @@ uv run pytest -m "not slow"   # 実プロセスを起動するものを除く
 - VOICEVOX 以外の TTS エンジン（`ghostmovieplay/tts/` に足せば `voice.engine` で選べる）
 - BGM・効果音、シーン間のトランジション
 - canvas / WebGL アプリ向けの状態取得ヘルパ
-- 収録前後のフック（アプリの状態を仕込む・後片付けする）。いまは `app.start` に
-  起動スクリプトを噛ませて代用している（GlossPop の `serve.py` がその例）。
-  [統治と習慣を撮る](docs/governance.md)はこの仕込みが主役になる題材なので、
-  そちらを続けるなら優先度が上がる
 - 2 本を並べて出す（良い状態と悪い状態の対比）。`gmp render` は 1 本しか扱わないので、
   いまは 2 回撮って ffmpeg を自分で叩くことになる
 

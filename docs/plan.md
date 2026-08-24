@@ -9,7 +9,8 @@ AI に渡す仕様は `ghostmovieplay/spec.py` の `PLAN_SCHEMA_DOC` が正で�
   "version": 1,
   "meta":  { "title": "...", "lang": "ja", "project": "MyApp" },
   "app":   { "url": "...", "ready": "#tile-0",
-             "start": "npm run dev", "cwd": ".", "start_timeout": 60 },
+             "start": "npm run dev", "cwd": ".", "start_timeout": 60,
+             "setup": "python seed.py", "teardown": "python seed.py --clean" },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.2 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" },
@@ -37,6 +38,12 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 
 `app` `video` `voice` `determinism` は[設定](settings.md)から解決された値が
 焼き込まれる。plan.json はそれ単体で撮り直せる（設定ファイルは要らない）。
+
+`app.setup` / `app.teardown` は収録の前後に走らせるコマンド（`app.cwd` で実行）。
+**仕込みは `app.start` より前**に走るので、仕込んだデータを開発サーバが読める。
+仕込みが落ちたら収録しない（荒れていないデータを撮っても意味が無い）。後片付けが
+落ちても収録は失敗にしないが、`timing.json` の警告には残る（消し損ねた使い捨て
+データが次の収録に残るため）。
 
 ## 尺の見積り
 
@@ -74,6 +81,9 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 [GlossPop](https://github.com/lancard-aikawa/GlossPop) の `docs/video/gloss-scope/`
 では収録用に `serve.py` を置き、`app.start` からそれを起動して**使い捨てのデータルート**で
 アプリを立てている。実データを触らずに済み、何度撮っても同じ画面から始まる。
+
+仕込みと配信が分けられるなら `app.setup` / `app.teardown` に置くほうが素直
+（`app.start` は起動だけになる）。仕込みは `start` より前に走る。
 
 その 1 本は「**登録する語が短すぎると本文がリンクだらけになる**」という、ソースを
 読まないと狙って作れない失敗を扱っている（日本語には語境界が無いので自動リンクが

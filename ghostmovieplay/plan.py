@@ -84,6 +84,11 @@ class App:
     start: str | None = None  # 開発サーバの起動コマンド。既に応答していれば起動しない
     cwd: str | None = None  # start の実行ディレクトリ (plan.json からの相対)
     start_timeout: float = 60.0
+    # 収録の前後に走らせるコマンド。**仕込みは start より前**に走る
+    # (仕込んだデータをサーバが読むので、逆順だと空のまま起動する)。
+    # 荒れたデータを仕込んでから撮る題材はこれが主役になる (docs/governance.md)
+    setup: str | None = None
+    teardown: str | None = None   # 落ちても収録は失敗にしない (警告に残す)
 
 
 @dataclass

@@ -122,6 +122,12 @@ SCHEMA: tuple[Setting, ...] = (
             "ソースを読ませるプロジェクトフォルダ (書いたファイルからの相対)"),
     Setting("app.start_timeout", "float", 60.0, _PV, "plan",
             "start の応答待ち上限(秒)"),
+    # 仕込みは **start より前**に走る (仕込んだデータをサーバが読むので、
+    # 逆順だと空のまま起動する)。荒れたデータを見せる題材はこれが主役になる
+    Setting("app.setup", "str", None, _PV, "plan",
+            "収録前に走らせるコマンド。落ちたら収録しない"),
+    Setting("app.teardown", "str", None, _PV, "plan",
+            "収録後に走らせるコマンド。落ちても収録は失敗にしない"),
 
     # --- 声 ----------------------------------------------------------
     Setting("voice.engine", "str", "voicevox", _ALL, "plan",

@@ -363,6 +363,7 @@ CLI はそのとき「`--permission-mode` を `bypassPermissions` にするか�
 | | なぜ |
 | --- | --- |
 | `voice` → `record` | **音声の尺がビートの尺を決める**。先に尺を決めてから合成すると必ず尻切れになる |
+| `app.setup` → `app.start` | 仕込んだデータをサーバが読む。逆順だと空のまま起動する。後片付けはブラウザとサーバを畳んでから (掴まれたままのファイルを消しに行かない) |
 | CFR 化 → 字幕焼き込み | Playwright の webm はフレーム間隔が可変。先に `fps=N` を通さないと字幕がズレる |
 | 決定論化 → `goto` | `page.clock` と seed の init script はナビゲーションより前にしか仕込めない |
 | 選択の確定 → `mouseup` の通知 | 選択ツールバーの類は `mouseup` を見て出る。範囲を確定してから知らせる |
@@ -471,6 +472,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 撮らずに分かる欠陥を足した | `check.inspect`（**撮っても一緒に出る**ので、`--dry` で赤なら本番も赤を保つ）、`docs/check.md` の表、`tests/test_check.py`。リポジトリの台本は `tests/test_plan.py` が同じ規則で見ている |
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
+| 収録の前後に走らせるもの | `plan.App` の `setup` / `teardown`、`server.prepared`（**仕込みが落ちたら止める / 後片付けは止めない**）、`settings.SCHEMA` の `app.*`、`ui.TABS` の「仕込みと後片付け」、`spec.PLAN_SCHEMA_DOC` と SKILL.md、`docs/plan.md`、`tests/test_server.py` |
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
 | Pass1 に別ジャンルを足す | `spec.GUIDE` の 2 番（**品質規則とジャンル指定が混ざっている**。1・3〜7 はジャンルに依らないが 2 だけが「失敗を作れ」と言う）、`skills/ghostplay/SKILL.md` の description と手順 3、`docs/governance.md`、`tests/test_request.py`。**`video.md` の `scenes` はジャンルを変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る |
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |

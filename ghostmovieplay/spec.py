@@ -284,6 +284,9 @@ PLAN_SCHEMA_DOC = """```jsonc
 {
   "version": 1,
   "meta": { "title": "動画タイトル", "lang": "ja", "project": "プロジェクト名" },
+  // app は「そのまま使う値」に解決済みのものが来る。勝手に足さない
+  //   start=開発サーバの起動コマンド / setup=収録前に走らせる仕込み
+  //   teardown=収録後の後片付け (仕込みは start より前に走る)
   "app":   { "url": "...", "ready": "セレクタ(任意)" },
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.2 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },

@@ -75,6 +75,8 @@ LABELS: dict[str, str] = {
     "app.start": "起動コマンド",
     "app.cwd": "ソースのフォルダ",
     "app.start_timeout": "起動待ち上限(秒)",
+    "app.setup": "収録前に走らせる",
+    "app.teardown": "収録後に走らせる",
     "video.width": "幅",
     "video.height": "高さ",
     "video.fps": "fps",
@@ -210,6 +212,12 @@ TABS: tuple[Tab, ...] = (
                 _one("app.start", "起動コマンド"),
                 _one("app.cwd", "ソースのフォルダ"),
             )),
+            Group("仕込みと後片付け", (
+                # 収録前に走らせる (荒れたデータを作る・使い捨てのデータルートを
+                # 立てる)。**start より前**に走るので、仕込んだものをサーバが読める
+                _one("app.setup", "収録前に走らせる"),
+                _one("app.teardown", "収録後に走らせる"),
+            ), collapsed=True),
             Group("素性", (
                 _one("project", "プロジェクト名"),
                 _one("title", "動画タイトル"),

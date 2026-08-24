@@ -29,7 +29,7 @@ from playwright.sync_api import sync_playwright
 from . import determinism, ffmpeg
 from .overlay import OVERLAY_JS
 from .plan import AUDIO_TAIL, Beat, Plan, Scene
-from .server import serve
+from .server import prepared, serve
 
 CURSOR_MOVE_MS = 420  # カーソルが目標まで滑る時間
 POST_CLICK_PAUSE = 0.25
@@ -418,7 +418,15 @@ def record(
     entries: list[dict] = []
     base = plan.source.parent if plan.source else Path.cwd()
 
-    with serve(plan.app, base, verbose=verbose), sync_playwright() as pw:
+    # 仕込み → サーバ → ブラウザ の順に入り、抜けるときは逆順。
+    # **後片付けはブラウザとサーバを畳んでから** (掴まれたままのファイルを
+    # 消しに行かない)
+    problems: list[str] = []
+    with (
+        prepared(plan.app, base, verbose=verbose, problems=problems),
+        serve(plan.app, base, verbose=verbose),
+        sync_playwright() as pw,
+    ):
         browser = pw.chromium.launch(
             headless=headless,
             args=["--hide-scrollbars", "--force-device-scale-factor=1"],
@@ -477,6 +485,12 @@ def record(
         raw_dir.rmdir()
     except OSError:
         pass
+
+    # 後片付けの失敗は収録を失敗にしないが、黙って捨てもしない
+    # (消し損ねた使い捨てデータが次の収録に残る)
+    rec.where = None
+    for message in problems:
+        rec.warn("teardown_failed", message)
 
     # 録画開始側の遅れを推定して全時刻を前詰めする
     video_duration = ffmpeg.probe_duration(dest) or wall_total
