@@ -680,9 +680,12 @@ def cmd_build(args) -> int:
 def cmd_check(args) -> int:
     """全部の台本を撮り直して、まだアプリに当たっているかを見る.
 
-    **本物の収録**をする (render も AI も要らないが、絵は撮る)。成果物は
+    既定は**本物の収録** (render も AI も要らないが、絵は撮る)。成果物は
     いつもの出力先に出るので、CI で回すなら `GHOSTMOVIEPLAY_HOME` を
     捨ててよい場所に向けること。尺は動画の長さの合計とほぼ同じかかる。
+
+    `--dry` は撮らずに読むだけ。速いが、分かるのは**撮らなくても分かること**
+    (機械依存の焼き込み・長すぎる字幕) に限られる。
     """
     from . import check as checker
     from .record import record
@@ -701,11 +704,17 @@ def cmd_check(args) -> int:
         outdir = paths.resolve_outdir(path, project=plan.project, app_cwd=plan.app.cwd)
         return record(plan, outdir, headless=True, verbose=args.verbose)
 
-    print(f"確認: {len(plans)} 本の台本を撮り直します (動画の尺ぶんかかります)")
+    if args.dry:
+        # 撮らずに分かるぶんだけ。**撮ればこれも一緒に出る**ので、CI では
+        # 速いほうを先に回して、赤ならそこで止めるのが安い
+        print(f"確認: {len(plans)} 本の台本を読みます (撮りません)")
+    else:
+        print(f"確認: {len(plans)} 本の台本を撮り直します (動画の尺ぶんかかります)")
+
     report = checker.Report()
     for i, path in enumerate(plans, start=1):
         print(f"\n[{i}/{len(plans)}] {path}")
-        result = checker.check_one(path, record_one)
+        result = checker.check_one(path, None if args.dry else record_one)
         report.results.append(result)
         length = f"   {result.seconds:.1f} 秒" if result.seconds else ""
         # 環境の警告はここまでに何行も流れている。**赤ではないと言うだけでなく
@@ -877,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("dir", nargs="?", default=".", help="探す場所 (既定: カレント)")
     p.add_argument("--list", action="store_true",
                    help="見つかった plan.json を並べるだけ (撮らない)")
+    p.add_argument("--dry", action="store_true",
+                   help="撮らずに、読むだけで分かる欠陥を見る (速い)")
     p.add_argument("-v", "--verbose", action="store_true",
                    help="ビートごとの進行も出す")
     p.set_defaults(func=cmd_check)

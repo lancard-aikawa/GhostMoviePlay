@@ -346,6 +346,12 @@ CLI はそのとき「`--permission-mode` を `bypassPermissions` にするか�
 パスが付く。そのまま出すと理由の欄がパスで埋まり、**肝心の「app.url が必要です」
 が画面から消える**。どのファイルの話かは行の側に出ているので落とす。
 
+### 同じ数え方を 2 か所に書かない
+
+`plan.AUDIO_TAIL` と `subtitles.wrap` は、どちらも**書き直した瞬間に検査が嘘になる**
+場所。前者は `record` と `estimate` の両方が、後者は `render`（実際の折り返し）と
+`check`（字幕が何行になるかの検査）の両方が見ている。
+
 ### 見積り尺と実測の余白を別々に書かない
 
 `plan.AUDIO_TAIL` は「音声を鳴らし終えてから次のビートへ行くまでの余白」で、
@@ -462,6 +468,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 止めない失敗を足した | `record.Recorder.warn()` の呼び出し（**print で済ませない**）、`timing.json` の `warnings`、`ui_run._record_item`、`cli.cmd_record` の一覧、`tests/test_record.py`。**当たっているときに出さない** —— 件数が信用されなくなる。**撮った環境の話なら `check.ENV_KINDS` に入れる** —— 入れないと `gmp check` が CI で必ず赤になる（知らない kind は赤に倒してある） |
 | 字幕の見た目 | `subtitles.py` の Style 行。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
 | CLI のサブコマンド | `cli.py` の `main()`、README のコマンド表 |
+| 撮らずに分かる欠陥を足した | `check.inspect`（**撮っても一緒に出る**ので、`--dry` で赤なら本番も赤を保つ）、`docs/check.md` の表、`tests/test_check.py`。リポジトリの台本は `tests/test_plan.py` が同じ規則で見ている |
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |

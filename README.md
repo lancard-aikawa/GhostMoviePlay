@@ -201,7 +201,7 @@ gmp.toml の voice.dict に読みを足して。
 | `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json`（止めない失敗は `warnings` に残る） |
 | `gmp render [timing.json]` | 字幕・音声を乗せて `output.mp4` |
 | `gmp build <plan.json>` | (voice +) record + render |
-| `gmp check [DIR]` | 全部の台本を撮り直して、まだアプリに当たっているか見る |
+| `gmp check [DIR]` | 全部の台本を撮り直して、まだアプリに当たっているか見る（`--dry` で読むだけ） |
 
 主なオプション: `--headed`（ブラウザを見ながら収録）、`--strict`（止めない失敗が
 あれば非0で終わる）、`--sync-offset`（字幕タイミング補正）、

@@ -11,6 +11,7 @@ Pass3 (render) も要らない。**
 ```powershell
 uv run gmp check                 # カレント以下の plan.json を全部
 uv run gmp check docs/video      # 場所を絞る
+uv run gmp check --dry           # 撮らずに、読むだけで分かる欠陥を見る (速い)
 uv run gmp check --list          # 何を掃くのかだけ見る (撮らない)
 uv run gmp check -v              # ビートごとの進行も出す
 ```
@@ -44,6 +45,26 @@ uv run gmp check -v              # ビートごとの進行も出す
 気づけるほうがいい（警告を足したときは [CLAUDE.md](../CLAUDE.md) の表に従って
 `check.ENV_KINDS` も見直す）。
 
+## 撮らずに見る (`--dry`)
+
+収録は動画の尺ぶんかかるので、**撮らなくても分かることだけ**を見る道を分けてある。
+数秒で終わる。
+
+| 見るもの | なぜ |
+| --- | --- |
+| `file:///` / ドライブ名つきの絶対パス | git に入る `plan.json` に焼くと、**clone した人の手元で必ず落ちる**。作った機械では動き続けるので、誰かが別の場所で実行するまで露見しない |
+| `voice.url` | 接続先は機械ごとに違う。焼くと別のマシンで繋がらない先が残る |
+| 字幕の行数 | `subtitle.max_chars` で折ったとき `subtitle.max_lines` に収まるか |
+
+字幕の上限は**依頼文に書いてあるだけで、これまで誰も数えていなかった**
+（`bake="brief"` なので `PLAN_REQUEST.md` に載って終わり）。折り返しは
+`subtitles.wrap` に数えさせている —— 検査が同じ数え方を書き直すと、通った字幕が
+本番で 3 行になる。
+
+**`--dry` で赤なら、撮っても赤。** 撮るほうは読むほうの検査を必ず一緒に通すので、
+CI では速いほうを先に回して落とすのが安い。逆に `--dry` が緑でも、
+selector が生きているかは分からない。
+
 ## 撮るものは本物
 
 `gmp check` は**実際に録画する**。絵を捨てて速くする道は用意していない ——
@@ -72,6 +93,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
+      - run: uv run gmp check --dry          # 数秒。焼き込みと字幕を先に落とす
       - run: uv run playwright install --with-deps chromium
       - run: uv run gmp check
 ```

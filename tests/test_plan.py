@@ -99,18 +99,20 @@ def test_committed_plans_survive_a_move_to_another_machine():
     examples/demo/plan.json には file:///C:/Repos/... が入っていた。作った
     マシンでしか動かないので、clone した人の手元で必ず落ちる。誰も別の場所から
     実行しなかったので残っていた。
+
+    **規則は `check.inspect` が持つ** (`gmp check` が同じものを見る)。ここに
+    書き直すと、片方が通してもう片方が落とすようになる。字幕の行数も一緒に
+    見られるので、このテストはリポジトリの台本が `gmp check --dry` で緑だと
+    言っているのと同じ。
     """
-    import re
     from pathlib import Path
 
+    from ghostmovieplay import check
+
     root = Path(__file__).resolve().parent.parent
-    plans = [p for p in root.glob("**/plan.json")
-             if ".venv" not in p.parts and "node_modules" not in p.parts]
+    plans = check.find_plans(root)
     assert plans, "検査対象の plan.json が見つからない"
 
     for path in plans:
-        raw = path.read_text(encoding="utf-8")
-        assert "file:///" not in raw, f"{path}: file:// の絶対パス"
-        assert not re.search(r'"[A-Za-z]:[\/]', raw), f"{path}: ドライブ名つきの絶対パス"
-        assert '"url"' not in json.loads(raw).get("voice", {}), \
-            f"{path}: voice.url は機械ごとに違うので焼かない"
+        found = check.inspect(path, load(path))
+        assert not found, f"{path}: " + " / ".join(f["message"] for f in found)

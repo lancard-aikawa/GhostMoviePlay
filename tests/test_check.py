@@ -123,6 +123,73 @@ def test_the_marks_survive_a_japanese_console():
         assert mark.isascii()
 
 
+# --- 撮らずに分かるもの (--dry) ---------------------------------------
+def dry(tmp_path, **overrides):
+    plan = json.loads(json.dumps(PLAN))
+    for key, value in overrides.items():
+        plan[key] = {**plan.get(key, {}), **value} if isinstance(value, dict) else value
+    return check.check_one(write_plan(tmp_path / "one", plan))
+
+
+def test_a_baked_file_url_is_red(tmp_path):
+    """作った機械では動き続けるので、誰かが clone するまで露見しない."""
+    result = dry(tmp_path, app={"url": "file:///C:/Repos/demo/index.html"})
+
+    assert result.red
+    assert result.stale[0]["kind"] == "machine_path"
+
+
+def test_a_baked_drive_letter_is_red(tmp_path):
+    result = dry(tmp_path, app={"cwd": "C:\\Repos\\demo"})
+
+    assert result.red
+    assert result.stale[0]["kind"] == "machine_path"
+
+
+def test_a_baked_voice_url_is_red(tmp_path):
+    """接続先は機械ごとに違う. 焼くと別のマシンで繋がらない先が残る."""
+    result = dry(tmp_path, voice={"url": "http://127.0.0.1:50021"})
+
+    assert result.red
+    assert result.stale[0]["kind"] == "machine_url"
+
+
+def test_a_caption_that_will_not_fit_is_red(tmp_path):
+    """**上限は依頼文に書いてあるだけで、誰も数えていなかった。**
+
+    行数は `subtitles.wrap` に数えさせる (検査と実際の折り返しが別実装だと、
+    通った字幕が本番で 3 行になる)。
+    """
+    long = "この字幕はとても長いので既定の上限では二行に収まらず、読み切る前に" \
+           "次のビートへ進んでしまいます。だから撮る前に数えて言う必要があります。"
+    plan = json.loads(json.dumps(PLAN))
+    plan["scenes"][0]["beats"][0]["subtitle"] = long
+    result = check.check_one(write_plan(tmp_path / "one", plan))
+
+    assert result.red
+    assert result.stale[0]["kind"] == "subtitle_too_long"
+    assert result.stale[0]["where"] == "s1#0"
+
+
+def test_a_clean_plan_reads_green_without_recording(tmp_path):
+    result = dry(tmp_path)
+
+    assert result.state == check.OK
+    assert result.detail == "読めました"
+    assert result.seconds is None      # 撮っていないので尺は無い
+
+
+def test_recording_also_reports_what_reading_found(tmp_path):
+    """**速いほうで赤だったものが本番で緑になったら検査の意味が無い。**"""
+    plan = json.loads(json.dumps(PLAN))
+    plan["app"]["url"] = "file:///C:/Repos/demo/index.html"
+    plan_path = write_plan(tmp_path / "one", plan)
+
+    result = check.check_one(plan_path, lambda plan, path: recorded())
+    assert result.red
+    assert result.stale[0]["kind"] == "machine_path"
+
+
 # --- 落ちても止まらない -----------------------------------------------
 def test_a_broken_plan_is_red_without_a_traceback(tmp_path):
     directory = tmp_path / "one"
@@ -183,3 +250,21 @@ def test_check_is_red_when_a_plan_has_gone_stale(project, monkeypatch, capsys):
 
 def test_check_says_so_when_there_is_nothing_to_check(tmp_path):
     assert main(["check", str(tmp_path)]) == 1
+
+
+def test_dry_does_not_record(project, monkeypatch):
+    def never(*a, **k):
+        raise AssertionError("--dry は撮らない")
+
+    monkeypatch.setattr(record_module, "record", never)
+    assert main(["check", str(project), "--dry"]) == 0
+
+
+def test_dry_is_red_on_a_baked_absolute_path(project, monkeypatch, capsys):
+    plan = json.loads(json.dumps(PLAN))
+    plan["app"]["url"] = "file:///C:/Repos/demo/index.html"
+    write_plan(project / "docs" / "video" / "intro", plan)
+
+    monkeypatch.setattr(record_module, "record", lambda *a, **k: recorded())
+    assert main(["check", str(project), "--dry"]) == 1
+    assert "file://" in capsys.readouterr().out
