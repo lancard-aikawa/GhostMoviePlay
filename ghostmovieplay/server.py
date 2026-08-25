@@ -40,7 +40,13 @@ def is_up(url: str, timeout: float = 2.0) -> bool:
         return False
 
 
-def _kill_tree(proc: subprocess.Popen) -> None:
+def kill_tree(proc: subprocess.Popen) -> None:
+    """**子孫ごと**落とす. 親だけ止めると裏で走り続ける.
+
+    収録用のサーバのほか、支援収録の画面が起こした対象アプリもここを通る
+    (`ui_shoot`)。npm や uv 経由で起動すると子がぶら下がるので、
+    Windows では `taskkill /T` でプロセスツリーごと落とす。
+    """
     if proc.poll() is not None:
         return
     if sys.platform == "win32":
@@ -179,4 +185,4 @@ def serve(app: App, base: Path, verbose: bool = True):
     finally:
         if verbose:
             print("  サーバを終了します")
-        _kill_tree(proc)
+        kill_tree(proc)

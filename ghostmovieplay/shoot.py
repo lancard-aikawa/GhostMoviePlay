@@ -295,13 +295,13 @@ def next_shot_path(outdir: Path, scene_id: str, clip: bool = False) -> tuple[Pat
     directory = Path(outdir) / SHOT_DIR
     directory.mkdir(parents=True, exist_ok=True)
     suffix = CLIP_SUFFIX if clip else STILL_SUFFIX
-    used = {p.name for p in directory.glob("*")}
+    # **拡張子を無視して数える。** 見ないと 0001-intro.png と 0001-intro.mp4 が
+    # 別のショットなのに同じ番号を持つ (人が探すときに取り違える)
+    used = {p.stem for p in directory.glob("*")}
     serial = 1
-    while True:
-        name = f"{serial:04d}-{scene_id}{suffix}"
-        if name not in used:
-            break
+    while f"{serial:04d}-{scene_id}" in used:
         serial += 1
+    name = f"{serial:04d}-{scene_id}{suffix}"
     return directory / name, f"{SHOT_DIR}/{name}"
 
 

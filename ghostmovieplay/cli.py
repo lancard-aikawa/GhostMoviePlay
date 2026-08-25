@@ -304,8 +304,14 @@ def cmd_shoot(args) -> int:
     except ShootError as exc:
         root.destroy()
         return _err(str(exc))
-    window.window.protocol("WM_DELETE_WINDOW",
-                           lambda: (window.on_close(), root.quit()))
+    def close() -> None:
+        # **閉じるのを断られたら抜けない** (録画中など)。抜けると mainloop が
+        # 終わって、窓が出たままプロセスだけ死ぬ
+        window.on_close()
+        if not window.window.winfo_exists():
+            root.quit()
+
+    window.window.protocol("WM_DELETE_WINDOW", close)
     root.mainloop()
     return 0
 

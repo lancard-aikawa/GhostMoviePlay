@@ -499,9 +499,9 @@ class ShootWindow:
         人が撮っている最中にデータを作り直すことになる。
         """
         if self.app_proc is not None and self.app_proc.poll() is None:
-            from .server import _kill_tree
+            from .server import kill_tree
 
-            _kill_tree(self.app_proc)
+            kill_tree(self.app_proc)
             self.app_proc = None
             self.launch_button.configure(text="起動")
             self.status.set("終了しました")
@@ -564,9 +564,9 @@ class ShootWindow:
                 default=messagebox.NO, parent=self.window):
             return
         if self.app_proc is not None and self.app_proc.poll() is None:
-            from .server import _kill_tree
+            from .server import kill_tree
 
-            _kill_tree(self.app_proc)
+            kill_tree(self.app_proc)
         self.window.destroy()
 
 

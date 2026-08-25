@@ -283,6 +283,11 @@ class Recording:
         self.width, self.height = even(width), even(height)
         self.out.parent.mkdir(parents=True, exist_ok=True)
         self.started = time.monotonic()
+        # **stderr をパイプにしない。** 誰も読まないまま録り続けると、パイプが
+        # 埋まった時点で ffmpeg が書き込みで止まる —— 画面上は録画中のまま
+        # 何分でも固まる。ファイルなら埋まらないし、失敗の理由も後から読める
+        self.log = self.out.with_suffix(".log")
+        self._log_handle = self.log.open("wb")
         try:
             self.proc = subprocess.Popen(
                 ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
@@ -292,9 +297,10 @@ class Recording:
                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                  "-pix_fmt", "yuv420p", str(self.out)],
                 stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
+                stderr=self._log_handle,
             )
         except OSError as exc:
+            self._log_handle.close()
             raise CaptureError(f"ffmpeg を起動できません: {exc}") from exc
 
     @property
@@ -318,15 +324,23 @@ class Recording:
             except subprocess.TimeoutExpired:
                 self.proc.kill()
                 self.proc.wait()
-        try:
-            self.proc.stdin.close()
-        except OSError:
-            pass
+        for handle in (self.proc.stdin, self._log_handle):
+            try:
+                handle.close()
+            except OSError:
+                pass
         if not self.out.exists() or self.out.stat().st_size == 0:
-            tail = (self.proc.stderr.read() or b"").decode("utf-8", "replace")
-            raise CaptureError("録画できませんでした\n" + "\n".join(
-                tail.strip().splitlines()[-5:]))
+            raise CaptureError("録画できませんでした\n" + self._why())
+        # 通ったログは残さない (出力先に読まれない .log が貯まる)
+        self.log.unlink(missing_ok=True)
         return self.out
+
+    def _why(self) -> str:
+        try:
+            tail = self.log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+        return "\n".join(tail.strip().splitlines()[-5:])
 
 
 def duration(path: str | Path) -> float | None:

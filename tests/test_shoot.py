@@ -209,3 +209,11 @@ def test_progress_counts_shots(tmp_path):
     edited.add_beat(0, 0)
     edited.set_shot(0, 0, "shots/0001-scene1.png")
     assert progress(edited.rows()) == (1, 2)
+
+
+def test_a_clip_and_a_still_never_share_a_number(tmp_path):
+    """拡張子だけ違う同じ番号が並ぶと、人が探すときに取り違える."""
+    still, _ = next_shot_path(tmp_path, "intro", clip=False)
+    still.write_bytes(b"x")
+    clip, _ = next_shot_path(tmp_path, "intro", clip=True)
+    assert still.stem != clip.stem
