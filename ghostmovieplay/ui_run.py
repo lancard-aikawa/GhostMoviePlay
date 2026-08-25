@@ -271,6 +271,21 @@ def _output_item(outdir: Path) -> Item:
     return Item("output", "完成", "output.mp4", video, READY, _stamp(made))
 
 
+# 行を開くと何が起きるか。**ダブルクリックできることが画面に書いていない**と、
+# 知らない人は辿り着けない (実際に辿り着けなかった)。行に動詞を出す
+ACTION = {"spec": "編集", "plan": "編集", "output": "再生", "voice": "フォルダ"}
+
+
+def action_label(item: Item) -> str:
+    """その行を押すと何が起きるか. 押せない行は空文字."""
+    if item.path is None:
+        return ""
+    if not item.path.exists():
+        # まだ無い行は、出来る場所を開く (どこに出るのかを見せる)
+        return "出る場所"
+    return ACTION.get(item.key, "開く")
+
+
 def _timing(timing: Path) -> dict:
     """timing.json の中身. 読めなければ空 (画面は落ちない)."""
     import json
@@ -693,11 +708,18 @@ class RunPane:
                 tk.Label(self.table, text=item.what, width=14, anchor="w", fg="#666"),
                 tk.Label(self.table, text=item.detail, anchor="w",
                          fg=STATE_COLOR[item.state]),
+                # **押せることを行に書く。** ボタン行に戻すと行の複製になるので
+                # (前にそれで 3 つ並べて消した)、行の中にリンクとして出す
+                tk.Label(self.table, text=action_label(item), anchor="w",
+                         fg="#0b57d0", font=("", 9, "underline")),
             )
             for column, cell in enumerate(cells):
-                cell.grid(row=row, column=column, sticky="w")
+                cell.grid(row=row, column=column, sticky="w", padx=(0, 6))
                 cell.configure(cursor="hand2")
                 cell.bind("<Double-Button-1>", lambda _e, i=item: self.open_item(i))
+            # 動詞のところだけは 1 回押せば開く (リンクに見えるものを 2 回
+            # 押させない)
+            cells[-1].bind("<Button-1>", lambda _e, i=item: self.open_item(i))
             self.cells[item.key] = cells
 
         self._refresh_buttons()

@@ -697,6 +697,49 @@ def test_every_artifact_row_can_be_opened(tk_root, one, monkeypatch):
         top.destroy()
 
 
+def test_every_row_says_what_pressing_it_does(one):
+    """**ダブルクリックできることが画面に書いていない**と辿り着けない.
+
+    ボタン行に戻すと行の複製になる (前にそれで 3 つ並べて消した) ので、
+    行の中に動詞を出す。何が起きるかも行ごとに違うので、そのまま書く。
+    """
+    write_plan(one)
+    found = ui_run.survey(one)
+    labels = {i.key: ui_run.action_label(i) for i in found.items}
+
+    assert labels["spec"] == "編集"        # 画面の中のエディタ
+    assert labels["plan"] == "編集"
+    assert labels["output"] == "出る場所"  # まだ無い行は、出る場所を開く
+
+
+def test_a_finished_video_says_play(one):
+    write_plan(one)
+    outdir = ui_run.survey(one).outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "timing.json").write_text('{"duration": 3.0}', encoding="utf-8")
+    (outdir / "output.mp4").write_bytes(b"")
+
+    found = ui_run.survey(one)
+    assert ui_run.action_label(found.item("output")) == "再生"
+    assert ui_run.action_label(found.item("timing")) == "開く"
+
+
+def test_the_action_word_is_on_every_row(tk_root, one):
+    import tkinter as tk
+
+    from ghostmovieplay import ui
+
+    write_plan(one)
+    top = tk.Toplevel(tk_root)
+    top.withdraw()
+    pane = ui_run.RunPane(top, ui.AppState(one))
+    try:
+        for key, cells in pane.cells.items():
+            assert cells[-1].cget("text"), f"{key} の行に動詞が出ていない"
+    finally:
+        top.destroy()
+
+
 def test_the_pane_shows_every_artifact(tk_root, one):
     """表の行が成果物と 1 対 1 で並ぶこと (数だけ見る)."""
     import tkinter as tk

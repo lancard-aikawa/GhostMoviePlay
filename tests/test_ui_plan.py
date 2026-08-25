@@ -259,6 +259,9 @@ def test_a_still_is_shown_at_its_own_size(editor, tmp_path, monkeypatch):
     monkeypatch.setattr(type(editor), "shot_for", lambda self, row: png)
 
     editor.show(editor.rows[1])
+    # 読めなかったときは別の枝に落ちる。**どちらで落ちたかを言う** ——
+    # 「高さが 0 でない」だけだと、潰れたのか読めなかったのか分からない
+    assert editor.shot.cget("image"), f"画を読めなかった: {editor.shot.cget('text')}"
     assert int(editor.shot.cget("height")) == 0     # 中身の大きさに任せる
     assert editor.shot.cget("text") == ""
 
