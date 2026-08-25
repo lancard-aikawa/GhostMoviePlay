@@ -268,3 +268,51 @@ def test_dry_is_red_on_a_baked_absolute_path(project, monkeypatch, capsys):
     monkeypatch.setattr(record_module, "record", lambda *a, **k: recorded())
     assert main(["check", str(project), "--dry"]) == 1
     assert "file://" in capsys.readouterr().out
+
+
+# --- 支援収録は撮り直せない -------------------------------------------
+ASSIST_PLAN = {
+    "meta": {"title": "手で撮った 1 本"},
+    "app": {"window": "電卓"},
+    "scenes": [{"id": "s1", "beats": [{"say": "ひとこと", "shot": "shots/a.png"}]}],
+}
+
+
+def _assist(tmp_path, plan=None):
+    target = tmp_path / "plan.json"
+    target.write_text(json.dumps(plan or ASSIST_PLAN, ensure_ascii=False),
+                      encoding="utf-8")
+    return target
+
+
+def test_an_assisted_plan_is_not_recorded(tmp_path):
+    """**素材は生成物でプロジェクトの外にある。** 撮り直しようがない."""
+    def boom(plan, path):
+        pytest.fail("支援収録を撮り直そうとした")
+
+    result = check.check_one(_assist(tmp_path), boom)
+    assert result.state == check.SKIP
+
+
+def test_a_skipped_plan_is_not_red(tmp_path):
+    """検査できないだけで、壊れてはいない (CI を赤にしない)."""
+    result = check.check_one(_assist(tmp_path), lambda plan, path: None)
+    assert result.red is False
+
+
+def test_a_skipped_plan_does_not_count_as_passing(tmp_path):
+    """**「赤が無い = 全部当たっている」を嘘にしない。**"""
+    report = check.Report()
+    report.results.append(check.check_one(_assist(tmp_path), lambda p, q: None))
+    text = report.summary()
+    assert "0 / 1 本が通りました" in text
+    assert "撮り直せないので検査していません" in text
+
+
+def test_faults_visible_without_recording_still_go_red(tmp_path):
+    """撮らなくても分かる欠陥は支援収録でも赤にする (二重基準を作らない)."""
+    plan = json.loads(json.dumps(ASSIST_PLAN))
+    plan["app"]["cwd"] = r"C:\Repos\mywork\GhostMoviePlay"
+    result = check.check_one(_assist(tmp_path, plan), lambda p, q: None)
+    assert result.state == check.STALE
+    assert result.red is True

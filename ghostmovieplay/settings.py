@@ -114,6 +114,11 @@ SCHEMA: tuple[Setting, ...] = (
     # --- 収録対象 (プロジェクト固有の事実) ---------------------------
     Setting("app.url", "str", None, _PV, "plan",
             "収録対象の URL。file:///C:/... でもよい"),
+    # **ここが埋まっていると「人が操作して撮る」1 本になる** (支援収録)。
+    # ブラウザを開かないので url は要らない。自動操作の届かない相手
+    # (ログインの要る業務アプリ・canvas・OAuth) のための道
+    Setting("app.window", "str", None, _PV, "plan",
+            "支援収録で撮る窓のタイトル (部分一致)。埋めると URL は要らない"),
     Setting("app.ready", "str", None, _PV, "plan",
             "これが見えたら準備完了とみなすセレクタ"),
     Setting("app.start", "str", None, _PV, "plan",

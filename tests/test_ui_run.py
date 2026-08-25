@@ -809,3 +809,97 @@ def test_the_pane_shows_every_artifact(tk_root, one):
         assert pane.buttons["render"]["state"] == tk.DISABLED
     finally:
         top.destroy()
+
+
+# --- 支援収録 ---------------------------------------------------------
+ASSIST = {
+    "meta": {"title": "支援収録の 1 本", "project": "proj"},
+    # **url が無くても読める。** ブラウザを開かないので焼く値が無い
+    "app": {"window": "電卓"},
+    "scenes": [
+        {"id": "s1", "beats": [{"say": "ひとつめ"}, {"say": "ふたつめ"}]},
+    ],
+}
+
+
+def test_assisted_plan_is_detected(one):
+    write_plan(one, ASSIST)
+    found = ui_run.survey(one)
+    assert found.assisted is True
+    assert found.error == ""
+
+
+def test_automated_plan_has_no_shots_row(one):
+    """**素材の行は支援収録のときだけ。** 自動収録では撮る段が素材も作る."""
+    write_plan(one)
+    found = ui_run.survey(one)
+    assert found.assisted is False
+    assert found.item("shots") is None
+
+
+def test_assisted_plan_shows_how_many_shots_are_in(one):
+    """どこまで撮れたかを見せる (画面が持つべきなのはこれ)."""
+    write_plan(one, ASSIST)
+    found = ui_run.survey(one)
+    shots = found.item("shots")
+    assert shots is not None
+    assert shots.label == "素材"
+    assert shots.state == ui_run.MISSING
+    assert "0 / 2" in shots.detail
+
+
+def test_shots_row_counts_only_files_that_exist(one):
+    """plan.json に書いてあっても、実体が無ければ撮れていない."""
+    plan = json.loads(json.dumps(ASSIST))
+    plan["scenes"][0]["beats"][0]["shot"] = "shots/0001-s1.png"
+    plan["scenes"][0]["beats"][1]["shot"] = "shots/0002-s1.png"
+    write_plan(one, plan)
+    found = ui_run.survey(one)
+    (found.outdir / "shots").mkdir(parents=True)
+    (found.outdir / "shots" / "0001-s1.png").write_bytes(b"")
+
+    shots = ui_run.survey(one).item("shots")
+    assert shots.state == ui_run.PARTIAL
+    assert "1 / 2" in shots.detail
+
+
+def test_the_shots_row_opens_the_shooting_window(one):
+    """**ボタンにしない。** 開く操作は表の行に集約する (行の複製を作らない)."""
+    write_plan(one, ASSIST)
+    shots = ui_run.survey(one).item("shots")
+    assert ui_run.action_label(shots) == "撮る"
+
+
+def test_assisted_record_row_says_it_makes_an_mp4(one):
+    """**段が作る行を、出るものの名前で書く。** raw.webm は出ない."""
+    write_plan(one, ASSIST)
+    assert ui_run.survey(one).item("timing").what == ui_run.WHAT_ASSEMBLE
+
+    write_plan(one)
+    assert ui_run.survey(one).item("timing").what == ui_run.WHAT_RECORD
+
+
+def test_the_record_row_plays_whatever_was_actually_made(one):
+    """撮れた映像の名前は timing.json が知っている (決め打ちすると押せない行になる)."""
+    write_plan(one, ASSIST)
+    outdir = ui_run.survey(one).outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "raw.mp4").write_bytes(b"")
+    (outdir / "timing.json").write_text(
+        json.dumps({"source_video": "raw.mp4", "duration": 3.0, "beats": []}),
+        encoding="utf-8")
+    touch(outdir / "timing.json", 3000)
+    touch(one.parent / "plan.json", 1000)
+
+    row = ui_run.survey(one).item("timing")
+    assert row.opens is not None
+    assert row.opens.name == "raw.mp4"
+    assert ui_run.action_label(row) == "再生"
+
+
+def test_assisted_steps_are_the_same_five(one):
+    """**段を増やさない。** 「収録する」が組み立てに回るだけ."""
+    write_plan(one, ASSIST)
+    found = ui_run.survey(one)
+    assert [s.key for s in ui_run.STEPS] == ["plan", "voice", "record", "render", "build"]
+    assert ui_run.argv(ui_run.STEPS[2], found) == ["record", str(found.plan)]

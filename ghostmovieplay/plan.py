@@ -52,6 +52,10 @@ class Beat:
     hold: float = 0.0  # 操作が終わったあとの最低保持秒数
     actions: list[dict[str, Any]] = field(default_factory=list)
     audio: str | None = None  # TTS wav への相対パス (Pass2 で尺の決定に使う)
+    # 支援収録 (gmp shoot) で人が撮った素材への相対パス。png なら静止画、
+    # mp4 なら短い動画。**audio と同じく出力ディレクトリからの相対** ——
+    # 素材は生成物なのでユーザフォルダ側に出る (plan.json の隣ではない)
+    shot: str | None = None
 
     @property
     def caption(self) -> str:
@@ -80,6 +84,11 @@ class Video:
 @dataclass
 class App:
     url: str = ""
+    # 支援収録の相手にする窓のタイトル (部分一致)。**ここが埋まっていると
+    # 「人が操作して撮る」1 本**になり、url は要らなくなる (ブラウザを開かない)。
+    # PID ではなくタイトルで掴むのは、ストア配信のアプリが launcher から
+    # 別 PID に受け渡して終了するため
+    window: str | None = None
     ready: str | None = None  # ここが見えるまで待ってから収録開始
     start: str | None = None  # 開発サーバの起動コマンド。既に応答していれば起動しない
     cwd: str | None = None  # start の実行ディレクトリ (plan.json からの相対)
@@ -315,12 +324,15 @@ def load(path: str | Path) -> Plan:
                 hold=float(braw.get("hold", 0.0)),
                 actions=list(braw.get("actions") or []),
                 audio=braw.get("audio"),
+                shot=braw.get("shot"),
             )
             for ai, action in enumerate(beat.actions):
                 _validate_action(action, f"{scene.id}.beats[{bi}].actions[{ai}]")
             scene.beats.append(beat)
         plan.scenes.append(scene)
 
-    if not plan.app.url:
-        raise PlanError(f"{path}: app.url が必要です")
+    # **支援収録は url を要らない。** ブラウザを開かず、人が操作した窓を撮るので、
+    # 収録対象は app.window (窓のタイトル) のほうで決まる
+    if not plan.app.url and not plan.app.window:
+        raise PlanError(f"{path}: app.url が必要です (支援収録なら app.window)")
     return plan

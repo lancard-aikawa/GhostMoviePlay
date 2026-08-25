@@ -68,6 +68,9 @@ class Survey:
     measured: bool = False
     warning: str = ""                # 止めはしないが先に言うこと
     items: tuple[Item, ...] = ()
+    # **支援収録の 1 本か** (app.window がある = 人が操作して撮る)。
+    # 段は同じ (「収録する」が組み立てに回る) が、素材を貯める道が要る
+    assisted: bool = False
 
     def item(self, key: str) -> Item | None:
         return next((i for i in self.items if i.key == key), None)
@@ -123,12 +126,19 @@ def survey(spec: Path | None) -> Survey:
 
     outdir = paths.resolve_outdir(plan_path, project=loaded.project, app_cwd=loaded.app.cwd)
     seconds, measured = estimate(loaded, outdir)
+    assisted = bool(loaded.app.window)
+    rows = [written, script]
+    if assisted:
+        # **素材の行は支援収録のときだけ出す。** 自動収録では撮る段が素材も
+        # 作るので、行を分けると段と行が 1 対 1 でなくなる
+        rows.append(_shots_item(loaded, outdir))
+    rows += [_voice_item(loaded, outdir),
+             _record_item(plan_path, outdir, assisted), _output_item(outdir)]
     return Survey(
         spec=spec, plan=plan_path, outdir=outdir, warning=warning,
         request=outdir / "PLAN_REQUEST.md", title=loaded.title,
-        estimate=seconds, measured=measured,
-        items=(written, script, _voice_item(loaded, outdir),
-               _record_item(plan_path, outdir), _output_item(outdir)),
+        estimate=seconds, measured=measured, assisted=assisted,
+        items=tuple(rows),
     )
 
 
@@ -236,21 +246,46 @@ def _voice_item(loaded, outdir: Path) -> Item:
 # **収録は 2 つ作る。** 無音の映像 (素材) と、ビートの実測時刻。片方しか
 # 書いていないと、「収録する」を押すと何が出来るのかが画面から分からない
 WHAT_RECORD = "raw.webm + timing.json"
+# 支援収録は撮らずに並べるので、出るものも名前も違う (mp4 を組み立てる)
+WHAT_ASSEMBLE = "raw.mp4 + timing.json"
 
 
-def _record_item(plan_path: Path, outdir: Path) -> Item:
+def _shots_item(loaded, outdir: Path) -> Item:
+    """人が撮った素材. **揃っているかどうかだけ**を見る.
+
+    新しいかどうかは言えない —— 撮り直しの効かない素材なので、mtime を比べても
+    「アプリが変わったのに絵が古い」は分からない (`gmp check` が効かないのと
+    同じ理由。docs/ideas/desktop.md)。
+    """
+    directory = outdir / "shots"
+    want = [b for _, b in loaded.beats]
+    have = [b for b in want if b.shot and (outdir / b.shot).is_file()]
+    if not have:
+        return Item("shots", "素材", "shots/", directory, MISSING,
+                    f"0 / {len(want)} ビート")
+    if len(have) < len(want):
+        return Item("shots", "素材", "shots/", directory, PARTIAL,
+                    f"{len(have)} / {len(want)} ビート")
+    return Item("shots", "素材", "shots/", directory, READY,
+                f"{len(have)} ビート")
+
+
+def _record_item(plan_path: Path, outdir: Path, assisted: bool = False) -> Item:
     timing = outdir / "timing.json"
+    what = WHAT_ASSEMBLE if assisted else WHAT_RECORD
     made = _mtime(timing)
     if made is None:
-        return Item("timing", "収録", WHAT_RECORD, timing, MISSING, "まだ撮っていません")
+        return Item("timing", "収録", what, timing, MISSING, "まだ撮っていません")
     source = _mtime(plan_path)
     if source is not None and source > made:
         # 音声を作り直すと plan.json に尺が書き戻される。**音声の尺がビートの
         # 尺そのもの**なので、そのときは本当に撮り直しが要る
-        return Item("timing", "収録", WHAT_RECORD, timing, STALE,
+        return Item("timing", "収録", what, timing, STALE,
                     "plan.json のほうが新しい (撮り直しが要ります)")
     facts = _timing(timing)
-    raw = outdir / "raw.webm"
+    # **どの映像が出来たかは timing.json が知っている。** 名前を決め打ちすると
+    # 支援収録 (raw.mp4) で「再生」が押せない行になる
+    raw = outdir / str(facts.get("source_video") or "raw.webm")
     opens = raw if raw.is_file() else None
     detail = _stamp(made)
     try:
@@ -283,11 +318,16 @@ def _output_item(outdir: Path) -> Item:
 
 # 行を開くと何が起きるか。**ダブルクリックできることが画面に書いていない**と、
 # 知らない人は辿り着けない (実際に辿り着けなかった)。行に動詞を出す
-ACTION = {"spec": "編集", "plan": "編集", "output": "再生", "voice": "フォルダ"}
+ACTION = {"spec": "編集", "plan": "編集", "output": "再生",
+          "voice": "フォルダ", "shots": "フォルダ"}
 
 
 def action_label(item: Item) -> str:
     """その行を押すと何が起きるか. 押せない行は空文字."""
+    # **素材の行はフォルダではなく撮る画面を開く。** ここをボタンにすると
+    # 行の複製になる (「開く操作は表の行に集約」)
+    if item.key == "shots":
+        return "撮る"
     target = item.opens or item.path
     if target is None:
         return ""
@@ -869,6 +909,13 @@ class RunPane:
             from .ui_spec import SpecEditor
 
             SpecEditor(self.body, item.path, on_saved=self.refresh)
+            return
+        if item.key == "shots":
+            # **支援収録は人が撮る。** 画面は素材を貯めて、どのビートのものかを
+            # 覚えておくだけ (操作は代わりにやらない)
+            from .ui_shoot import open_window
+
+            open_window(self.body, self.survey.plan, on_saved=self.refresh)
             return
         if item.key == "plan" and item.path.is_file():
             from .ui_plan import PlanEditor

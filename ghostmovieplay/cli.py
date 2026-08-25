@@ -268,6 +268,48 @@ def cmd_ui(args) -> int:
     return open_window(args.spec, mode="run" if args.run else "settings")
 
 
+def cmd_shoot(args) -> int:
+    """支援収録の画面を開く. 人が操作した窓を撮ってビートに貯める.
+
+    **自動操作が届かない相手のための道** (ログインの要る業務アプリ・canvas・
+    OAuth)。撮った素材は `gmp record` が並べて 1 本にする。
+
+    plan.json がまだ無ければ骨から作る。窓を選ぶまでは保存しない ——
+    「設定済みに見える嘘」を焼かないため (`gmp init` の雛形と同じ規則)。
+    """
+    from . import capture
+
+    if not capture.supported():
+        return _err("支援収録は Windows でだけ使えます")
+
+    target = Path(args.plan)
+    if target.is_dir():
+        target = target / "plan.json"
+    elif target.name == "video.md":
+        target = target.parent / "plan.json"
+
+    try:
+        import tkinter as tk
+
+        from .ui_shoot import ShootWindow
+    except ImportError as exc:      # tkinter が入っていない Python
+        return _err(f"画面を開けません: {exc}")
+
+    from .shoot import ShootError
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        window = ShootWindow(root, target)
+    except ShootError as exc:
+        root.destroy()
+        return _err(str(exc))
+    window.window.protocol("WM_DELETE_WINDOW",
+                           lambda: (window.on_close(), root.quit()))
+    root.mainloop()
+    return 0
+
+
 # --- init -------------------------------------------------------------
 def cmd_init(args) -> int:
     """動画 1 本ぶんのディレクトリを掘って video.md を置く.
@@ -579,8 +621,7 @@ def cmd_voices(args) -> int:
 
 # --- record -----------------------------------------------------------
 def cmd_record(args) -> int:
-    from .plan import PlanError, load
-    from .record import record
+    from .plan import PlanError
 
     try:
         plan, outdir = _load_plan(args.plan)
@@ -589,15 +630,29 @@ def cmd_record(args) -> int:
     if args.out:
         outdir = Path(args.out)
 
-    print(f"収録: {plan.title}  ({len(plan.beats)} beats -> {outdir})")
+    # **支援収録の 1 本はブラウザを開かない。** 人が撮った素材を並べる
+    # (`gmp shoot` で貯めたもの)。出すものは自動収録と同じ raw + timing なので、
+    # このあとの `gmp render` は区別しない
+    if plan.app.window:
+        from .assemble import assemble
+        from .ffmpeg import FFmpegError
 
-    result = record(
-        plan,
-        outdir,
-        headless=not args.headed,
-        subtitle_mode=args.subtitle_mode,
-        sync_offset=args.sync_offset,
-    )
+        print(f"組み立て: {plan.title}  ({len(plan.beats)} beats -> {outdir})")
+        try:
+            result = assemble(plan, outdir)
+        except (FFmpegError, ValueError) as exc:
+            return _err(str(exc))
+    else:
+        from .record import record
+
+        print(f"収録: {plan.title}  ({len(plan.beats)} beats -> {outdir})")
+        result = record(
+            plan,
+            outdir,
+            headless=not args.headed,
+            subtitle_mode=args.subtitle_mode,
+            sync_offset=args.sync_offset,
+        )
     print(f"\n  video   {result.video}  ({result.duration:.2f}s)")
     print(f"  timing  {result.timing}  (sync skew {result.skew:+.3f}s)")
 
@@ -868,6 +923,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("spec", nargs="?", help="video.md (渡すとその動画を選んだ状態で開く)")
     p.add_argument("--run", action="store_true", help="「撮る」面から開く")
     p.set_defaults(func=cmd_ui)
+
+    p = sub.add_parser("shoot", help="支援収録: 人が操作した窓を撮ってビートに貯める")
+    p.add_argument("plan", nargs="?", default="plan.json",
+                   help="plan.json (無ければ骨から作る)。フォルダや video.md でもよい")
+    p.set_defaults(func=cmd_shoot)
 
     p = sub.add_parser("init", help="動画 1 本ぶんのフォルダと video.md を作る")
     p.add_argument("--open", action="store_true",

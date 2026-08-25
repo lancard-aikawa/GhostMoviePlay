@@ -44,11 +44,15 @@ SKIP_DIRS = frozenset({
 ENV_KINDS = frozenset({"audio_missing", "leader_short"})
 
 OK, STALE, BROKEN = "ok", "stale", "broken"
+# **撮り直せないので検査できない** —— 支援収録は人が撮った素材が要り、それは
+# 生成物なのでプロジェクトの外にある。並べ直しても「アプリがまだ当たっているか」
+# は 1 文字も分からない。赤にはしないが、**通ったとも言わない**
+SKIP = "skip"
 
 # **印は ASCII で置く。** Windows の既定コンソールは cp932 で、`✓` は
 # `?` に化ける (`_lenient_output` が落ちない代わりに潰す)。飾りが化けるのは
 # 我慢できるが、化けるのが**判定そのもの**だと読めない
-MARK = {OK: "ok", STALE: "!", BROKEN: "NG"}
+MARK = {OK: "ok", STALE: "!", BROKEN: "NG", SKIP: "--"}
 
 
 @dataclass(frozen=True)
@@ -64,7 +68,7 @@ class Result:
 
     @property
     def red(self) -> bool:
-        return self.state != OK
+        return self.state not in (OK, SKIP)
 
 
 def find_plans(root: Path, limit: int = 200) -> list[Path]:
@@ -195,6 +199,15 @@ def check_one(path: Path, record_fn=None) -> Result:
         detail = f"直すところ {len(found)} 件" if found else "読めました"
         return Result(path, STALE if found else OK, detail, found)
 
+    # **支援収録は撮り直せない。** 素材は人が撮ったもので、生成物なので
+    # clone した機械には無い。並べ直しても「まだアプリに当たっているか」は
+    # 分からないので、**通ったことにしない** (docs/ideas/desktop.md)。
+    # 撮らずに分かる欠陥だけは同じように見る
+    if plan.app.window:
+        if found:
+            return Result(path, STALE, f"直すところ {len(found)} 件", found)
+        return Result(path, SKIP, "支援収録なので撮り直せません (この検査は効きません)")
+
     try:
         recorded = record_fn(plan, path)
     except Exception as exc:   # noqa: BLE001 — 落ちた理由そのものが結果
@@ -225,12 +238,21 @@ class Report:
     def ignored(self) -> int:
         return sum(len(r.ignored) for r in self.results)
 
+    @property
+    def skipped(self) -> list[Result]:
+        return [r for r in self.results if r.state == SKIP]
+
     def summary(self) -> str:
         total = len(self.results)
         red = len(self.red)
-        head = f"{total - red} / {total} 本が通りました"
+        skipped = len(self.skipped)
+        head = f"{total - red - skipped} / {total} 本が通りました"
         if red:
             head += f" (赤 {red} 本)"
+        if skipped:
+            # **検査できなかったものを「通った」に混ぜない。** 混ぜると
+            # 「赤が無い = 全部当たっている」がまた嘘になる
+            head += f"   ※ 支援収録 {skipped} 本は撮り直せないので検査していません"
         if self.ignored:
             # **黙って捨てない。** 無視した警告があることは必ず言う
             head += f"   ※ 環境の警告 {self.ignored} 件は赤に数えていません"

@@ -243,3 +243,48 @@ def test_schema_doc_lists_every_action():
     missing = [kind for kind in ACTION_SPECS
                if f'"type": "{kind}"' not in PLAN_SCHEMA_DOC]
     assert not missing, f"AI に渡す仕様から漏れている action: {missing}"
+
+
+# --- 支援収録の依頼文 -------------------------------------------------
+@pytest.fixture
+def assisted(project):
+    """`app.window` を足して、支援収録の 1 本にする."""
+    (project.parent / "video.md").write_text(
+        "---\ntitle: 手で撮る 1 本\napp:\n  window: 電卓\n---\n\n本文\n",
+        encoding="utf-8")
+    return project
+
+
+def test_the_window_is_baked_into_the_plan_values(assisted):
+    """撮る窓も設定なので、Pass1 で plan.json に焼き切る."""
+    assert _values(build_request(parse(assisted)))["app"]["window"] == "電卓"
+
+
+def test_assisted_request_asks_for_the_window_not_the_url(assisted):
+    text = build_request(parse(assisted))
+    assert "撮る窓: `電卓`" in text
+    assert "人がこの窓を操作します" in text
+
+
+def test_assisted_request_forbids_actions(assisted):
+    """**書いた操作は誰も実行しない。** 書かせると台本に嘘が残る."""
+    text = build_request(parse(assisted))
+    assert "`actions` を書かないでください" in text
+    assert "`shot` を書かないでください" in text
+
+
+def test_assisted_request_does_not_ask_to_run_record(assisted):
+    """素材を撮る前に `gmp record` を叩かせない (黒画だけの動画が出来る)."""
+    text = build_request(parse(assisted))
+    assert "gmp record plan.json` を実行し" not in text
+    assert "gmp shoot" in text
+
+
+def test_automated_request_is_unchanged(project):
+    """**支援収録の説明を自動収録に混ぜない** —— `shot` を見せると、
+    撮ってもいない素材のパスを AI が書く.
+    """
+    text = build_request(parse(project))
+    assert "支援収録" not in text
+    assert "`shot` を書かないでください" not in text
+    assert "gmp record plan.json` を実行し" in text

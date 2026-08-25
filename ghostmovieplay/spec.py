@@ -321,6 +321,25 @@ PLAN_SCHEMA_DOC = """```jsonc
 }
 ```"""
 
+# 支援収録のときだけ足す説明。**PLAN_SCHEMA_DOC を汚さない** ——
+# 自動収録の依頼文に `shot` を見せると、AI が撮ってもいない素材のパスを書く
+ASSIST_SCHEMA_NOTE = """### この 1 本は「支援収録」です
+
+自動操作が届かない相手なので、**画面は人が操作して撮ります。**
+
+- **`actions` を書かないでください。** 操作するのは人で、あなたが書いた操作は
+  誰も実行しません。書くと「実行されるつもりの手順」が台本に残って嘘になります
+- **`shot` を書かないでください。** 素材のパスは `gmp shoot` の画面が入れます
+- **1 ビート = 素材 1 つ + コメント 1 つ。** 画面 1 枚につき言うことを 1 つに
+  します。言うことが 2 つあるならビートを 2 つに割ってください
+  (同じ画像を 2 つのビートが指してもかまいません)
+- **`hold` は下限としてだけ効きます。** ビートの尺は「音声」「素材の尺」
+  「hold」のいちばん長いものになります
+
+あなたの仕事は**シーンとビートの並びを決めて `say` を書くこと**です。
+人はその並びのとおりに操作して、ビートごとに画面を撮ります。
+"""
+
 GUIDE = """## Pass1 で守ること
 
 1. **先にソースを読む。** ルール・スコア計算・勝敗条件を把握してから演目を組む。
@@ -408,6 +427,21 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
     values = _plan_values(resolved, plan_dir)
     url = values["app"].get("url") or "(未設定: video.md か gmp.toml に app.url を書く)"
 
+    # **支援収録は依頼文の中身が変わる。** 操作するのが人なので、セレクタも
+    # actions も要らず、代わりに「並びを決めて say を書く」が仕事になる
+    window = values["app"].get("window")
+    if window:
+        target = f"- 撮る窓: `{window}` (人がこの窓を操作します)"
+        extra = "\n" + ASSIST_SCHEMA_NOTE
+        done = ("シーンとビートの並びを決めて `say` を書いたら、そこで完了です。\n"
+                "このあと人が `gmp shoot` の画面でビートごとに画面を撮り、\n"
+                "`gmp record` が素材と音声を並べて 1 本にします。")
+    else:
+        target = f"- URL: {url}"
+        extra = ""
+        done = ("`plan.json` を書いたら `gmp record plan.json` を実行し、収録が最後まで\n"
+                "通ることを確認してください。落ちたセレクタがあれば直して再実行します。")
+
     return f"""# 依頼: 実演解説動画の plan.json を作る
 
 あなたは GhostMoviePlay の Pass1 を担当します。対象アプリを理解し、
@@ -417,7 +451,7 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
 
 ## 対象
 
-- URL: {url}
+{target}
 - プロジェクトフォルダ: `{values["app"].get("cwd", ".")}` (plan.json からの相対)
 
 ## 何を撮るか
@@ -435,7 +469,7 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
 `plan.json` を書き出してください。スキーマ:
 
 {PLAN_SCHEMA_DOC}
-
+{extra}
 ### そのまま使う値
 
 以下は設定 (config.toml / gmp.toml / video.md) から解決済みです。
@@ -458,6 +492,5 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
 
 ## 完了条件
 
-`plan.json` を書いたら `gmp record plan.json` を実行し、収録が最後まで
-通ることを確認してください。落ちたセレクタがあれば直して再実行します。
+{done}
 """
