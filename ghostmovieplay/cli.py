@@ -735,6 +735,54 @@ def cmd_check(args) -> int:
     return 1 if report.red else 0
 
 
+# --- demo -------------------------------------------------------------
+def cmd_demo(args) -> int:
+    """使い捨ての試し場を作って、収録から画面まで通す.
+
+    **目で見て確かめるための道。** テストが緑でも画面の手触りは分からないが、
+    本物 (docs/video/intro) で試すと紹介動画の素材に差分が出るし、100 秒の
+    収録を待つことになる。捨てられる場所に 10 秒の 1 本を作る。
+
+    叩くのは[使い方]と同じコマンド。**手順が腐ればここで落ちる。**
+    """
+    import tempfile
+
+    from . import demo
+
+    root = Path(args.dir) if args.dir else Path(tempfile.gettempdir()) / "gmp-demo"
+    print(f"試し場: {root}")
+    try:
+        spec = demo.build(root)
+    except (OSError, ValueError) as exc:
+        return _err(f"試し場を作れません: {exc}")
+    plan = spec.parent / "plan.json"
+
+    if args.build_only:
+        print(f"\n次: gmp ui {spec} --run")
+        return 0
+
+    # **手順書と同じコマンドを、同じ名前で叩く** (中で関数を呼ぶと、手順が
+    # 腐っていても気づけない)
+    print(f"\n$ gmp record {plan}")
+    rc = main(["record", str(plan)])
+    if rc != 0:
+        return rc
+
+    _, outdir = _load_plan(plan)
+    print(f"\n$ gmp render {outdir / 'timing.json'}")
+    rc = main(["render", str(outdir / "timing.json")])
+    if rc != 0:
+        return rc
+
+    if args.no_open:
+        print(f"\n次: gmp ui {spec} --run")
+        return 0
+
+    print(f"\n$ gmp ui {spec} --run")
+    print("   表の「台本」の行をダブルクリックすると、文と間を直す画面が開きます")
+    return main(["ui", str(spec), "--run"])
+
+
 # --- パーサ -----------------------------------------------------------
 def _add_record_opts(p) -> None:
     p.add_argument("--out", help="出力ディレクトリ (既定: plan.json の隣の out/)")
@@ -879,6 +927,17 @@ def main(argv: list[str] | None = None) -> int:
     _add_record_opts(p)
     _add_render_opts(p)
     p.set_defaults(func=cmd_build)
+
+    p = sub.add_parser(
+        "demo", help="使い捨ての試し場を作って、収録から画面まで通す (手で確かめる)",
+    )
+    p.add_argument("dir", nargs="?", default=None,
+                   help="試し場を作る場所 (既定: 一時フォルダの gmp-demo)")
+    p.add_argument("--build-only", action="store_true",
+                   help="組み立てるだけ (撮らない)")
+    p.add_argument("--no-open", action="store_true",
+                   help="画面を開かない (収録と仕上げまで)")
+    p.set_defaults(func=cmd_demo)
 
     p = sub.add_parser(
         "check", help="全部の台本を撮り直して、まだアプリに当たっているか見る",

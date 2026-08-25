@@ -16,6 +16,7 @@ uv run gmp doctor                      # ffmpeg / chromium の確認
 uv run pytest                          # 全テスト
 uv run pytest -m "not slow"            # 実プロセスを起動するテストを除く
 uv run gmp build examples/demo/plan.json --voice   # 通しで1本
+uv run gmp demo                        # 使い捨ての試し場で画面まで通す (手で見る)
 ```
 
 音声を扱うときは VOICEVOX ENGINE が要る。GUI を開かずに済ませるなら:
@@ -512,6 +513,10 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
   `site/index.html` という説明ページで、`app.start` の簡易サーバ越しに開く。
   `gmp.toml` がこのリポジトリのプロジェクト設定になっている。**設定・読み辞書・
   尺の見積りを実際に通す唯一の場所**なので、それらを変えたらここを撮り直す
+- **`gmp demo`** —— 一時フォルダに組み立てる**使い捨ての試し場**（10 秒）。
+  画面の手触りを確かめるのはここでやる。**本物 (`docs/video/intro`) で試さない**
+  —— 台本をエディタで保存すると紹介動画の素材に差分が出るし、100 秒待つ。
+  試し場は git に入れない（`ghostmovieplay/demo.py` が毎回組み立てる）
 - `examples/demo/` —— 手で書いた plan.json。タイル取りゲームで
   「大きい数から取ると損をする」を実演する 3 幕構成（シリーズの 2 本目）
 - `C:\Repos\mywork\GlossPop\docs\video\gloss-scope\` —— 実プロジェクトの 1 本目。
