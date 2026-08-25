@@ -79,16 +79,18 @@ selector が生きているかは分からない。
   `GHOSTMOVIEPLAY_HOME` を捨ててよい場所に向けること
 - `ffmpeg` が無くても回る（尺の表示が壁時計になるだけ）
 
-## CI の例
+## CI で回す（候補。**このリポジトリでは回していない**）
 
 ```yaml
 # .github/workflows/check.yml
-on: [push, pull_request]
+on:
+  schedule: [{ cron: "0 21 * * 0" }]     # 毎 push で払うほどの頻度では腐らない
+  workflow_dispatch:
 jobs:
   plans-still-land:
     runs-on: ubuntu-latest
     env:
-      GHOSTMOVIEPLAY_HOME: ${{ runner.temp }}/gmp
+      GHOSTMOVIEPLAY_HOME: ${{ runner.temp }}/gmp    # 成果物は捨ててよい場所へ
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -96,11 +98,44 @@ jobs:
       - run: uv run gmp check --dry          # 数秒。焼き込みと字幕を先に落とす
       - run: uv run playwright install --with-deps chromium
       - run: uv run gmp check
+      - uses: actions/upload-artifact@v4     # 落ちたとき、何を映していたか見る
+        if: failure()
+        with: { name: recordings, path: "${{ runner.temp }}/gmp/**/timing.json" }
 ```
 
 `app.start` が CI でも動くこと（依存のインストール、ポートの空き）が前提になる。
 収録用の使い捨てデータルートを立てる形（`serve.py` を `app.start` から起動する）に
-してあると、そのまま通る。
+してあると、そのまま通る。字幕を焼かないのでフォントは要らず、ffmpeg も無くてよい
+（尺の表示が壁時計になるだけ）。
+
+### なぜここでは回していないか
+
+**効くのは、撮る対象と台本が同じリポジトリにあるとき。** アプリを直した push で
+赤くなるから価値がある。このリポジトリの収録対象は `docs/video/intro/site/index.html`
+と `examples/demo/index.html` の 2 枚で、**どちらも作ったとき以来 1 度も変わっていない**
+（台本は前者の id を 15 個掴んでいるので、変われば必ず赤くなる関係ではある）。
+拾うものが無い検査に毎 push 3 分を払う形になるので、置くなら週次と手動でよい。
+
+GlossPop や社内プロジェクトのように、**アプリを直す人と動画を撮った人が同じ
+リポジトリを触る**ところに置くと、そこで初めて効く。
+
+### 古い動画は自動では置き換わらない
+
+`gmp check` は**気づくだけ**で、何も更新しない。腐り方は 2 つあり、機械にできる
+ことが違う。
+
+| 腐り方 | 撮り直しで直るか |
+| --- | --- |
+| 見た目だけ変わった（selector は生きている） | **直る。** 収録は決定論的なので、同じ plan.json から新しい画面の動画が出る |
+| 仕様が変わった（手順が違う・説明が古い・selector が消えた） | **直らない。** `say` と `actions` の書き直し ＝ Pass1 ＝ AI と人の確認が要る |
+
+**赤はこの 2 つを区別できない。** 「`#pass2` が見つからない」は、id を変えただけとも、
+Pass2 の説明そのものが嘘になったとも読める。どちらかを決めるのは人。
+
+前者だけを自動で撮り直すことは技術的には可能だが、**音声で詰まる** —— ナレーションの
+wav は VOICEVOX が要り、GitHub の runner には入らない（self-hosted なら可能）。
+音声を落として撮り直すと無音になり、クレジットの決まりとも噛み合わない。
+**そもそも台本の書き直しを自動化すると、AI を使う段を 1 つに閉じ込めた意味が消える。**
 
 ## 何が分かって、何が分からないか
 
