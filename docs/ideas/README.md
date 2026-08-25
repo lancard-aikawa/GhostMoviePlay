@@ -59,6 +59,8 @@ README の[未実装](../../README.md#未実装)が「この延長線上にあ�
 `record` を挿げ替えれば `plan` / `voice` / `render` はそのまま使える。
 
 - **[Android アプリ](android.md)** —— 見積り済み。Pass2 だけの差し替えで届く
+- **[Windows デスクトップアプリ](desktop.md)** —— 見積り済み。UI Automation に
+  selector があるので決定論を保てる。届かない相手にだけ人手キャプチャを足す
 - CLI / TUI（pty リプレイ）
 - API シーケンス（リクエストとレスポンスを画面に見立てる）
 - canvas / WebGL、Jupyter、複数アプリを跨ぐ業務フロー
@@ -88,5 +90,6 @@ README の[未実装](../../README.md#未実装)が「この延長線上にあ�
 2. **B の残り（ビート単位のビジュアル回帰）。** `gmp check` は selector が在るかまでしか
    言えない。「説明と画面が食い違っていない」を言うにはここが要る
 
-[Android](android.md) は単体では 1〜3 より重いが、**オーバーレイを render 時に移す**
-という副産物が Web 側にも効くので、そこだけ先に切り出す価値がある。
+[Android](android.md) と [Windows デスクトップ](desktop.md) は単体では 1〜2 より
+重いが、**オーバーレイを render 時に移す**という副産物が Web 側にも効く。
+**2 つが別々の道から同じ部品を要求している**ので、そこだけ先に切り出す価値がある。

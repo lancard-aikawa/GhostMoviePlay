@@ -38,7 +38,9 @@
 
 飾りを収録時に描くのをやめ、`(時刻, 矩形)` を記録して render で合成すれば
 どちらも回避できる（座標を直接指定して光らせられる）。
-[ideas/android.md](ideas/android.md) はこの移送が Android 移植の本体だと見積もっている。
+[ideas/android.md](ideas/android.md) と [ideas/desktop.md](ideas/desktop.md) が
+**どちらもこの移送を本体だと見積もっている** —— 他人のアプリの中に潜り込めない相手を
+撮ろうとすると、道が違っても同じ部品に行き着く。
 
 **止めない失敗は timing.json に残す。** 光らせる相手が見つからない、選択がずれた、
 `beat.audio` の wav が無い —— どれも収録は続ける（飾りを 1 つ光らせ損ねただけで
