@@ -740,6 +740,56 @@ def test_the_action_word_is_on_every_row(tk_root, one):
         top.destroy()
 
 
+# --- 収録と仕上げの境目 -------------------------------------------------
+def test_the_recording_row_names_both_files(one):
+    """**収録は 2 つ作る。** 無音の映像と、ビートの実測時刻.
+
+    timing.json しか書いていないと、「収録する」で何が出来るのか読めない。
+    """
+    write_plan(one)
+    outdir = ui_run.survey(one).outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "timing.json").write_text('{"duration": 9.0}', encoding="utf-8")
+
+    row = ui_run.survey(one).item("timing")
+    assert "raw.webm" in row.what
+    assert "timing.json" in row.what
+
+
+def test_the_recording_row_plays_the_footage(one):
+    """押したら**撮れた映像**が出る (timing.json をメモ帳で開いても分からない)."""
+    write_plan(one)
+    outdir = ui_run.survey(one).outdir
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "timing.json").write_text('{"duration": 9.0}', encoding="utf-8")
+    (outdir / "raw.webm").write_bytes(b"")
+
+    row = ui_run.survey(one).item("timing")
+    assert row.opens == outdir / "raw.webm"      # 新しさは timing.json で見る
+    assert row.path == outdir / "timing.json"
+    assert ui_run.action_label(row) == "再生"
+
+
+def test_every_step_says_which_row_it_makes(one):
+    """段とその成果物を同じ言葉で結ぶ (「収録する」→「収録」)."""
+    write_plan(one)
+    labels = {item.label for item in ui_run.survey(one).items}
+
+    for step in ui_run.STEPS:
+        assert step.makes, f"{step.title} が何を作るのか書いていない"
+        if step.key != "build":          # 通しだけは範囲を指す
+            assert step.makes in labels, f"{step.makes} という行が表に無い"
+
+
+def test_the_two_passes_say_what_they_add(one):
+    """収録と仕上げの違いが、説明の文で読めること."""
+    record = next(s for s in ui_run.STEPS if s.key == "record")
+    render = next(s for s in ui_run.STEPS if s.key == "render")
+
+    assert "まだ乗らない" in record.note      # 収録の時点では字幕も音声も無い
+    assert "撮り直しは要らない" in render.note  # 仕上げは撮り直しではない
+
+
 def test_the_pane_shows_every_artifact(tk_root, one):
     """表の行が成果物と 1 対 1 で並ぶこと (数だけ見る)."""
     import tkinter as tk

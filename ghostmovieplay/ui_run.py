@@ -46,9 +46,12 @@ class Item:
     key: str
     label: str          # 「台本」
     what: str           # 「plan.json」
-    path: Path | None
+    path: Path | None   # 新しさを見るファイル (この行の代表)
     state: str
     detail: str
+    # 押したときに開く先。**代表と違うことがある** —— 収録の行は timing.json で
+    # 新しさを見るが、人が見たいのは撮れた映像 (raw.webm) のほう
+    opens: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -230,18 +233,25 @@ def _voice_item(loaded, outdir: Path) -> Item:
                 f"{len(have)} ビート (原稿か声を変えた分だけ作り直します)")
 
 
+# **収録は 2 つ作る。** 無音の映像 (素材) と、ビートの実測時刻。片方しか
+# 書いていないと、「収録する」を押すと何が出来るのかが画面から分からない
+WHAT_RECORD = "raw.webm + timing.json"
+
+
 def _record_item(plan_path: Path, outdir: Path) -> Item:
     timing = outdir / "timing.json"
     made = _mtime(timing)
     if made is None:
-        return Item("timing", "収録", "timing.json", timing, MISSING, "まだ撮っていません")
+        return Item("timing", "収録", WHAT_RECORD, timing, MISSING, "まだ撮っていません")
     source = _mtime(plan_path)
     if source is not None and source > made:
         # 音声を作り直すと plan.json に尺が書き戻される。**音声の尺がビートの
         # 尺そのもの**なので、そのときは本当に撮り直しが要る
-        return Item("timing", "収録", "timing.json", timing, STALE,
+        return Item("timing", "収録", WHAT_RECORD, timing, STALE,
                     "plan.json のほうが新しい (撮り直しが要ります)")
     facts = _timing(timing)
+    raw = outdir / "raw.webm"
+    opens = raw if raw.is_file() else None
     detail = _stamp(made)
     try:
         detail += f"   {float(facts['duration']):.1f} 秒"
@@ -255,8 +265,8 @@ def _record_item(plan_path: Path, outdir: Path) -> Item:
     warnings = facts.get("warnings") or []
     if warnings:
         detail += f"   ! 警告 {len(warnings)} 件: {_first_message(warnings)}"
-        return Item("timing", "収録", "timing.json", timing, STALE, detail)
-    return Item("timing", "収録", "timing.json", timing, READY, detail)
+        return Item("timing", "収録", WHAT_RECORD, timing, STALE, detail, opens)
+    return Item("timing", "収録", WHAT_RECORD, timing, READY, detail, opens)
 
 
 def _output_item(outdir: Path) -> Item:
@@ -278,11 +288,14 @@ ACTION = {"spec": "編集", "plan": "編集", "output": "再生", "voice": "フ�
 
 def action_label(item: Item) -> str:
     """その行を押すと何が起きるか. 押せない行は空文字."""
-    if item.path is None:
+    target = item.opens or item.path
+    if target is None:
         return ""
-    if not item.path.exists():
+    if not target.exists():
         # まだ無い行は、出来る場所を開く (どこに出るのかを見せる)
         return "出る場所"
+    if target.suffix in (".mp4", ".webm"):
+        return "再生"
     return ACTION.get(item.key, "開く")
 
 
@@ -310,14 +323,24 @@ class Step:
     title: str
     note: str
     needs: str          # 揃っていないと押せないもの ("spec" / "plan" / "timing")
+    makes: str = ""     # その段が作る行 (表の呼び名と同じ言葉にする)
 
 
+# **段は表の行を 1 つずつ作る。** どの段がどの行を作るのかを画面に出さないと、
+# 「収録する」と「仕上げる」の境目が読めない (実際に読めなかった)
 STEPS: tuple[Step, ...] = (
-    Step("plan", "台本を作る", "対話の claude を開いて plan.json を書かせる (Pass1)", "spec"),
-    Step("voice", "声を作る", "say を音声にして plan.json に尺を書き戻す", "plan"),
-    Step("record", "収録する", "plan.json をリプレイして録画する (Pass2)", "plan"),
-    Step("render", "仕上げる", "字幕と音声を乗せて mp4 にする (Pass3)", "timing"),
-    Step("build", "通しで作る", "声 → 収録 → 仕上げ を続けて実行する", "plan"),
+    Step("plan", "台本を作る", "対話の claude を開いて plan.json を書かせる (Pass1)",
+         "spec", "台本"),
+    Step("voice", "声を作る", "say を読み上げて wav にし、plan.json に尺を書き戻す",
+         "plan", "音声"),
+    Step("record", "収録する",
+         "plan.json のとおりに操作して録画する。字幕も音声もまだ乗らない (Pass2)",
+         "plan", "収録"),
+    Step("render", "仕上げる",
+         "撮れた素材に字幕と音声を乗せて mp4 にする。撮り直しは要らない (Pass3)",
+         "timing", "完成"),
+    Step("build", "通しで作る", "声 → 収録 → 仕上げ を続けて実行する",
+         "plan", "音声〜完成"),
 )
 
 
@@ -609,6 +632,13 @@ class RunPane:
                                command=lambda s=step: self.on_step(s))
             button.grid(row=0, column=column, padx=(0, 6))
             self.buttons[step.key] = button
+            # **段が作る行を、表と同じ言葉でボタンの下に出す。** これが無いと
+            # 「収録する」と「仕上げる」の境目が画面から読めない
+            tk.Label(box, text=f"→ {step.makes}", fg="#999").grid(
+                row=1, column=column, sticky="w")
+            # 詳しい説明は乗せたときだけ (常に出すと帯が説明で埋まる)
+            button.bind("<Enter>", lambda _e, s=step: self._hint(s))
+            button.bind("<Leave>", lambda _e: self._refresh_buttons())
         tk.Checkbutton(box, text="ブラウザを見ながら撮る", variable=self.headed).grid(
             row=0, column=len(STEPS) + 2, padx=12)
         # 中止は段の裏返しなので段の並びに置く (走っている間だけ効く)
@@ -663,6 +693,15 @@ class RunPane:
         scroll.configure(command=self.log.yview)
 
     # --- 中身の入れ替え ----------------------------------------------
+    def _hint(self, step: Step) -> None:
+        """段の説明を下の帯に出す (乗っている間だけ)."""
+        if self.runner.busy:
+            return
+        why = blocker(step, self.survey)
+        self.step_note.config(text=f"{step.title}: {step.note}"
+                                   + (f"   —— いまは押せません ({why})" if why else ""),
+                              fg="#666")
+
     def refresh(self) -> None:
         """成果物を見直して、表と押せるボタンを作り直す."""
         try:
@@ -824,6 +863,8 @@ class RunPane:
         """
         if item.path is None:
             return
+        # 収録の行は timing.json で新しさを見るが、押したら**撮れた映像**を出す
+        target = item.opens or item.path
         if item.key == "spec" and item.path.is_file():
             from .ui_spec import SpecEditor
 
@@ -839,14 +880,16 @@ class RunPane:
                 # 読めない台本はエディタで直せない (行にも理由は出ている)
                 self.state.status.set(f"台本を開けません: {exc}")
             return
-        if item.path.exists():
+        if target.exists():
             if item.key == "output" and item.state == STALE:
                 self.state.status.set(
                     "再生します (収録のほうが新しいので、これは古い動画です)")
-            open_path(item.path)
+            if item.key == "timing":
+                self.state.status.set("撮れた素材を再生します (字幕も音声もまだ乗っていません)")
+            open_path(target)
             return
         # まだ無い行は、出来る場所を開く (どこに出るのかを見せる)
-        folder = item.path.parent
+        folder = target.parent
         if folder.is_dir():
             open_path(folder)
             self.state.status.set(f"{item.what} はまだありません (出る場所を開きました)")

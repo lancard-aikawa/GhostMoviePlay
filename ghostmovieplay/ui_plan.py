@@ -296,7 +296,9 @@ class PlanEditor:
             self.shot.config(image="", text="収録するとここに画が出ます", height=SHOT_LINES)
             return
         try:
-            self._photo = tk.PhotoImage(file=str(image))
+            # **master を渡す。** 省くと「既定の root」に乗るので、ウィンドウを
+            # 作り直す場面 (テストや 2 つ目の画面) でたまに読めなくなる
+            self._photo = tk.PhotoImage(master=self.window, file=str(image))
         except tk.TclError:
             self._photo = None
             self.shot.config(image="", text="画を読めません", height=SHOT_LINES)
