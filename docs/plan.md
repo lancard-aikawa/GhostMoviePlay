@@ -10,7 +10,8 @@ AI に渡す仕様は `ghostmovieplay/spec.py` の `PLAN_SCHEMA_DOC` が正で�
   "meta":  { "title": "...", "lang": "ja", "project": "MyApp" },
   "app":   { "url": "...", "ready": "#tile-0",
              "start": "npm run dev", "cwd": ".", "start_timeout": 60,
-             "setup": "python seed.py", "teardown": "python seed.py --clean" },
+             "setup": "python seed.py", "teardown": "python seed.py --clean",
+             "window": null },      // 埋めると「人が操作して撮る」1本 (下記)
   "video": { "width": 1280, "height": 720, "fps": 30, "leader": 2.5, "trailer": 1.2 },
   "voice": { "engine": "voicevox", "speaker": "ずんだもん", "style": "ノーマル", "speed": 1.0 },
   "determinism": { "seed": 12345, "time": "2026-01-01T09:00:00" },
@@ -21,6 +22,7 @@ AI に渡す仕様は `ghostmovieplay/spec.py` の `PLAN_SCHEMA_DOC` が正で�
       "subtitle": "字幕（省略時は say）",
       "hold": 2.4,                 // 操作後の最低保持秒。読み切れる長さにする
       "audio": "voice/0.wav",      // あればこの尺が優先される
+      "shot": null,                // 支援収録で人が撮ったショット (下記)
       "actions": [
         { "type": "click", "selector": "#tile-1" },
         { "type": "highlight", "selector": "#result", "duration": 2.4 }
@@ -75,6 +77,64 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 2 本ずつに割った。**割ると合計は伸びる**（前置きと締めが 2 組要る）が、1 本あたりが
 3 分を切って見返しやすくなる。
 
+## 自動操作が届かない相手を撮る（支援収録）
+
+`app.window` に**窓のタイトル**（部分一致）を書くと、その 1 本は
+**人が操作して撮る**ものになる。ブラウザを開かないので `app.url` は要らない。
+
+```jsonc
+{
+  "app": { "window": "電卓" },        // ← ここが埋まっていると支援収録
+  "scenes": [{
+    "id": "intro",
+    "beats": [{
+      "say": "ここでこう押します",
+      "shot": "shots/0001-intro.png"  // ← gmp shoot の画面が入れる
+    }]
+  }]
+}
+```
+
+用があるのは、`gmp record` が**原理的に届かない**相手だけ:
+OAuth（自動化ブラウザは弾かれる）、canvas や独自描画、自動操作が許されない業務アプリ。
+**Web で自動収録できるものをこちらで撮らないこと** —— 決定論を捨てるだけになる。
+
+| | 自動収録 | 支援収録 |
+| --- | --- | --- |
+| 操作するのは | `gmp record` | 人 |
+| 撮り直し | 無料（決定論） | **効かない**（撮り直しは手作業） |
+| `gmp check` | 撮り直して赤を数える | **検査できない**（[腐敗検知](check.md)） |
+| `voice` との順番 | `voice` → `record` | 撮る → `voice` → `record` |
+
+### 撮り方
+
+```powershell
+uv run gmp shoot docs/video/xxx/plan.json    # 画面から。撮る面の「ショット」の行でも開く
+```
+
+- **シーン = セクション、ビート = ステップ。1 ビート = ショット 1 つ + コメント 1 つ。**
+  1 つの操作に何枚も要るなら、**ビートを増やす**（同じ画像を 2 つのビートが
+  指してもよい。複製は作らない）
+- 撮ったショットは**出力ディレクトリの `shots/`** に出る（`beat.audio` と同じで、
+  plan.json の隣ではない。ショットは生成物なので git に入らない）
+- **静止画は窓が隠れていても撮れる**（窓自身に描かせる）。代わりにカーソルは写らない
+- **録画は画面の矩形を舐める**ので、カーソルは写るが**手前の窓も写る**。
+  録画中は窓を隠さないこと
+- **窓の大きさを途中で変えない。** 変えても組み立ては通る（黒帯で埋める）が、
+  `timing.json` に警告が残る
+
+### 組み立て
+
+`gmp record` が `app.window` を見て、撮らずに**ショットを並べる**（`gmp assemble`
+という別の段は無い）。出るものは自動収録と同じ `raw.mp4` + `timing.json` なので、
+`gmp render` はそのまま通る。
+
+- ビートの尺は「音声 + 余白」「ショットの尺」「`hold`」の**いちばん長いもの**
+- 原稿のほうが長ければ**最後のフレームで埋める**。ショットのほうが長ければ
+  **そのまま流す**（縮めない —— 操作の途中で切れるため）
+- **ショットが欠けていても止まらない。** 黒画で埋めて `timing.json` に警告を残す
+  （撮り忘れた 1 ビートのために、撮れている 20 ビートを捨てさせない）
+
 ## ログインが要るアプリを撮る
 
 **専用の仕組みは無い。** ログインも操作なので、台本にそのまま書く
@@ -91,7 +151,8 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
   しておくしかない（下記）
 
 **OAuth（Google など）は台本では通らない。** 自動化ブラウザからのサインインは
-弾かれるうえ、2 段階認証や端末確認が挟まる。
+弾かれるうえ、2 段階認証や端末確認が挟まる。ここが**支援収録**（上記）の出番で、
+人がサインインして画面を撮る。
 
 **アプリを自分で立てられるなら、収録用サーバ側でセッションを埋めるのが最良。**
 一時ディレクトリの DB で毎回同じ状態から始められるので、**撮り直しが無料のまま**

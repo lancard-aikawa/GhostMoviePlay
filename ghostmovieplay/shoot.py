@@ -2,13 +2,13 @@
 
 **自動操作が届かない相手を、人が操作して撮る道。** ログインの要る業務アプリ、
 canvas、OAuth —— `gmp record` が原理的に届かないところは、人が手を動かすしかない。
-そのとき画面がやるのは**素材を貯めて、どのビートのものかを覚えておくこと**だけ。
+そのとき画面がやるのは**ショットを貯めて、どのビートのものかを覚えておくこと**だけ。
 
 台本の構造はそのまま使う (`docs/ideas/desktop.md`):
 
     シーン = plan.json の scenes[]      (人が「セクション」と呼ぶまとまり)
     ビート = plan.json の beats[]       (人が「ステップ」と呼ぶ 1 単位)
-    1 ビート = 素材 1 つ + コメント 1 つ
+    1 ビート = ショット 1 つ + コメント 1 つ
 
 **3 階層目を作らない。** 「1 ステップに画像を何枚も」を階層で表すと plan.json が
 2 階層で足りなくなり、`voice` / `render` / `check` が全部それを知る羽目になる。
@@ -56,7 +56,7 @@ class Row:
 
     @property
     def kind(self) -> str:
-        """素材の種別: "" / "静止画" / "動画"."""
+        """ショットの種別: "" / "静止画" / "動画"."""
         if not self.shot:
             return ""
         return "動画" if self.shot.lower().endswith(CLIP_SUFFIX) else "静止画"
@@ -230,9 +230,9 @@ class Doc:
         return True
 
     def set_shot(self, scene_index: int, beat_index: int, relative: str | None) -> None:
-        """素材を差し替える (None なら外す).
+        """ショットを差し替える (None なら外す).
 
-        **ファイルは消さない。** 撮り直しの効かない素材なので、参照を外すのと
+        **ファイルは消さない。** 撮り直しの効かないショットなので、参照を外すのと
         現物を消すのは別の操作にしておく。
         """
         beat = self.beat(scene_index, beat_index)
@@ -286,10 +286,10 @@ def _mtime(path: Path) -> float | None:
 
 
 def next_shot_path(outdir: Path, scene_id: str, clip: bool = False) -> tuple[Path, str]:
-    """次に使う素材のファイル名. 戻り値は (絶対パス, 出力ディレクトリからの相対).
+    """次に使うショットのファイル名. 戻り値は (絶対パス, 出力ディレクトリからの相対).
 
     **通し番号にする。** ビートの添字を名前にすると、あいだにビートを挿した
-    とたんに名前と中身がずれる (素材は移動しないので)。どのビートのものかは
+    とたんに名前と中身がずれる (ショットは移動しないので)。どのビートのものかは
     plan.json が覚えている。
     """
     directory = Path(outdir) / SHOT_DIR
@@ -306,5 +306,5 @@ def next_shot_path(outdir: Path, scene_id: str, clip: bool = False) -> tuple[Pat
 
 
 def progress(rows: list[Row]) -> tuple[int, int]:
-    """(素材のあるビート, 全ビート)."""
+    """(ショットのあるビート, 全ビート)."""
     return sum(1 for r in rows if r.shot), len(rows)

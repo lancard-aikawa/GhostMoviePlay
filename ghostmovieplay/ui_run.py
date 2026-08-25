@@ -69,7 +69,7 @@ class Survey:
     warning: str = ""                # 止めはしないが先に言うこと
     items: tuple[Item, ...] = ()
     # **支援収録の 1 本か** (app.window がある = 人が操作して撮る)。
-    # 段は同じ (「収録する」が組み立てに回る) が、素材を貯める道が要る
+    # 段は同じ (「収録する」が組み立てに回る) が、ショットを貯める道が要る
     assisted: bool = False
 
     def item(self, key: str) -> Item | None:
@@ -129,7 +129,7 @@ def survey(spec: Path | None) -> Survey:
     assisted = bool(loaded.app.window)
     rows = [written, script]
     if assisted:
-        # **素材の行は支援収録のときだけ出す。** 自動収録では撮る段が素材も
+        # **ショットの行は支援収録のときだけ出す。** 自動収録では撮る段がショットも
         # 作るので、行を分けると段と行が 1 対 1 でなくなる
         rows.append(_shots_item(loaded, outdir))
     rows += [_voice_item(loaded, outdir),
@@ -251,9 +251,9 @@ WHAT_ASSEMBLE = "raw.mp4 + timing.json"
 
 
 def _shots_item(loaded, outdir: Path) -> Item:
-    """人が撮った素材. **揃っているかどうかだけ**を見る.
+    """人が撮ったショット. **揃っているかどうかだけ**を見る.
 
-    新しいかどうかは言えない —— 撮り直しの効かない素材なので、mtime を比べても
+    新しいかどうかは言えない —— 撮り直しの効かないショットなので、mtime を比べても
     「アプリが変わったのに絵が古い」は分からない (`gmp check` が効かないのと
     同じ理由。docs/ideas/desktop.md)。
     """
@@ -261,12 +261,12 @@ def _shots_item(loaded, outdir: Path) -> Item:
     want = [b for _, b in loaded.beats]
     have = [b for b in want if b.shot and (outdir / b.shot).is_file()]
     if not have:
-        return Item("shots", "素材", "shots/", directory, MISSING,
+        return Item("shots", "ショット", "shots/", directory, MISSING,
                     f"0 / {len(want)} ビート")
     if len(have) < len(want):
-        return Item("shots", "素材", "shots/", directory, PARTIAL,
+        return Item("shots", "ショット", "shots/", directory, PARTIAL,
                     f"{len(have)} / {len(want)} ビート")
-    return Item("shots", "素材", "shots/", directory, READY,
+    return Item("shots", "ショット", "shots/", directory, READY,
                 f"{len(have)} ビート")
 
 
@@ -324,7 +324,7 @@ ACTION = {"spec": "編集", "plan": "編集", "output": "再生",
 
 def action_label(item: Item) -> str:
     """その行を押すと何が起きるか. 押せない行は空文字."""
-    # **素材の行はフォルダではなく撮る画面を開く。** ここをボタンにすると
+    # **ショットの行はフォルダではなく撮る画面を開く。** ここをボタンにすると
     # 行の複製になる (「開く操作は表の行に集約」)
     if item.key == "shots":
         return "撮る"
@@ -911,7 +911,7 @@ class RunPane:
             SpecEditor(self.body, item.path, on_saved=self.refresh)
             return
         if item.key == "shots":
-            # **支援収録は人が撮る。** 画面は素材を貯めて、どのビートのものかを
+            # **支援収録は人が撮る。** 画面はショットを貯めて、どのビートのものかを
             # 覚えておくだけ (操作は代わりにやらない)
             from .ui_shoot import open_window
 

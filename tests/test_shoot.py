@@ -154,7 +154,7 @@ def test_last_scene_is_not_removable(tmp_path):
     assert edited.remove_scene(0) is False
 
 
-# --- 素材 -------------------------------------------------------------
+# --- ショット -------------------------------------------------------------
 def test_set_and_clear_shot(tmp_path):
     edited = Doc.load(base(tmp_path))
     edited.set_shot(0, 0, "shots/0001-scene1.png")
@@ -187,7 +187,7 @@ def test_missing_beat_is_an_error(tmp_path):
 # --- ファイル名 -------------------------------------------------------
 def test_next_shot_path_does_not_collide(tmp_path):
     """**通し番号にする。** ビートの添字を名前にすると、あいだに挿した
-    とたんに名前と中身がずれる (素材は移動しないので).
+    とたんに名前と中身がずれる (ショットは移動しないので).
     """
     first, rel1 = next_shot_path(tmp_path, "intro")
     first.write_bytes(b"x")

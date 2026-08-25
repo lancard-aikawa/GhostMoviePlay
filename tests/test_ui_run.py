@@ -830,7 +830,7 @@ def test_assisted_plan_is_detected(one):
 
 
 def test_automated_plan_has_no_shots_row(one):
-    """**素材の行は支援収録のときだけ。** 自動収録では撮る段が素材も作る."""
+    """**ショットの行は支援収録のときだけ。** 自動収録では撮る段がショットも作る."""
     write_plan(one)
     found = ui_run.survey(one)
     assert found.assisted is False
@@ -843,7 +843,7 @@ def test_assisted_plan_shows_how_many_shots_are_in(one):
     found = ui_run.survey(one)
     shots = found.item("shots")
     assert shots is not None
-    assert shots.label == "素材"
+    assert shots.label == "ショット"
     assert shots.state == ui_run.MISSING
     assert "0 / 2" in shots.detail
 

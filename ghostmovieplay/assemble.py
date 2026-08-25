@@ -1,4 +1,4 @@
-"""支援収録の Pass2: 人が撮った素材 + 音声 -> raw.mp4 + timing.json.
+"""支援収録の Pass2: 人が撮ったショット + 音声 -> raw.mp4 + timing.json.
 
 **`record` の代わりに立つ段。** 出すものが同じ (`raw.*` と `timing.json`) なので、
 `render` は 1 行も変わらずに字幕とクレジットを乗せられる。撮る面の段も
@@ -12,9 +12,9 @@
 先に撮ってしまっている以上、音声の尺で画を伸縮するしかない。伸ばすほうは
 最後のフレームで埋める (`tpad`)。**縮めはしない** —— 人が 8 秒かけて操作した
 ものを 3 秒の原稿に合わせて切ると、操作の途中で切れる。ビートの尺は
-「音声 + 余白」と「素材の尺」と `hold` の**いちばん長いもの**になる。
+「音声 + 余白」と「ショットの尺」と `hold` の**いちばん長いもの**になる。
 
-**素材が欠けていても止めない。** 黒画で埋めて `timing.json` の warnings に残す
+**ショットが欠けていても止めない。** 黒画で埋めて `timing.json` の warnings に残す
 (`record` の止めない失敗と同じ枠)。撮り忘れた 1 ビートのために、撮れている
 20 ビートを捨てさせない。
 """
@@ -32,7 +32,7 @@ from .plan import AUDIO_TAIL, Plan, wav_seconds
 WORK_DIR = "assemble"
 SOURCE_NAME = "raw.mp4"
 
-# 素材も音声も hold も無いビートの尺 (秒)。**0 にはしない** ——
+# ショットも音声も hold も無いビートの尺 (秒)。**0 にはしない** ——
 # 尺 0 のセグメントは concat が受け付けない
 MIN_SECONDS = 1.0
 READING_CPS = 8.0       # plan.estimate と同じ読み速度
@@ -55,7 +55,7 @@ def _warn(warnings: list[dict], kind: str, where: str | None, message: str) -> N
 
 
 def _vf(width: int, height: int, fps: int) -> str:
-    """どの素材も同じ大きさに揃える.
+    """どのショットも同じ大きさに揃える.
 
     **窓の大きさが途中で変わっても組み立てられる**ようにしておく (letterbox)。
     ただし黙って変えると気づけないので、呼び側が警告を残す。
@@ -106,7 +106,7 @@ def _frame(source: Path, out: Path, last: bool) -> Path | None:
 
 
 def _beat_seconds(outdir: Path, beat, shot_seconds: float | None) -> float:
-    """そのビートの尺. **音声・素材・hold のいちばん長いもの**."""
+    """そのビートの尺. **音声・ショット・hold のいちばん長いもの**."""
     seconds = float(beat.hold or 0.0)
     if beat.audio:
         measured = wav_seconds(outdir / beat.audio)
@@ -122,7 +122,7 @@ def _beat_seconds(outdir: Path, beat, shot_seconds: float | None) -> float:
 
 
 def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
-    """素材を並べて 1 本にする."""
+    """ショットを並べて 1 本にする."""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     work = outdir / WORK_DIR
@@ -146,7 +146,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
     if not numbered:
         raise ValueError("ビートがありません")
 
-    # --- 冒頭の余白 (最初の素材で止めておく) ---------------------------
+    # --- 冒頭の余白 (最初のショットで止めておく) ---------------------------
     first_shot = _resolve_shot(outdir, numbered[0][2])
     if v.leader > 0.01:
         still = _frame(first_shot, work / "leader.png", last=False) if first_shot else None
@@ -168,10 +168,10 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
         if shot is None:
             if beat.shot:
                 _warn(warnings, "shot_missing", where,
-                      f"素材が見つかりません: {beat.shot} (黒画で埋めます)")
+                      f"ショットが見つかりません: {beat.shot} (黒画で埋めます)")
             else:
                 _warn(warnings, "shot_missing", where,
-                      "素材がまだありません (黒画で埋めます)")
+                      "ショットがまだありません (黒画で埋めます)")
         else:
             last_shot = shot
             if shot.suffix.lower() == ".mp4":
@@ -193,7 +193,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
 
         if verbose:
             print(f"    [{at:6.2f}s] {where}: {seconds:5.2f}s  "
-                  f"{beat.shot or '(素材なし)'}")
+                  f"{beat.shot or '(ショットなし)'}")
 
         audio_path = outdir / beat.audio if beat.audio else None
         entries.append({
@@ -225,7 +225,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
     if odd_sizes:
         detail = ", ".join(f"{size} ({count} ビート)" for size, count in odd_sizes.items())
         _warn(warnings, "shot_size", None,
-              f"素材の大きさが video ({width}x{height}) と違います: {detail}。"
+              f"ショットの大きさが video ({width}x{height}) と違います: {detail}。"
               f"上下左右を黒で埋めています。窓の大きさを変えずに撮り直すと綺麗になります")
 
     # --- つなぐ -------------------------------------------------------
@@ -254,7 +254,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
         "wall_duration": round(at, 3),
         "sync_skew": 0.0,
         # **組み立てが通ったことは中身が合っている証明にはならない。**
-        # 素材の欠けと大きさのズレはここに残す
+        # ショットの欠けと大きさのズレはここに残す
         "warnings": warnings,
         "beats": entries,
     }
@@ -262,7 +262,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
     timing_path.write_text(json.dumps(timing, ensure_ascii=False, indent=2),
                            encoding="utf-8")
 
-    # 中間ファイルは残さない (素材と同じ場所に同じ画が二重に貯まる)
+    # 中間ファイルは残さない (ショットと同じ場所に同じ画が二重に貯まる)
     shutil.rmtree(work, ignore_errors=True)
     return Assembled(video=dest, timing=timing_path, duration=total,
                      warnings=warnings)

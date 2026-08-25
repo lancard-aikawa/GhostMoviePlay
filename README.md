@@ -28,6 +28,11 @@ Pass3  gmp render   AI なし   字幕焼き込み・音声 mix → mp4
 - **plan.json は人間が読んで直せる。** AI の作った失敗例が的外れなら手で直せばよい。
 - **AI コストは Pass1 の 1 回だけ。** 撮り直しは無料。
 
+**自動操作が届かない相手** —— OAuth、canvas、自動操作が許されない業務アプリ ——
+だけは、Pass2 の代わりに**人が操作して撮る**（`gmp shoot`）。撮ったショットを
+並べれば Pass3 はそのまま通る。決定論を失うので、届く相手には使わないこと
+（[docs/plan.md](docs/plan.md#自動操作が届かない相手を撮る支援収録)）。
+
 ## 使い方
 
 前提ソフト（ffmpeg・Chromium・VOICEVOX）の入れ方は[環境の用意](docs/setup.md)。
@@ -118,13 +123,17 @@ uv run gmp build docs/video/intro/plan.json --voice   # 約 100 秒
 | 依頼文 | `PLAN_REQUEST.md` | Pass1 に渡す指示 |
 | **台本** | `plan.json` | セリフ（`say`）、字幕、ト書き（`actions`）、尺。**AI が書き、人が直せる** |
 | 音声 | `voice/*.wav` | `say` を読み上げたもの |
-| 素材 | `raw.webm` | 収録した無音の映像 |
+| ショット | `shots/*.png` `*.mp4` | **支援収録**で人が撮った 1 枚 / 1 本。**1 ビート 1 つ** |
+| 素材 | `raw.webm`（支援収録は `raw.mp4`） | 収録した無音の映像 |
 | 収録 | `timing.json` | ビートの実測時刻 |
 | 字幕 | `subs.ass` | |
 | 完成 | `output.mp4` | |
 
 セリフとト書きが入っているのは `plan.json` だけなので、**台本は `plan.json`**。
 `video.md` が持っているのはシーンと狙いなので **構成**。
+
+**`素材` と `ショット` は別物。** `素材` は収録が作る無音の映像 1 本で、
+`ショット` は支援収録で人が撮ったビート 1 つぶんの画（それを並べると素材になる）。
 
 **`1本` は数え方としてしか使わない**（「動画が 1 本もありません」「動画 1 本ぶんの
 フォルダ」）。物の名前に使うと、`台本を作る` の隣の `1本を作る` が台本の数のことに
@@ -209,7 +218,8 @@ gmp.toml の voice.dict に読みを足して。
 | `gmp kana <plan.json>` | 各ビートの読みを確認する（合成しない） |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |
-| `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json`（止めない失敗は `warnings` に残る） |
+| `gmp shoot [plan.json]` | 支援収録: 人が操作した窓を撮ってビートに貯める（自動操作が届かない相手だけ） |
+| `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json`（止めない失敗は `warnings` に残る）。支援収録なら撮らずにショットを並べて `raw.mp4` |
 | `gmp render [timing.json]` | 字幕・音声を乗せて `output.mp4` |
 | `gmp build <plan.json>` | (voice +) record + render |
 | `gmp check [DIR]` | 全部の台本を撮り直して、まだアプリに当たっているか見る（`--dry` で読むだけ） |

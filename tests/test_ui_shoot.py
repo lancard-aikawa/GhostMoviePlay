@@ -1,6 +1,6 @@
 """支援収録の窓.
 
-人が操作して撮る道なので、**画面が壊れると素材が迷子になる**。ここで見るのは
+人が操作して撮る道なので、**画面が壊れるとショットが迷子になる**。ここで見るのは
 「どのビートに入るのか」「打った文字が消えないか」「保存で他人の変更を潰さないか」。
 """
 
@@ -120,7 +120,7 @@ def test_choosing_a_window_writes_it_into_the_plan(shooter):
 
 
 def test_the_video_size_follows_the_window_until_the_first_shot(shooter):
-    """撮り始めてから変えると、それまでの素材が黒帯つきで並ぶ."""
+    """撮り始めてから変えると、それまでのショットが黒帯つきで並ぶ."""
     shooter.picker.current(0)
     shooter._on_pick_window()
     assert shooter.doc.size == (800, 600)
@@ -137,7 +137,7 @@ def test_the_video_size_follows_the_window_until_the_first_shot(shooter):
 
 
 def test_dropping_a_shot_keeps_the_file(shooter, tmp_path):
-    """**参照を外すだけ。** 撮り直しの効かない素材を画面から消させない."""
+    """**参照を外すだけ。** 撮り直しの効かないショットを画面から消させない."""
     shots = shooter.outdir / "shots"
     shots.mkdir(parents=True)
     (shots / "0001-scene1.png").write_bytes(b"")
@@ -181,7 +181,7 @@ def test_the_last_beat_cannot_be_dropped(shooter):
 
 
 def test_the_shot_lands_on_the_selected_beat(shooter, monkeypatch):
-    """**選んでいるビートに入る。** ここがずれると素材が迷子になる."""
+    """**選んでいるビートに入る。** ここがずれるとショットが迷子になる."""
     taken: list = []
     monkeypatch.setattr(capture, "shot",
                         lambda handle, out: taken.append(out) or out)

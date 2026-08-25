@@ -17,6 +17,7 @@ uv run pytest                          # 全テスト
 uv run pytest -m "not slow"            # 実プロセスを起動するテストを除く
 uv run gmp build examples/demo/plan.json --voice   # 通しで1本
 uv run gmp demo                        # 使い捨ての試し場で画面まで通す (手で見る)
+uv run gmp shoot docs/video/xxx/plan.json          # 支援収録 (人が操作して撮る)
 ```
 
 音声を扱うときは VOICEVOX ENGINE が要る。GUI を開かずに済ませるなら:
@@ -275,6 +276,40 @@ scripts とロックファイルから起動コマンド、スクリプトの `-
   画の上端だけが見える** (実際にそうなった)。画のときは `height=0`
   (中身の大きさに任せる) に必ず戻す
 
+### 支援収録は「ショットを貯める」だけ
+
+自動操作が届かない相手がある —— ログインの要る業務アプリ、canvas、OAuth
+（[docs/plan.md](docs/plan.md) の「ログインが要るアプリを撮る」、
+[docs/ideas/desktop.md](docs/ideas/desktop.md)）。そこは人が手を動かすしかないので、
+`app.window` を埋めた 1 本は **`gmp shoot` の画面で人が操作して撮る**。
+
+**台本の構造をそのまま使う。** 人が「セクション / ステップ」と呼ぶものは
+plan.json の **シーン / ビート**で、**1 ビート = ショット 1 つ + コメント 1 つ**。
+
+- **3 階層目を作らない。** 「1 ステップに画像を何枚も」を階層で表すと plan.json が
+  2 階層で足りなくなり、`voice` も `render` も `check` もそれを知る羽目になる。
+  **撮るたびにビートが増える**ことで満たすと、1 画像 1 コメントがそのまま守れる
+- **複製を作らない。** 同じ画像を 2 つのビートが指してよい。コピーを作ると
+  「どちらが本物か」と、片方だけ消したときの迷子が生まれる
+- **ショットを消すのは画面の操作にしない。** 「ショットを外す」は参照を外すだけ。
+  撮り直しの効かないものなので、現物を消すのと同じボタンにできない
+
+**段を増やさない。** 出すものが `raw.*` + `timing.json` で自動収録と同じなので、
+`gmp record` が `app.window` を見て `assemble` に回るだけ。**`render` は 1 行も
+変わらない。** 撮る面も段は 5 つのままで、ショットの行が 1 本増える。撮る画面は
+**表の行から開く**（ボタンにすると行の複製になる）。
+
+**`gmp check` は支援収録を「通った」と言わない。** ショットは生成物なので clone した
+機械には無く、並べ直しても「まだアプリに当たっているか」は 1 文字も分からない。
+赤にはしない (`check.SKIP`) が、**検査していないことを数えて言う** —— 混ぜると
+「赤が無い = 全部当たっている」がまた嘘になる。
+
+**撮るのは窓単位 (`PrintWindow`)。デスクトップ全体を撮る道を作らない。**
+窓を 1 つ起こすだけで、撮る対象と関係のないものが画面に載る（検証中、メモ帳が
+前のセッションのタブを復元して機密ファイル名を表示した）。範囲を窓に閉じておけば、
+撮る本人が見ていないものは入らない。**録画 (`gdigrab`) だけは画面の矩形を舐める**
+ので重なりに弱い —— 埋められない差なので、画面がそう書いている。
+
 ### 画面は Claude の代わりをしない
 
 作っていて何度も踏んだ形: **詰まるたびに「Claude に回す」が正解で、画面はその
@@ -405,10 +440,18 @@ CLI はそのとき「`--permission-mode` を `bypassPermissions` にするか�
 | | なぜ |
 | --- | --- |
 | `voice` → `record` | **音声の尺がビートの尺を決める**。先に尺を決めてから合成すると必ず尻切れになる |
+| 撮る → `voice` → `record` | **支援収録だけ上が裏返る**（下記）|
 | `app.setup` → `app.start` | 仕込んだデータをサーバが読む。逆順だと空のまま起動する。後片付けはブラウザとサーバを畳んでから (掴まれたままのファイルを消しに行かない) |
 | CFR 化 → 字幕焼き込み | Playwright の webm はフレーム間隔が可変。先に `fps=N` を通さないと字幕がズレる |
 | 決定論化 → `goto` | `page.clock` と seed の init script はナビゲーションより前にしか仕込めない |
 | 選択の確定 → `mouseup` の通知 | 選択ツールバーの類は `mouseup` を見て出る。範囲を確定してから知らせる |
+
+**支援収録では `voice` → `record` が裏返る。** 画が先にあるので、音声の尺で
+画を伸縮するしかない。伸ばすほうは最後のフレームで埋め (`tpad`)、**縮めはしない**
+—— 人が 8 秒かけて操作したものを 3 秒の原稿に合わせて切ると、操作の途中で切れる。
+ビートの尺は「音声 + `AUDIO_TAIL`」「ショットの尺」「`hold`」の**いちばん長いもの**。
+埋めるのは `assemble` の仕事で、`render` には持ち込まない（持ち込むと自動収録の
+経路にも分岐が増える）。
 
 ## 壊しやすい不変条件
 
@@ -471,6 +514,23 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 `cwd=outdir` にして `subtitles=subs.ass` と相対名で渡すことで回避している。
 **絶対パスに変えないこと。**
 
+### 支援収録で踏んだ Win32 の罠
+
+`capture.py` は ctypes で user32 / gdi32 を直接叩いている（**Pillow を足さない**
+—— ffmpeg は必須依存なので、静止画 1 枚のために画像ライブラリを増やす理由が無い。
+生の BGRA を ffmpeg に食わせて PNG にする）。実測で踏んだもの:
+
+- **`PrintWindow` の第 3 引数は `2` (`PW_RENDERFULLCONTENT`)。** `0` だと
+  DirectComposition で描くアプリ（WinUI・Chromium・Electron）が**真っ黒**になる
+- **`bgra` ではなく `bgr0` で渡す。** `PrintWindow` が返すアルファは 0 のことが
+  あり、`bgra` だと**全面透明の PNG** になる
+- **起動したときの PID で窓を掴まない。** ストア配信のアプリは launcher が
+  別 PID に受け渡して終了するので、PID を覚えても永遠に見つからない。窓の側から
+  タイトルで掴み直す (`app.window` が PID ではなくタイトルなのはこのため)
+- **録画の範囲は `DWMWA_EXTENDED_FRAME_BOUNDS`。** `GetWindowRect` は不可視の
+  リサイズ枠を含むので、そのまま `gdigrab` に渡すと**窓の外が写り込む**
+- **ffmpeg は `q` で終わらせる。** kill するとファイルが壊れる
+
 ## 実測して分かったこと
 
 数字は Windows 11 / Chromium での実測。環境が変われば動くが、性質は変わらない。
@@ -512,6 +572,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 字幕の見た目 | `subtitles.py` の Style 行。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
 | CLI のサブコマンド | `cli.py` の `main()`、README のコマンド表 |
 | 撮らずに分かる欠陥を足した | `check.inspect`（**撮っても一緒に出る**ので、`--dry` で赤なら本番も赤を保つ）、`docs/check.md` の表、`tests/test_check.py`。リポジトリの台本は `tests/test_plan.py` が同じ規則で見ている |
+| 検査できない台本を足した | `check.SKIP` と `Report.summary()`（**「通った」に混ぜない**）、`docs/check.md`、`tests/test_check.py` |
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録の前後に走らせるもの | `plan.App` の `setup` / `teardown`、`server.prepared`（**仕込みが落ちたら止める / 後片付けは止めない**）、`settings.SCHEMA` の `app.*`、`ui.TABS` の「仕込みと後片付け」、`spec.PLAN_SCHEMA_DOC` と SKILL.md、`docs/plan.md`、`tests/test_server.py` |
@@ -519,6 +580,8 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | Pass1 に別ジャンルを足す | `spec.GUIDE` の 2 番（**品質規則とジャンル指定が混ざっている**。1・3〜7 はジャンルに依らないが 2 だけが「失敗を作れ」と言う）、`skills/ghostplay/SKILL.md` の description と手順 3、`docs/governance.md`、`tests/test_request.py`。**`video.md` の `scenes` はジャンルを変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る |
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
 | 台本から直せる項目 | `plan.EDITABLE` と `plan._apply`、`ui_plan` の入力欄と `redo_for`、`docs/settings.md` の撮る面、`tests/test_ui_plan.py`。**絵を決めるもの (actions / selector) を足さない** |
+| 支援収録のショットの扱い | `plan.Beat.shot`、`shoot.Doc`（**生の JSON に当てる**）、`ui_shoot`、`assemble`（欠けたら黒画 + 警告）、`ui_run._shots_item`、`docs/plan.md` の支援収録、`tests/test_shoot.py` と `tests/test_assemble.py`。**3 階層目を作らない / 複製を作らない** |
+| 撮り方 (窓・録画) | `capture.py`、`ui_shoot` の撮影バー、`docs/plan.md`。**デスクトップ全体を撮る道を作らない**（撮る対象と関係のないものが載る） |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |

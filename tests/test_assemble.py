@@ -235,7 +235,7 @@ def test_concat_runs_in_the_output_directory(tmp_path, spy):
 
 
 def test_work_directory_is_cleaned_up(tmp_path, spy):
-    """中間ファイルを残さない (素材と同じ場所に同じ画が二重に貯まる)."""
+    """中間ファイルを残さない (ショットと同じ場所に同じ画が二重に貯まる)."""
     plan = make_plan([Beat(say="a", hold=1.0, shot=shot(tmp_path))])
     mod.assemble(plan, tmp_path, verbose=False)
     assert not (tmp_path / mod.WORK_DIR).exists()
@@ -278,7 +278,7 @@ def test_duplicate_beats_keep_their_own_index(tmp_path, spy):
 def test_end_to_end_produces_a_playable_video(tmp_path):
     """**偽の ffmpeg では引数が有効かどうか分からない。** 実際に組み立てる.
 
-    ここが通れば「素材 -> raw.mp4 -> render -> output.mp4」の鎖が繋がっている。
+    ここが通れば「ショット -> raw.mp4 -> render -> output.mp4」の鎖が繋がっている。
     """
     import shutil as sh
 
@@ -299,12 +299,12 @@ def test_end_to_end_produces_a_playable_video(tmp_path):
 
     plan = make_plan([
         Beat(say="静止画のビート", hold=2.0, shot="shots/0001-intro.png"),
-        # 素材 (1秒) より hold (3秒) が長い -> 最後のフレームで埋まる
+        # ショット (1秒) より hold (3秒) が長い -> 最後のフレームで埋まる
         Beat(say="動画のビート", hold=3.0, shot="shots/0002-intro.mp4"),
         Beat(say="撮り忘れたビート", hold=1.0),
     ])
     plan.video.leader, plan.video.trailer = 1.0, 0.5
-    # 素材と同じ大きさにしておく (ズレの検査は上の速いテストの担当)
+    # ショットと同じ大きさにしておく (ズレの検査は上の速いテストの担当)
     plan.video.width, plan.video.height = 400, 300
 
     result = mod.assemble(plan, tmp_path, verbose=False)

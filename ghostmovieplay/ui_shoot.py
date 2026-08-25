@@ -2,7 +2,7 @@
 
 **自動操作が届かない相手のための道。** ログインの要る業務アプリ、canvas、OAuth
 は `gmp record` が原理的に届かない。そこは人が手を動かすしかないので、画面は
-**素材を貯めて、どのビートのものかを覚えておくこと**だけをやる。
+**ショットを貯めて、どのビートのものかを覚えておくこと**だけをやる。
 
 **ここも「決める」画面ではない。** コメント (`say`) は打てるが、**画面から
 Claude を呼ぶボタンは置かない** —— 言葉は Claude の領分で、頼み方は
@@ -14,8 +14,8 @@ plan.json では **シーン / ビート**。同じものに 2 つ名前を付�
 `voice` も `render` も `check` もどちらで喋るのか決められなくなる
 (README の「呼び名」)。
 
-素材の置き場所は **出力ディレクトリの `shots/`**。plan.json の隣ではない ——
-素材は生成物なのでユーザフォルダ側に出る (`beat.audio` と同じ規則)。
+ショットの置き場所は **出力ディレクトリの `shots/`**。plan.json の隣ではない ——
+ショットは生成物なのでユーザフォルダ側に出る (`beat.audio` と同じ規則)。
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from .shoot import Doc, Row, ShootError, next_shot_path, progress, skeleton
 
 SHOT_WIDTH = 360        # プレビューの幅 (px)
 SHOT_LINES = 12         # 画が無いときに空けておく高さ (行)
-# プレビューは台本エディタと同じ捨て場に置く (素材の shots/ と混ぜない)
+# プレビューは台本エディタと同じ捨て場に置く (ショットの shots/ と混ぜない)
 PREVIEW = ("_shots", "preview-shoot.png")
 
 FOOTER_NOTE = ("撮れるのは選んでいるビート。コメント (say) は claude にも書かせられます"
@@ -39,7 +39,7 @@ FOOTER_NOTE = ("撮れるのは選んでいるビート。コメント (say) は
 
 
 def preview_source(row: Row | None, outdir: Path | None) -> Path | None:
-    """その行の素材の実体. 無ければ None."""
+    """その行のショットの実体. 無ければ None."""
     if row is None or not row.shot or outdir is None:
         return None
     path = Path(outdir) / row.shot
@@ -47,13 +47,13 @@ def preview_source(row: Row | None, outdir: Path | None) -> Path | None:
 
 
 def summary(rows: list[Row]) -> str:
-    """いまどこまで撮れたか. **数えるのは素材のあるビート**."""
+    """いまどこまで撮れたか. **数えるのはショットのあるビート**."""
     have, total = progress(rows)
     if not total:
         return "ビートがありません"
     if have == total:
-        return f"素材 {have} / {total} ビート (揃いました)"
-    return f"素材 {have} / {total} ビート"
+        return f"ショット {have} / {total} ビート (揃いました)"
+    return f"ショット {have} / {total} ビート"
 
 
 def default_title(plan_path: Path) -> str:
@@ -171,12 +171,12 @@ class ShootWindow:
         for text, command in (("シーンを足す", self.on_add_scene),
                               ("ビートを足す", self.on_add_beat),
                               ("ビートを消す", self.on_drop_beat),
-                              ("素材を外す", self.on_drop_shot)):
+                              ("ショットを外す", self.on_drop_shot)):
             tk.Button(edit, text=text, command=command).pack(side=tk.LEFT, padx=(0, 6))
-        # **参照を外すだけでファイルは消さない。** 撮り直しの効かない素材なので、
+        # **参照を外すだけでファイルは消さない。** 撮り直しの効かないショットなので、
         # 現物を消すのは画面の操作にしない
         tk.Label(edit, fg="#666",
-                 text="「素材を外す」は参照を外すだけ（ファイルは shots/ に残ります）").pack(
+                 text="「ショットを外す」は参照を外すだけ（ファイルは shots/ に残ります）").pack(
             side=tk.LEFT, padx=6)
 
     def _build_body(self) -> None:
@@ -188,7 +188,7 @@ class ShootWindow:
         self.tree = ttk.Treeview(left, columns=("kind", "say"),
                                  show="tree headings", selectmode="browse")
         self.tree.heading("#0", text="シーン / ビート")
-        self.tree.heading("kind", text="素材")
+        self.tree.heading("kind", text="ショット")
         self.tree.heading("say", text="コメント")
         self.tree.column("#0", width=180, anchor="w")
         self.tree.column("kind", width=64, anchor="w")
@@ -257,7 +257,7 @@ class ShootWindow:
             return
         self.doc.set_window(window.title)
         # **まだ 1 枚も撮っていないなら、動画の大きさを窓に合わせる。**
-        # 撮り始めてから変えると、それまでの素材が黒帯つきで並ぶ
+        # 撮り始めてから変えると、それまでのショットが黒帯つきで並ぶ
         if not any(r.shot for r in self.rows):
             self.doc.set_size(capture.even(window.width), capture.even(window.height))
         self.refresh()
@@ -317,7 +317,7 @@ class ShootWindow:
         self._photo = None
         if source is None:
             # **画が無いときは高さを行数で空けておく** (画のときは 0 に戻す)
-            self.preview.configure(image="", text="(素材なし)", height=SHOT_LINES)
+            self.preview.configure(image="", text="(ショットなし)", height=SHOT_LINES)
             self.shot_label.configure(text=row.shot or "まだ撮っていません")
             return
         small = self._thumbnail(source)
