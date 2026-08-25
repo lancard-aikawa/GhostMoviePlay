@@ -240,6 +240,36 @@ def test_a_broken_plan_does_not_open_a_window(tk_root, tmp_path):
         PlanEditor(tk_root, broken)
 
 
+ONE_PIXEL = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+    "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
+
+
+def test_a_still_is_shown_at_its_own_size(editor, tmp_path, monkeypatch):
+    """**Label の height は、テキストなら行数・画像ならピクセル。**
+
+    画が無いときの値 (11 行のつもり) を残したまま画像を入れると 11px に潰れ、
+    画の上端だけが見える (実際にそうなった)。
+    """
+    import base64
+
+    png = tmp_path / "shot.png"
+    png.write_bytes(base64.b64decode(ONE_PIXEL))
+    monkeypatch.setattr(type(editor), "shot_for", lambda self, row: png)
+
+    editor.show(editor.rows[1])
+    assert int(editor.shot.cget("height")) == 0     # 中身の大きさに任せる
+    assert editor.shot.cget("text") == ""
+
+
+def test_without_a_still_the_space_is_kept(editor):
+    """画が無いときは高さを空けておく (行を移るたびに画面が跳ねない)."""
+    editor.show(editor.rows[0])
+    assert int(editor.shot.cget("height")) == ui_plan.SHOT_LINES
+    assert "収録すると" in editor.shot.cget("text")
+
+
 def test_no_recording_means_no_still(editor, tmp_path):
     """撮る前でも編集はできる (画が出ないだけ)."""
     row = editor.rows[0]

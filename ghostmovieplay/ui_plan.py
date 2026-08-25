@@ -30,6 +30,9 @@ from tkinter import messagebox, ttk
 
 from .plan import EDITABLE, Plan, beat_address
 
+SHOT_WIDTH = 320          # 静止画の幅 (px)
+SHOT_LINES = 11           # 画が無いときに空けておく高さ (行)。おおよそ同じ高さ
+
 # 直した項目 → どこからやり直すか。深いほうが勝つ
 DEPTH = {"subtitle": 0, "hold": 1, "say": 2}
 REDO = {
@@ -192,7 +195,7 @@ class PlanEditor:
         right.pack_propagate(False)
 
         self.shot = tk.Label(right, text="", anchor="center", fg="#999",
-                             bg="#1e1e1e", height=11)
+                             bg="#1e1e1e", height=SHOT_LINES)
         self.shot.pack(side=tk.TOP, fill=tk.X)
         self.when = tk.Label(right, text="", anchor="w", fg="#666")
         self.when.pack(side=tk.TOP, fill=tk.X, pady=(4, 8))
@@ -280,18 +283,25 @@ class PlanEditor:
 
     # --- 静止画 -------------------------------------------------------
     def _show_shot(self, row: BeatRow) -> None:
+        """静止画を出す (無ければ場所だけ空けておく).
+
+        **`Label` の `height` は、テキストなら行数・画像ならピクセル。**
+        画を入れる前の値 (11 行のつもり) を残したまま画像を入れると 11px に
+        潰れて、画の上端だけが見える (実際にそうなった)。画のときは 0 =
+        中身の大きさに任せる、に必ず戻す。
+        """
         image = self.shot_for(row)
         if image is None:
             self._photo = None
-            self.shot.config(image="", text="収録するとここに画が出ます")
+            self.shot.config(image="", text="収録するとここに画が出ます", height=SHOT_LINES)
             return
         try:
             self._photo = tk.PhotoImage(file=str(image))
         except tk.TclError:
             self._photo = None
-            self.shot.config(image="", text="画を読めません")
+            self.shot.config(image="", text="画を読めません", height=SHOT_LINES)
             return
-        self.shot.config(image=self._photo, text="")
+        self.shot.config(image=self._photo, text="", height=0)
 
     def shot_for(self, row: BeatRow) -> Path | None:
         """そのビートの静止画. 無ければ抜く. 抜けなければ None."""
@@ -310,7 +320,7 @@ class PlanEditor:
 
         from . import ffmpeg
 
-        return ffmpeg.frame_at(video, row.middle, target)
+        return ffmpeg.frame_at(video, row.middle, target, width=SHOT_WIDTH)
 
     # --- 保存 ---------------------------------------------------------
     def edits(self) -> dict[str, dict]:
