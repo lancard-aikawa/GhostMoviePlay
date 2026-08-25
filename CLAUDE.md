@@ -244,6 +244,30 @@ scripts とロックファイルから起動コマンド、スクリプトの `-
 - 確認ダイアログはテストで既定「いいえ」に潰す。潰さないと、想定外のところで
   開いたモーダルがテストごと止める (実際に止まった)
 
+### 台本の文と間も画面の中で直す
+
+**観てから「ここだけ」直す道**が無いと、1 行のために Claude に台本全体を書き
+直させることになる。録画も書き出しも決定論にしてあるのに、**唯一決定論の外に
+いる Pass1 を言い回しの修正のために呼ぶ**のは割に合わない。かといってメモ帳で
+生 JSON を触らせるのは「一から書け」と言うのに近い。`ui_plan.PlanEditor` が
+その間に入る (台本の行をダブルクリック)。
+
+- **直せるのは `say` / `subtitle` / `hold` の 3 つだけ** (`plan.EDITABLE`)。
+  `actions` と selector は入れない —— 何をどう操作するかはそのプロジェクトを
+  読まないと決まらないので、ここに足すと「画面は Claude の代わりをしない」を破る
+- **生の JSON に当てる** (`plan.patch`)。`load()` の dataclass から書き戻すと
+  AI が書いたキーの並びが崩れ、**1 行直したのに全体が差分になる**。plan.json は
+  git に入るので、`tests/test_ui_plan.py` が「読んで書くとバイト一致」を固定している
+- **原稿を直したらそのビートの `audio` を落とす。** 残すと、直した原稿の画に
+  古い読み上げが乗ったまま撮れる (wav は `gmp voice` が作り直す)
+- **画面の仕事は「どこからやり直せば反映されるか」を言うこと** (`ui_plan.redo_for`)。
+  字幕だけなら仕上げ直すだけ、間なら撮り直し、原稿なら声から。**字幕の直しが
+  数十秒で終わると分かること**が、自分で直す動機そのものになる
+- **入力の取り込みは `show()` の中**に置く。表の選択ハンドラ側に置くと、別の道で
+  行を移ったときに打った文字が消える (観ながら行き来する道具なので致命的)
+- 静止画は `timing.json` の実測時刻を使って `raw.webm` から抜く
+  (`ffmpeg.frame_at`)。**撮る前でも編集はできる** —— 画が出ないだけ
+
 ### 画面は Claude の代わりをしない
 
 作っていて何度も踏んだ形: **詰まるたびに「Claude に回す」が正解で、画面はその
@@ -476,6 +500,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
 | Pass1 に別ジャンルを足す | `spec.GUIDE` の 2 番（**品質規則とジャンル指定が混ざっている**。1・3〜7 はジャンルに依らないが 2 だけが「失敗を作れ」と言う）、`skills/ghostplay/SKILL.md` の description と手順 3、`docs/governance.md`、`tests/test_request.py`。**`video.md` の `scenes` はジャンルを変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る |
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
+| 台本から直せる項目 | `plan.EDITABLE` と `plan._apply`、`ui_plan` の入力欄と `redo_for`、`docs/settings.md` の撮る面、`tests/test_ui_plan.py`。**絵を決めるもの (actions / selector) を足さない** |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |

@@ -191,6 +191,76 @@ def estimate(
     return total, measured
 
 
+# 画面から直してよい項目。**絵を決めるもの (actions / selector) は入れない** ——
+# それは「そのプロジェクトを読まないと決まらない」ので Claude の領分
+EDITABLE = ("say", "subtitle", "hold")
+
+
+def beat_address(scene_raw: dict[str, Any], index: int, beat_index: int) -> str:
+    """ビートの指し先 ("why#1"). 収録の警告の `where` と同じ書き方にしてある."""
+    return f"{scene_raw.get('id', f'scene{index}')}#{beat_index}"
+
+
+def patch(path: str | Path, edits: dict[str, dict[str, Any]]) -> list[str]:
+    """**直した項目だけ**を当てて plan.json を書き戻す. 戻り値は直した項目の一覧.
+
+    生の JSON を読み直して当てる。`load()` の dataclass から書き戻すと、AI が
+    書いたキーの並びと、こちらが持っていない項目が消える (`settings.patch_toml`
+    が TOML でやっているのと同じ理由)。plan.json は git に入るので、
+    **1 行直したら 1 行だけの差分になる**ことが要る。
+
+    edits は `{"why#1": {"say": "...", "subtitle": "...", "hold": 2.4}}`。
+    """
+    path = Path(path)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    changed: list[str] = []
+
+    for index, scene in enumerate(raw.get("scenes") or []):
+        for beat_index, beat in enumerate(scene.get("beats") or []):
+            fields = edits.get(beat_address(scene, index, beat_index))
+            if fields:
+                changed += _apply(beat, fields)
+
+    if changed:
+        # 読み込んだときと同じ書式で書き戻す (indent=2 + 末尾改行)
+        path.write_text(
+            json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    return changed
+
+
+def _apply(beat: dict[str, Any], fields: dict[str, Any]) -> list[str]:
+    done: list[str] = []
+
+    if "say" in fields and fields["say"] != beat.get("say", ""):
+        beat["say"] = fields["say"]
+        # **原稿を直したら、そのビートの音声を外す。** 残すと、直した原稿の
+        # 画に古い読み上げが乗ったまま撮れる (wav は gmp voice が作り直す)
+        beat.pop("audio", None)
+        done.append("say")
+
+    if "subtitle" in fields:
+        new = fields["subtitle"]
+        if not new:
+            # 空にしたら say をそのまま字幕に使う (キーを残さない)
+            if beat.pop("subtitle", None) is not None:
+                done.append("subtitle")
+        elif new != beat.get("subtitle"):
+            beat["subtitle"] = new
+            done.append("subtitle")
+
+    if "hold" in fields:
+        new = float(fields["hold"])
+        if abs(new - float(beat.get("hold", 0.0))) > 1e-9:
+            if new:
+                beat["hold"] = int(new) if new == int(new) else new
+            else:
+                beat.pop("hold", None)
+            done.append("hold")
+
+    return done
+
+
 def _validate_action(action: dict[str, Any], where: str) -> None:
     kind = action.get("type")
     if kind not in ACTION_SPECS:

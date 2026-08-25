@@ -795,6 +795,10 @@ class RunPane:
         構成だけは**画面の中のエディタ**で開く。シーンと狙い・本文・タイトルは
         構成にしか置けず、設定画面は video.md を書かないので、外のエディタに
         頼ると画面が自己完結しない。
+
+        台本も同じ。**出来た動画を観てから「ここだけ」直す**とき、1 行のために
+        Claude に台本全体を書き直させたくない (メモ帳で生 JSON を触らせるのも
+        同じくらい嫌なので、間に画面を置く)。直せるのは文と間だけ。
         """
         if item.path is None:
             return
@@ -802,6 +806,16 @@ class RunPane:
             from .ui_spec import SpecEditor
 
             SpecEditor(self.body, item.path, on_saved=self.refresh)
+            return
+        if item.key == "plan" and item.path.is_file():
+            from .ui_plan import PlanEditor
+
+            try:
+                PlanEditor(self.body, item.path, self.survey.outdir,
+                           on_saved=self.refresh)
+            except ValueError as exc:
+                # 読めない台本はエディタで直せない (行にも理由は出ている)
+                self.state.status.set(f"台本を開けません: {exc}")
             return
         if item.path.exists():
             if item.key == "output" and item.state == STALE:

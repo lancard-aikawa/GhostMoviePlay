@@ -34,6 +34,29 @@ def probe_duration(path: str | Path) -> float | None:
         return None
 
 
+def frame_at(video: str | Path, seconds: float, out: str | Path,
+             width: int = 320) -> Path | None:
+    """動画の指定時刻から静止画を 1 枚抜く. 取れなければ None.
+
+    台本を直すときに「どのビートの話か」を目で確かめるためのもの。
+    **失敗しても呼び側を止めない** —— 画が出ないだけで編集はできる。
+    PNG にするのは tkinter がそのまま読めるため。
+    """
+    out = Path(out)
+    if not shutil.which("ffmpeg"):
+        return None
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # -ss を -i より前に置くと、そこまでデコードせずに飛べる (速い)
+        run([
+            "-ss", f"{max(0.0, seconds):.3f}", "-i", str(video),
+            "-frames:v", "1", "-vf", f"scale={width}:-1", str(out),
+        ])
+    except FFmpegError:
+        return None
+    return out if out.exists() else None
+
+
 def run(args: list[str], cwd: str | Path | None = None, quiet: bool = True) -> None:
     """ffmpeg を実行。失敗したら stderr 込みで送出する."""
     cmd = ["ffmpeg", "-y", "-hide_banner"]

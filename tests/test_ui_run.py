@@ -679,15 +679,14 @@ def test_every_artifact_row_can_be_opened(tk_root, one, monkeypatch):
     try:
         assert set(pane.cells) == {"spec", "plan", "voice", "timing", "output"}
 
-        # 構成だけは画面の中のエディタで開く (外のエディタには渡さない)
-        pane.open_item(pane.survey.item("spec"))
-        assert opened == []
-        editors = [w for w in top.winfo_children() if isinstance(w, tk.Toplevel)]
-        assert editors, "構成のエディタが開いていない"
-        editors[0].destroy()
-
-        pane.open_item(pane.survey.item("plan"))
-        assert opened == [pane.survey.plan]          # 台本は既定のアプリへ
+        # 構成と台本は画面の中のエディタで開く (外のエディタには渡さない ——
+        # メモ帳で生 JSON を触らせるくらいなら、間に画面を置く)
+        for key, what in (("spec", "構成"), ("plan", "台本")):
+            pane.open_item(pane.survey.item(key))
+            assert opened == [], f"{what}を外のアプリに渡している"
+            editors = [w for w in top.winfo_children() if isinstance(w, tk.Toplevel)]
+            assert editors, f"{what}のエディタが開いていない"
+            editors[0].destroy()
 
         opened.clear()
         pane.survey.outdir.mkdir(parents=True, exist_ok=True)
