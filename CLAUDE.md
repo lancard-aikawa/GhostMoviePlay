@@ -619,6 +619,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 撮る人への指示 (`do`) | `README_WINAPP.md` の頼み方、`plan.Beat.do`、`shoot.Doc.set_text`（**音声を落とさない** —— 絵にも音にも触らないため）、`ui_shoot` の一覧と入力欄、`spec.ASSIST_SCHEMA_NOTE` と SKILL.md（**書かせないと空のまま**）、`docs/plan.md`、`tests/test_shoot.py`。**`plan.EDITABLE` には入れない** —— 台本エディタは絵と音を変えるものだけ |
 | 支援収録のショットの扱い | `plan.Beat.shot`、`shoot.Doc`（**生の JSON に当てる**）、`ui_shoot`、`assemble`（欠けたら黒画 + 警告）、`ui_run._shots_item`、`docs/plan.md` の支援収録、`tests/test_shoot.py` と `tests/test_assemble.py`。**3 階層目を作らない / 複製を作らない** |
 | 撮り方 (ウィンドウ・録画) | `capture.py`、`ui_shoot` の撮影バー、`docs/plan.md`、`README_WINAPP.md` の「進め方」。**デスクトップ全体を撮る道を作らない**（撮る対象と関係のないものが載る） |
+| 撮る画面・撮る面の見た目 | `README_WINAPP.md` の画像 (`docs/images/*.png`)。**撮り直すときは `GHOSTMOVIEPLAY_HOME` を `C:\gmp-doc` などへ逃がす** —— 既定のままだと画面の下端に出る出力先で**ユーザー名がドキュメントの画像に載る**。ウィンドウの欄は「直前に触っていたもの」を選ぶので、**撮る対象 → 撮る画面の順にフォーカスしてから**撮らないと、直前に使っていたエディタが選ばれた絵になる（実際になった） |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |
