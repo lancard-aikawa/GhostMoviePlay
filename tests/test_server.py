@@ -156,3 +156,28 @@ def test_launches_and_stops_a_real_server(tmp_path):
         assert proc is not None
         assert server.is_up(app.url)
     assert not server.is_up(app.url, timeout=1.0)  # 抜けたら畳まれている
+
+
+# --- 仕込みの出力を読む -----------------------------------------------
+def test_a_hook_printing_utf8_does_not_lose_its_output(tmp_path):
+    """**失敗の理由を出したいときに限って消える**のを防ぐ.
+
+    既定 (Windows は cp932) で読むと、utf-8 を吐く仕込みの出力を読む裏スレッドが
+    UnicodeDecodeError で落ちて、出力がまるごと空になる。画面から呼ぶときは
+    PYTHONIOENCODING=utf-8 が子まで伝わるので必ず踏む。
+    """
+    script = tmp_path / "boom.py"
+    script.write_text(
+        "import sys\n"
+        "print('仕込みが失敗しました —— 日本語とダッシュ')\n"
+        "sys.exit(3)\n", encoding="utf-8")
+
+    with pytest.raises(server.HookError) as caught:
+        server.run_hook(f'python "{script.name}"', tmp_path, "仕込み", verbose=False)
+    assert "日本語とダッシュ" in str(caught.value)
+
+
+def test_a_hook_that_passes_says_nothing(tmp_path):
+    script = tmp_path / "ok.py"
+    script.write_text("print('用意しました')\n", encoding="utf-8")
+    server.run_hook(f'python "{script.name}"', tmp_path, "仕込み", verbose=False)

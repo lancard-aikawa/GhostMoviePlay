@@ -88,9 +88,16 @@ def run_hook(command: str, cwd: Path, label: str, verbose: bool = True) -> None:
     if verbose:
         print(f"  {label}: {command}  (cwd={cwd})")
     try:
+        # **utf-8 で読む。** 既定 (Windows は cp932) だと、utf-8 を吐く仕込みの
+        # 出力を読む裏スレッドが UnicodeDecodeError で落ちて**出力がまるごと
+        # 消える** —— 失敗の理由を出したいときに限って何も残らない。
+        # 画面から呼ぶときは PYTHONIOENCODING=utf-8 が子まで伝わるので必ず踏む。
+        # こちらからも渡して、Python の仕込みの出し方を揃えておく
         proc = subprocess.run(
             command, shell=True, cwd=str(cwd),
             capture_output=True, text=True, timeout=HOOK_TIMEOUT,
+            encoding="utf-8", errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
     except subprocess.TimeoutExpired as exc:
         raise HookError(
