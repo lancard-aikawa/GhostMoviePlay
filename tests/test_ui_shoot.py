@@ -194,9 +194,25 @@ def test_the_shot_lands_on_the_selected_beat(shooter, monkeypatch):
     assert shooter.doc.rows()[0].shot == f"shots/{taken[0].name}"
 
 
-def test_advancing_creates_the_next_beat(shooter, monkeypatch):
-    """「1 ステップに何枚も」は**階層ではなくビートの数**で表す
-    (1 画像 1 コメントがそのまま守れる).
+def test_advancing_moves_to_the_next_existing_beat(shooter, monkeypatch):
+    """**並びが書いてある台本では作らない。** 撮るたびに空のビートが増えていた."""
+    monkeypatch.setattr(capture, "shot", lambda handle, out: out)
+    shooter.doc.add_beat(0, 0)          # 台本に 2 ビートある状態
+    shooter.doc.add_beat(0, 1)
+    shooter.current = None
+    shooter.refresh()
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    shooter.advance.set(True)
+
+    shooter.on_shot()
+    assert len(shooter.doc.rows()) == 3, "既にあるのに増やしてはいけない"
+    assert shooter.current.beat_index == 1, "次のビートへ移っていない"
+
+
+def test_advancing_at_the_end_adds_one(shooter, monkeypatch):
+    """骨だけの台本を撮りながら組み立てる道は残す
+    (「1 ステップに何枚も」は階層ではなくビートの数で表す).
     """
     monkeypatch.setattr(capture, "shot", lambda handle, out: out)
     shooter.picker.current(0)
@@ -209,6 +225,21 @@ def test_advancing_creates_the_next_beat(shooter, monkeypatch):
     assert rows[0].shot is not None
     assert rows[1].shot is None
     assert shooter.current.beat_index == 1
+
+
+def test_advancing_crosses_into_the_next_scene(shooter, monkeypatch):
+    """シーンの終わりで止まらない (人は上から順に撮っていく)."""
+    monkeypatch.setattr(capture, "shot", lambda handle, out: out)
+    shooter.doc.add_scene("つぎ")
+    shooter.current = None
+    shooter.refresh()
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    shooter.advance.set(True)
+
+    shooter.on_shot()
+    assert len(shooter.doc.rows()) == 2, "増やしてはいけない"
+    assert shooter.current.scene_index == 1
 
 
 def test_a_failed_capture_leaves_the_beat_alone(shooter, monkeypatch):

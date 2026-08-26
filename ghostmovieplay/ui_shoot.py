@@ -166,7 +166,7 @@ class ShootWindow:
                                      command=self.on_clip)
         self.clip_button.pack(side=tk.LEFT, padx=6)
         self.advance = tk.BooleanVar(value=True)
-        tk.Checkbutton(bar, text="撮ったら次のビートを作る",
+        tk.Checkbutton(bar, text="撮ったら次のビートへ",
                        variable=self.advance).pack(side=tk.LEFT, padx=12)
         # **録画だけ重なりに弱い。** 静止画はウィンドウ自身に描かせるので隠れていても
         # 撮れるが、録画は画面の矩形を舐めるので手前のウィンドウが写る
@@ -540,22 +540,32 @@ class ShootWindow:
         self._attach(row, relative)
 
     def _attach(self, row: Row, relative: str) -> None:
-        """撮れたものを選んでいるビートに結びつける."""
+        """撮れたものを選んでいるビートに結びつける.
+
+        **次のビートが「ある」なら作らない。** Pass1 が並びを書いている台本を
+        撮っているときに毎回足すと、**撮るたびに空のビートが増えていく**
+        (実際に増えた)。足すのは末尾で撮ったときだけ —— 骨だけの台本を
+        撮りながら組み立てる道はそれで残る。
+        """
         self.doc.set_shot(row.scene_index, row.beat_index, relative)
+        target = ""
         if self.advance.get():
-            # **撮るたびにビートが増える。** 「1 ステップに何枚も」は階層では
-            # なくビートの数で表す (1 画像 1 コメントがそのまま守れる)
-            at = self.doc.add_beat(row.scene_index, row.beat_index)
-            self.current = None
-            self.refresh()
-            nxt = next((r for r in self.rows
-                        if r.scene_index == row.scene_index and r.beat_index == at), None)
+            order = [r.address for r in self.rows]
+            at = order.index(row.address) if row.address in order else -1
+            if 0 <= at < len(order) - 1:
+                target = order[at + 1]                      # 次の既存ビートへ
+            else:
+                # 末尾。**ここだけ増やす** (1 画像 1 コメントを保ったまま
+                # 「1 ステップに何枚も」を満たすのがビートの数)
+                made = self.doc.add_beat(row.scene_index, row.beat_index)
+                target = f"{row.scene_id}#{made}"
+        self.current = None
+        self.refresh()
+        if target:
+            nxt = next((r for r in self.rows if r.address == target), None)
             if nxt is not None:
                 self.tree.selection_set(self._iid(nxt))
                 self.show(nxt)
-        else:
-            self.current = None
-            self.refresh()
 
     # --- 構造 ---------------------------------------------------------
     def on_add_scene(self) -> None:
