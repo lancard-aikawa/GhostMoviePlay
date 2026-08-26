@@ -4,7 +4,9 @@
 Claude への頼み方と、自分で手を動かす部分の進め方をここにまとめる。
 
 書式の仕様は [docs/plan.md](docs/plan.md#自動操作が届かない相手を撮る支援収録)、
-実例は [docs/video/assist-7zip/](docs/video/assist-7zip/)（7-Zip、約 69 秒）。
+実例は [docs/video/assist-7zip/](docs/video/assist-7zip/)（7-Zip、約 69 秒）と
+[docs/video/assist-krita/](docs/video/assist-krita/)（Krita、約 89 秒。**録画を含む**）。
+**Gallery から落とした設定で撮るなら** [README_BUNDLE.md](README_BUNDLE.md)。
 
 ## まず、本当にこれが要るか
 

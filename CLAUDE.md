@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 使い方は [README.md](README.md)、Windows アプリを人が操作して撮る手引きは
-[README_WINAPP.md](README_WINAPP.md)。詳細は `docs/` にある（[環境の用意](docs/setup.md) /
+[README_WINAPP.md](README_WINAPP.md)、Gallery から落とした設定で撮る側の手引きは
+[README_BUNDLE.md](README_BUNDLE.md)。詳細は `docs/` にある（[環境の用意](docs/setup.md) /
 [設定](docs/settings.md) / [音声](docs/voice.md) / [plan.json](docs/plan.md) /
 [実装メモ](docs/internals.md) / [統治と習慣](docs/governance.md) /
 [腐敗検知](docs/check.md) / [アイデア](docs/ideas/README.md)）。

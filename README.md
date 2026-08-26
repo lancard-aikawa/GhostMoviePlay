@@ -80,7 +80,8 @@ uv run gmp render <出力先>/timing.json    # → output.mp4
 
 出来上がりを先に見るなら **[GhostMoviePlay Gallery](https://lancard-aikawa.github.io/GhostMoviePlayGallery/)** —— このツールで出力した動画を、
 尺・収録対象・素材へのリンク・**それを再現するコマンド**を添えて並べてある。
-手元で撮るなら:
+各カードから **その動画を撮った設定一式の zip** も落とせる（手引きは
+[README_BUNDLE.md](README_BUNDLE.md)）。手元で撮るなら:
 
 ```bash
 uv run gmp build examples/demo/plan.json --voice
@@ -251,6 +252,7 @@ gmp.toml の voice.dict に読みを足して。
 | [docs/voice.md](docs/voice.md) | VOICEVOX、読みの指定、クレジット表記 |
 | [docs/plan.md](docs/plan.md) | plan.json の書式、action 一覧、尺の見積り |
 | [README_WINAPP.md](README_WINAPP.md) | **Windows アプリを撮る**（支援収録）。Claude への頼み方と、自分で操作する手順 |
+| [README_BUNDLE.md](README_BUNDLE.md) | **落とした設定で撮る**。Gallery の zip を受け取った側の手引き（Claude への頼み方つき） |
 | [docs/check.md](docs/check.md) | 台本が古くなっていないかを CI で見る (`gmp check`) |
 | [docs/governance.md](docs/governance.md) | 運用そのものを題材にする撮り方（統治・習慣・荒れたデータの仕込み） |
 | [docs/internals.md](docs/internals.md) | 実装メモ（なぜこの実装なのか） |
