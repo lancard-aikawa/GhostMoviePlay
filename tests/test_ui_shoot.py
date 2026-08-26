@@ -491,3 +491,50 @@ def test_the_output_folder_can_be_opened(shooter, monkeypatch):
     shooter.on_open_outdir()
     assert opened == [shooter.outdir]
     assert (shooter.outdir / "shots").is_dir(), "まだ無いなら作ってから開く"
+
+
+def test_the_window_you_were_just_on_is_selected(shooter, monkeypatch):
+    """**ダイアログは操作している最中に出てくる。** 戻ってきたら選び直さずに
+    そのまま撮れること (毎回一覧から選ばせない)。
+    """
+    both = [capture.Window(handle=1, title="電卓", process="calc.exe",
+                           width=800, height=600), dialog()]
+    monkeypatch.setattr(capture, "windows", lambda **k: both)
+    shooter.reload_windows()
+    assert shooter.target.title == "電卓"          # 台本が覚えているほう
+
+    shooter.last_touched = 9                       # ダイアログを触っていた
+    shooter.reload_windows()
+    assert shooter.target.title == "圧縮"
+
+
+def test_a_vanished_window_falls_back(shooter, monkeypatch):
+    """触っていたものが閉じたら、主な対象に戻る (行き止まりを作らない)."""
+    shooter.last_touched = 9                       # もう無いハンドル
+    shooter.reload_windows()
+    assert shooter.target.title == "電卓"
+
+
+def test_our_own_window_is_never_remembered(shooter, monkeypatch):
+    """撮る画面そのものを撮りに行かないこと."""
+    monkeypatch.setattr(capture, "foreground", lambda: 0)
+    shooter.last_touched = 0
+    shooter._watch_foreground()
+    assert shooter.last_touched == 0
+
+
+def test_launching_beats_whatever_you_last_touched(shooter, monkeypatch):
+    """**「起動」は「これを撮りたい」の意思表示。** 待っている間に別のアプリを
+    触っていても、出てきた対象のほうを選ぶ (実際に別のエディタが選ばれた)。
+    """
+    both = [dialog("別のエディタ"),
+            capture.Window(handle=1, title="電卓", process="calc.exe",
+                           width=800, height=600)]
+    monkeypatch.setattr(capture, "windows", lambda **k: both)
+    monkeypatch.setattr(ui_shoot.subprocess, "Popen", lambda *a, **k: _FakeProc())
+    shooter.doc.raw["app"]["start"] = "app.exe"
+    shooter.last_touched = 9                       # 別のエディタを触っていた
+
+    shooter.on_launch()
+    shooter._await_window(3)
+    assert shooter.target.title == "電卓"

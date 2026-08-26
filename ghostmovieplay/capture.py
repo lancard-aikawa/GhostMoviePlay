@@ -26,6 +26,7 @@
 from __future__ import annotations
 
 import ctypes
+import os
 import subprocess
 import sys
 import time
@@ -97,8 +98,6 @@ def _process_name(user32, handle: int) -> str:
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(handle, ctypes.byref(pid))
     try:
-        import os
-
         # psutil は入れない。tasklist も遅い。実行ファイル名だけ取れれば足りる
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         proc = kernel32.OpenProcess(0x1000, False, pid.value)   # LIMITED_INFORMATION
@@ -154,6 +153,24 @@ def windows(min_size: int = 120) -> list[Window]:
 
     user32.EnumWindows(visit, 0)
     return found
+
+
+def foreground() -> int:
+    """いま前面にあるウィンドウ. **自分のプロセスのものは 0** を返す.
+
+    撮る画面に戻ってきたとき「直前に触っていたのはどれか」を知るために使う。
+    ダイアログは操作している最中に出てくるので、これが無いと人が毎回
+    一覧から選び直すことになる。
+    """
+    if not supported():
+        return 0
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    handle = user32.GetForegroundWindow()
+    if not handle:
+        return 0
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(handle, ctypes.byref(pid))
+    return 0 if pid.value == os.getpid() else int(handle)
 
 
 def find(title: str) -> Window | None:

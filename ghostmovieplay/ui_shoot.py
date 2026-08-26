@@ -71,6 +71,7 @@ class ShootWindow:
     TICK = 200              # 録画中の時計の更新間隔 (ms)
     LAUNCH_POLL = 800       # 起動したアプリのウィンドウが出るのを待つ間隔 (ms)
     LAUNCH_TRIES = 25       # 上の回数 (= 20 秒ほど)
+    FOREGROUND_POLL = 400   # 直前に触っていたウィンドウを覚える間隔 (ms)
 
     def __init__(self, parent: tk.Misc, plan_path: Path, on_saved=None):
         self.path = Path(plan_path)
@@ -81,6 +82,7 @@ class ShootWindow:
         self.recording: capture.Recording | None = None
         self.pending_clip: tuple[Row, str] | None = None
         self.trouble = ""                   # ウィンドウを数えられなかった理由
+        self.last_touched = 0               # 直前に触っていたウィンドウ
         self.app_proc: subprocess.Popen | None = None
         self._photo = None                  # PhotoImage は参照を持たないと消える
 
@@ -114,6 +116,7 @@ class ShootWindow:
         # (ボタンは残してある —— こちらが焦点を持ったままウィンドウが増えることがある)
         self.window.bind("<FocusIn>", self._on_focus, add="+")
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
+        self._watch_foreground()
 
     # --- 置き場所 ----------------------------------------------------
     def _outdir(self) -> Path:
@@ -274,7 +277,14 @@ class ShootWindow:
         self.trouble = ""
         self.picker.configure(values=[w.label for w in self.found])
         self.picker.set("")
-        # 選んでいたウィンドウ → 台本が覚えているウィンドウ の順で選び直す (開くたびに選ばせない)
+        # **直前に触っていたものを最優先する。** ダイアログを出して戻ってきたら
+        # そのまま撮れる (毎回一覧から選び直させない)
+        for i, window in enumerate(self.found):
+            if window.handle == self.last_touched:
+                self.picker.current(i)
+                self._refresh_capture()
+                return
+        # 次に、選んでいたもの → 台本が覚えているもの (開くたびに選ばせない)
         for wanted in (holding, self.doc.window):
             if not wanted:
                 continue
@@ -315,6 +325,20 @@ class ShootWindow:
         state = tk.DISABLED if why else tk.NORMAL
         self.shot_button.configure(state=state)
         self.clip_button.configure(state=state)
+
+    def _watch_foreground(self) -> None:
+        """直前に触っていたウィンドウを覚えておく.
+
+        **ダイアログは操作している最中に出てくる。** 戻ってきてから一覧を
+        数え直しても、選び直すのは人の手になる —— それを省くために、
+        こちらへ焦点が来る前に何を触っていたかを覚えておく。
+        """
+        if not self.window.winfo_exists():
+            return
+        handle = capture.foreground()
+        if handle:
+            self.last_touched = handle
+        self.window.after(self.FOREGROUND_POLL, self._watch_foreground)
 
     def _on_focus(self, event) -> None:
         """ウィンドウに戻ってきたら数え直す.
@@ -663,11 +687,25 @@ class ShootWindow:
         self._await_window(self.LAUNCH_TRIES)
 
     def _await_window(self, left: int) -> None:
-        """対象のウィンドウが出るまで数え直す. 出たら止める."""
+        """対象のウィンドウが出るまで数え直す. 出たら止める.
+
+        **起動したものを、直前に触っていたものより優先する。** 待っている間に
+        別のアプリを触っていると、そちらが「直前」になって選ばれてしまう
+        (実際に別のエディタが選ばれた)。`起動` は「これを撮りたい」の意思表示。
+        """
         if left <= 0 or self.app_proc is None:
             return
         self.reload_windows()
-        if self.target is not None:
+        wanted = self.doc.window
+        if wanted:
+            hit = next((w for w in self.found
+                        if wanted.casefold() in w.title.casefold()), None)
+            if hit is not None:
+                self.last_touched = hit.handle
+                self.reload_windows()
+                self.refresh()
+                return
+        elif self.target is not None:
             self.refresh()
             return
         self.window.after(self.LAUNCH_POLL, self._await_window, left - 1)
