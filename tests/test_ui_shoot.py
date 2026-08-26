@@ -447,3 +447,16 @@ def test_the_instruction_survives_moving_between_beats(shooter):
     shooter.do.insert("1.0", "ひとつめの操作")
     shooter.show(shooter.rows[1])
     assert shooter.doc.rows()[0].do == "ひとつめの操作"
+
+
+def test_the_output_folder_can_be_opened(shooter, monkeypatch):
+    """**ショットは git の外に出る。** プロジェクトの下を探しても無いので、
+    開く道が無いと辿り着けない (実際に辿り着けなかった)。
+    """
+    opened: list = []
+    from ghostmovieplay import ui_run
+
+    monkeypatch.setattr(ui_run, "open_path", lambda path: opened.append(path))
+    shooter.on_open_outdir()
+    assert opened == [shooter.outdir]
+    assert (shooter.outdir / "shots").is_dir(), "まだ無いなら作ってから開く"

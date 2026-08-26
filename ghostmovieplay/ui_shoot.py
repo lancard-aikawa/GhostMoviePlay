@@ -129,7 +129,11 @@ class ShootWindow:
         tk.Button(bar, text="閉じる", width=10, command=self.on_close).pack(side=tk.RIGHT)
         tk.Button(bar, text="保存", width=10, command=self.on_save).pack(
             side=tk.RIGHT, padx=6)
-        tk.Label(bar, fg="#666", justify=tk.LEFT, wraplength=760,
+        # **ショットの置き場所は git の外**なので、プロジェクトの下を探しても無い。
+        # 状態の行に出してはいるが、開く道が無いと辿り着けない
+        tk.Button(bar, text="出力先を開く", command=self.on_open_outdir).pack(
+            side=tk.LEFT, padx=(0, 10))
+        tk.Label(bar, fg="#666", justify=tk.LEFT, wraplength=620,
                  text=FOOTER_NOTE).pack(side=tk.LEFT)
 
     def _build_status(self) -> None:
@@ -704,6 +708,19 @@ class ShootWindow:
         if self.on_saved:
             self.on_saved()
         return True
+
+    def on_open_outdir(self) -> None:
+        """ショットと音声の置き場所を開く.
+
+        **plan.json の隣ではない。** ショットも wav も生成物なのでユーザ
+        フォルダ側に出る（`beat.audio` と同じ規則）。プロジェクトの下を探しても
+        見つからないので、ここから開けるようにしてある。
+        """
+        from .ui_run import open_path
+
+        (self.outdir / "shots").mkdir(parents=True, exist_ok=True)
+        open_path(self.outdir)
+        self.status.set(f"開きました: {self.outdir}")
 
     def on_close(self) -> None:
         if self.recording is not None:

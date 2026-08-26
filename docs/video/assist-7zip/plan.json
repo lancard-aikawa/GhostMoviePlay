@@ -50,7 +50,7 @@
       "title": "パスワードを付けたのに",
       "beats": [
         {
-          "do": "7-Zip File Manager が ~/gmp-sample を開いた状態にする（「起動」で開く）。そのまま",
+          "do": "7-Zip File Manager が %USERPROFILE%\\gmp-sample を開いた状態にする（「起動」で開く）。そのまま",
           "say": "社外に渡すファイルを、パスワードを付けて守ることにします。",
           "subtitle": "社外に渡すファイルを、パスワードを付けて守る",
           "audio": "voice/000_leak.wav"
