@@ -6,11 +6,24 @@
 
 置き場所を `~/gmp-sample` にしているのは、**7-Zip がタイトルバーとアドレスバーの
 2 か所にパスを出す**から。深いところに置くと、動画の上半分がパスで埋まる。
+
+## 撮り直しのための `--archives`
+
+台本の後半は「**出来た書庫を開く**」ところを撮る。ふつうに撮るなら人が幕 1 で
+作るのでそれでよいが、**そのビートだけ撮り直したいとき**に前の操作を全部やり直す
+のは重い。`--archives` は書庫が出来上がった状態まで進める。
+
+**起動オプションを足す道は採らない。** 「このビートではこのファイルを開いた状態で
+起動する」を `app.start` に持たせると、**自動操作を裏口から戻す**ことになる
+(支援収録は人が操作するのが前提で、書庫を開くのはダブルクリック 1 回)。
+用意するのは状態だけで、開くのは人。
 """
 
 from __future__ import annotations
 
+import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -25,12 +38,46 @@ FILES = (
 )
 BODY = "これは GhostMoviePlay の撮影用ダミーです。中身はありません。\n"
 
+# 書庫の名前は **7-Zip が勝手に付けるもの**に合わせてある (フォルダ名 + 拡張子)。
+# 形式を変えると拡張子も変わるので、幕 1 の zip と幕 3 の 7z はぶつからない
+PASSWORD = "1234"
+ZIP = f"{FOLDER.name}.zip"
+SEVEN = f"{FOLDER.name}.7z"
+
+
+def seven_zip() -> Path:
+    exe = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "7-Zip" / "7z.exe"
+    if not exe.is_file():
+        raise SystemExit(f"7-Zip が見つかりません: {exe}\n  winget install 7zip.7zip")
+    return exe
+
 
 def build() -> Path:
     FOLDER.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         (FOLDER / name).write_text(BODY, encoding="utf-8")
     return FOLDER
+
+
+def archives() -> list[str]:
+    """幕 1 と幕 3 が作るはずの書庫を、先に作っておく.
+
+    **失敗のほうも AES-256 で作る。** 「弱い暗号を使ったのが悪い」に見えると
+    教訓がずれる —— 強い暗号でもファイル名は隠れない、が要点。
+    """
+    exe = seven_zip()
+    sources = [f"*{Path(name).suffix}" for name in FILES]
+    made: list[str] = []
+    for name, args in ((ZIP, ["-tzip", "-mem=AES256"]),
+                       (SEVEN, ["-t7z", "-mhe=on"])):
+        (FOLDER / name).unlink(missing_ok=True)
+        done = subprocess.run(
+            [str(exe), "a", *args, f"-p{PASSWORD}", name, *sources],
+            cwd=str(FOLDER), capture_output=True)
+        if done.returncode != 0 or not (FOLDER / name).is_file():
+            raise SystemExit(f"{name} を作れません (7z exit {done.returncode})")
+        made.append(name)
+    return made
 
 
 def clean() -> None:
@@ -41,8 +88,13 @@ def clean() -> None:
 
 
 if __name__ == "__main__":
-    if "--clean" in sys.argv[1:]:
+    flags = sys.argv[1:]
+    if "--clean" in flags:
         clean()
         print(f"片付けました: {FOLDER}")
     else:
-        print(f"用意しました: {build()}  ({len(FILES)} ファイル)")
+        build()
+        note = ""
+        if "--archives" in flags:
+            note = "  + " + " / ".join(archives()) + f"  (パスワード {PASSWORD})"
+        print(f"用意しました: {FOLDER}  ({len(FILES)} ファイル){note}")
