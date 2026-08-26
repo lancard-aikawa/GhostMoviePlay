@@ -189,7 +189,8 @@ Web の仕込みは**使い捨てのデータルートを作る**（GlossPop の
 
 UIA が届かない相手（canvas・ゲーム・OAuth・自動操作が許されない業務アプリ）に
 人が操作して撮る道は**実装済み** —— 支援収録 (`gmp shoot`)。
-[docs/plan.md](../plan.md) と [CLAUDE.md](../../CLAUDE.md) にある。**ここには残さない**
+[README_WINAPP.md](../../README_WINAPP.md) / [docs/plan.md](../plan.md) /
+[CLAUDE.md](../../CLAUDE.md) にある。**ここには残さない**
 （実装したものはアイデアではない）。**ウィンドウを撮る部分 (`capture.py`) はそのまま使える。**
 
 残っているのは**自動で駆動するほう**で、人が操作しなくて済めば決定論が戻る。
