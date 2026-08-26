@@ -623,7 +623,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |
-| 展示に出した動画の素材 | `lancard-aikawa/GhostMoviePlayGallery` の **`videos.py`**（カードの**再現コマンド**と素材へのリンク。`python build.py` が `index.html` と 1 本ぶんの `v/*.html` を吐くので、**HTML は手で直さない**）。素材を動かすと展示が黙って嘘になる（あちらは撮り直しても気づけない）。**mp4 はあちらにしか置かない** |
+| 展示に出した動画の素材 | `lancard-aikawa/GhostMoviePlayGallery` の **`videos.py`**（カードの**再現コマンド**と素材へのリンク。`python build.py` が `index.html` / `v/*.html` / **設定の zip** を吐くので、**HTML は手で直さない**）。**`docs/video/<名前>/` を動かしたら向こうの `bundle` も直す** —— `git archive` で束ねているので、パスが変わると build がそこで止まる（黙って古い zip を配らない）。`app.cwd` の指す先を変えたら **`bundle_note`（束をどこに置けば動くか）**も直す。素材を動かすと展示が黙って嘘になる（あちらは撮り直しても気づけない）。**mp4 はあちらにしか置かない** |
 
 ## サンプルと実例
 
