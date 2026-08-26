@@ -363,3 +363,54 @@ def test_a_failed_teardown_does_not_block(shooter, monkeypatch):
 class _FakeProc:
     def poll(self):
         return None
+
+
+# --- 撮れない理由を出す -----------------------------------------------
+def test_a_found_target_is_selected_without_asking(shooter):
+    """開くたびに選ばせない (台本が覚えている窓に自分で当てる)."""
+    assert shooter.target is not None
+    assert shooter.why_blocked() == ""
+    assert shooter.shot_button.cget("state") == "normal"
+
+
+def test_a_missing_target_says_so(shooter, monkeypatch):
+    """**黙って未選択にしない。** 撮ろうとして初めてモーダルで言うのでは遅い."""
+    monkeypatch.setattr(capture, "windows", lambda **k: [dialog("無関係な窓")])
+    shooter.reload_windows()
+
+    why = shooter.why_blocked()
+    assert "電卓" in why, "何を探して見つからなかったのかを言っていない"
+    assert shooter.shot_button.cget("state") == "disabled"
+    assert shooter.capture_note.cget("text") == why
+
+
+def test_the_reason_points_at_the_launch_button_when_there_is_one(shooter, monkeypatch):
+    """行き止まりを作らない —— 開く手があるならそれを指す."""
+    monkeypatch.setattr(capture, "windows", lambda **k: [])
+    shooter.doc.raw["app"]["start"] = "app.exe"
+    shooter.reload_windows()
+    assert "「起動」" in shooter.why_blocked()
+
+    shooter.doc.raw["app"].pop("start")
+    shooter.reload_windows()
+    assert "「起動」" not in shooter.why_blocked()
+    assert "調べ直す" in shooter.why_blocked()
+
+
+def test_picking_any_window_clears_the_reason(shooter, monkeypatch):
+    """対象でなくても、選べば撮れる (ダイアログを撮る道)."""
+    monkeypatch.setattr(capture, "windows", lambda **k: [dialog()])
+    shooter.reload_windows()
+    assert shooter.why_blocked() != ""
+
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    assert shooter.why_blocked() == ""
+    assert shooter.shot_button.cget("state") == "normal"
+
+
+def test_an_unsupported_platform_says_why(shooter, monkeypatch):
+    monkeypatch.setattr(capture, "supported", lambda: False)
+    shooter.reload_windows()
+    assert "Windows" in shooter.why_blocked()
+    assert shooter.shot_button.cget("state") == "disabled"

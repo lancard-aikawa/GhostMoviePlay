@@ -64,7 +64,9 @@ def default_title(plan_path: Path) -> str:
 class ShootWindow:
     """支援収録の窓."""
 
-    TICK = 200          # 録画中の時計の更新間隔 (ms)
+    TICK = 200              # 録画中の時計の更新間隔 (ms)
+    LAUNCH_POLL = 800       # 起動したアプリの窓が出るのを待つ間隔 (ms)
+    LAUNCH_TRIES = 25       # 上の回数 (= 20 秒ほど)
 
     def __init__(self, parent: tk.Misc, plan_path: Path, on_saved=None):
         self.path = Path(plan_path)
@@ -74,6 +76,7 @@ class ShootWindow:
         self.found: list[capture.Window] = []
         self.recording: capture.Recording | None = None
         self.pending_clip: tuple[Row, str] | None = None
+        self.trouble = ""                   # 窓を数えられなかった理由
         self.app_proc: subprocess.Popen | None = None
         self._photo = None                  # PhotoImage は参照を持たないと消える
 
@@ -162,6 +165,10 @@ class ShootWindow:
         tk.Label(bar, fg="#666",
                  text="録画中は窓を隠さないこと（静止画は隠れていても撮れます）").pack(
             side=tk.LEFT)
+        # 撮れないときの理由。**空のときは何も出さない** (常に出すと帯が説明で埋まる)
+        self.capture_note = tk.Label(self.window, text="", anchor="w", fg="#b00000",
+                                     justify=tk.LEFT, wraplength=1040)
+        self.capture_note.pack(side=tk.TOP, fill=tk.X, padx=10)
 
     def _build_edit(self) -> None:
         """一覧の下の帯.
@@ -233,16 +240,18 @@ class ShootWindow:
         """
         if not capture.supported():
             self.picker.configure(values=["(Windows でだけ使えます)"])
-            self.shot_button.configure(state=tk.DISABLED)
-            self.clip_button.configure(state=tk.DISABLED)
+            self.found = []
+            self._refresh_capture()
             return
         holding = self.target.title if self.target else ""
         try:
             self.found = capture.windows()
         except capture.CaptureError as exc:
             self.found = []
-            self.status.set(str(exc))
+            self.trouble = str(exc)
+            self._refresh_capture()
             return
+        self.trouble = ""
         self.picker.configure(values=[w.label for w in self.found])
         self.picker.set("")
         # 選んでいた窓 → 台本が覚えている窓 の順で選び直す (開くたびに選ばせない)
@@ -252,7 +261,40 @@ class ShootWindow:
             for i, window in enumerate(self.found):
                 if wanted.casefold() in window.title.casefold():
                     self.picker.current(i)
-                    return
+                    break
+            if self.target is not None:
+                break
+        self._refresh_capture()
+
+    def why_blocked(self) -> str:
+        """撮れない理由. 撮れるなら空文字.
+
+        **黙って未選択にしない。** 対象がまだ立っていないだけなのか、別の窓を
+        選べばいいのかは画面からしか分からない —— 撮ろうとして初めてモーダルで
+        言われるのでは遅い (「押せないボタンには必ず理由を出す」)。
+        """
+        if not capture.supported():
+            return "画面キャプチャは Windows でだけ使えます"
+        if self.trouble:
+            return self.trouble
+        if self.target is not None:
+            return ""
+        if self.doc.window:
+            more = ("「起動」で開けます" if (self.doc.raw.get("app") or {}).get("start")
+                    else "アプリを開いてから「調べ直す」")
+            return (f"対象の窓「{self.doc.window}」が見つかりません。{more}。"
+                    "別の窓 (ダイアログなど) を撮るなら上の一覧から選んでください")
+        return "撮る窓を上の一覧から選んでください"
+
+    def _refresh_capture(self) -> None:
+        """撮影のボタンと、その理由を出し分ける."""
+        why = self.why_blocked()
+        self.capture_note.configure(text=why)
+        if self.recording is not None:
+            return                      # 録画中のボタンは録画側が持っている
+        state = tk.DISABLED if why else tk.NORMAL
+        self.shot_button.configure(state=state)
+        self.clip_button.configure(state=state)
 
     def _on_focus(self, event) -> None:
         """窓に戻ってきたら数え直す.
@@ -314,11 +356,13 @@ class ShootWindow:
             self.tree.selection_set(self._iid(pick))
             self.show(pick)
         width, height = self.doc.size
-        # **主な対象を出しておく。** コンボはダイアログに移っていることがあるので、
-        # この 1 本が何を撮る動画なのかは別に見えている必要がある
+        # **主な対象と、いま撮る相手を別々に出す。** コンボはダイアログに移って
+        # いることがあるので、この 1 本が何を撮る動画なのかは別に見えている必要がある
         target = self.doc.window or "(まだ決まっていません)"
-        self.status.set(f"対象: {target}   {summary(self.rows)}   "
+        picked = self.target.title if self.target else "未選択"
+        self.status.set(f"対象: {target}   撮る窓: {picked}   {summary(self.rows)}   "
                         f"{width}x{height}   → {self.outdir}")
+        self._refresh_capture()
 
     @staticmethod
     def _iid(row: Row) -> str:
@@ -580,10 +624,20 @@ class ShootWindow:
                                  parent=self.window)
             return
         self.launch_button.configure(text="終了")
-        self.status.set(f"起動: {start}   (窓が出たら一覧に並びます)")
-        # 起動はこちらが焦点を持ったまま進むので `<FocusIn>` が来ない。
-        # 出てくるころに一度だけ数え直す (遅ければ「調べ直す」で足せる)
-        self.window.after(2000, self.reload_windows)
+        self.status.set(f"起動: {start}   (窓が出るのを待っています)")
+        # **起動はこちらが焦点を持ったまま進む**ので `<FocusIn>` が来ない。
+        # 1 回だけ見て諦めると、重いアプリで黙って未選択のままになる
+        self._await_window(self.LAUNCH_TRIES)
+
+    def _await_window(self, left: int) -> None:
+        """対象の窓が出るまで数え直す. 出たら止める."""
+        if left <= 0 or self.app_proc is None:
+            return
+        self.reload_windows()
+        if self.target is not None:
+            self.refresh()
+            return
+        self.window.after(self.LAUNCH_POLL, self._await_window, left - 1)
 
     def _shutdown(self) -> None:
         """アプリを畳んで後片付けを走らせる. **後片付けの失敗では止めない**."""
