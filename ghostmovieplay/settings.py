@@ -360,8 +360,12 @@ class Resolved:
         head = f"{prefix}."
         out: dict[str, Any] = {}
         for path, value in self.values.items():
-            # 空の辞書・配列は「書いていない」と同じ扱い。0 や False は残す
-            if not path.startswith(head) or value is None or value == {} or value == []:
+            # 空の辞書・配列・文字列は「書いていない」と同じ扱い。0 や False は残す。
+            # **空文字は下の層を打ち消す唯一の手** —— 支援収録の 1 本は
+            # プロジェクトが持っている app.url を要らないが、これが無いと
+            # video.md からは消せず、使いもしない URL が plan.json に焼かれる
+            if (not path.startswith(head) or value is None
+                    or value == {} or value == [] or value == ""):
                 continue
             if explicit_only and not self.is_explicit(path):
                 continue
@@ -445,6 +449,15 @@ def resolve(
                 result.warnings.append(
                     f"{_where(layer, source)}: {path!r} はここに書けません"
                     f" (書ける層: {allowed})"
+                )
+                continue
+            # **空文字は「打ち消す」。** 下の層が持っている値を上の層から
+            # 消せる唯一の手で、型に関わらず同じ意味にしておく (数の項目だけ
+            # `int('')` で落ちて「書いたのに効かない」になるのを避ける)
+            if isinstance(value, str) and not value.strip():
+                result.values[path] = None
+                result.origins[path] = Origin(
+                    layer, source, env_var_name(path) if layer == ENV else None
                 )
                 continue
             try:

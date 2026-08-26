@@ -420,3 +420,44 @@ def test_home_agrees_with_paths_output_home(monkeypatch, tmp_path):
 
     monkeypatch.setenv(paths.ENV_HOME, str(tmp_path / "env"))
     assert Path(settings.load().get("home")) == paths.output_home()
+
+
+# --- 空文字で打ち消す -------------------------------------------------
+def test_an_empty_string_cancels_a_lower_layer(tmp_path, monkeypatch):
+    """**下の層の値を上の層から消せる唯一の手。**
+
+    支援収録の 1 本は、プロジェクトが持っている app.url を要らない。これが
+    無いと video.md からは消せず、使いもしない URL が plan.json に焼かれる。
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / settings.PROJECT_FILE).write_text(
+        "project = 'X'\n[app]\nurl = 'http://127.0.0.1:8765/'\n"
+        "[determinism]\nseed = 12345\n", encoding="utf-8")
+    spec = tmp_path / "video.md"
+    spec.write_text("---\ntitle: t\n---\n", encoding="utf-8")
+
+    kept = settings.load(spec=spec, video={})
+    assert kept.get("app.url") == "http://127.0.0.1:8765/"
+    assert kept.get("determinism.seed") == 12345
+
+    cleared = settings.load(spec=spec, video={"app": {"url": ""},
+                                              "determinism": {"seed": ""}})
+    assert cleared.get("app.url") is None
+    # **数の項目も同じ意味にする** —— int('') で落ちて「書いたのに効かない」に
+    # なっていた (プロジェクトの値がそのまま勝っていた)
+    assert cleared.get("determinism.seed") is None
+    assert cleared.warnings == []
+
+
+def test_a_cancelled_value_is_not_baked(tmp_path, monkeypatch):
+    """打ち消した値が plan.json に残ると、消したつもりが残る."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / settings.PROJECT_FILE).write_text(
+        "project = 'X'\n[app]\nurl = 'http://127.0.0.1:8765/'\n", encoding="utf-8")
+    spec = tmp_path / "video.md"
+    spec.write_text("---\ntitle: t\n---\n", encoding="utf-8")
+
+    resolved = settings.load(spec=spec, video={"app": {"url": "", "window": "電卓"}})
+    section = resolved.section("app")
+    assert "url" not in section
+    assert section["window"] == "電卓"

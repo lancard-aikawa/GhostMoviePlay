@@ -102,6 +102,10 @@ class ShootWindow:
 
         self.reload_windows()
         self.refresh()
+        # **戻ってきたら自分で数え直す。** ダイアログが開くのは撮っている最中の
+        # 普通のことで、そのたびに「調べ直す」を押させる筋合いは無い
+        # (ボタンは残してある —— こちらが焦点を持ったまま窓が増えることがある)
+        self.window.bind("<FocusIn>", self._on_focus, add="+")
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # --- 置き場所 ----------------------------------------------------
@@ -221,28 +225,44 @@ class ShootWindow:
 
     # --- 窓えらび ----------------------------------------------------
     def reload_windows(self) -> None:
+        """撮れる窓を数え直す.
+
+        **いま選んでいる窓を優先して選び直す。** ダイアログを撮ろうとして
+        選んだのに、一覧を更新した拍子に本体へ戻ってしまうと、撮る直前に
+        黙って相手が入れ替わる。
+        """
         if not capture.supported():
             self.picker.configure(values=["(Windows でだけ使えます)"])
             self.shot_button.configure(state=tk.DISABLED)
             self.clip_button.configure(state=tk.DISABLED)
             return
+        holding = self.target.title if self.target else ""
         try:
             self.found = capture.windows()
         except capture.CaptureError as exc:
             self.found = []
             self.status.set(str(exc))
             return
-        labels = [w.label for w in self.found]
-        self.picker.configure(values=labels)
-        # 台本が覚えている窓があれば選び直す (開くたびに選ばせない)
-        wanted = self.doc.window
-        if wanted:
+        self.picker.configure(values=[w.label for w in self.found])
+        self.picker.set("")
+        # 選んでいた窓 → 台本が覚えている窓 の順で選び直す (開くたびに選ばせない)
+        for wanted in (holding, self.doc.window):
+            if not wanted:
+                continue
             for i, window in enumerate(self.found):
                 if wanted.casefold() in window.title.casefold():
                     self.picker.current(i)
                     return
-        if labels and not self.picker.get():
-            self.picker.set("")
+
+    def _on_focus(self, event) -> None:
+        """窓に戻ってきたら数え直す.
+
+        撮っている最中にダイアログが開くのは普通のことなので、**戻ってきた
+        ことを見て自分で調べ直す** (`ui_run` と同じ作法)。録画中は触らない。
+        """
+        if event.widget is not self.window or self.recording is not None:
+            return
+        self.reload_windows()
 
     @property
     def target(self) -> capture.Window | None:
@@ -252,13 +272,23 @@ class ShootWindow:
         return self.found[index]
 
     def _on_pick_window(self, _event=None) -> None:
+        """撮る相手を選ぶ. **選び直しても `app.window` は書き換えない。**
+
+        1 つのアプリの操作は**窓 1 つでは終わらない** —— 7-Zip なら圧縮
+        ダイアログは別の exe の別の窓で、そこも撮る。ここで毎回上書きすると、
+        ダイアログを撮った拍子に「この 1 本の対象」がダイアログになる。
+        コンボは「いまどれを撮るか」で、`app.window` は「主な対象」。
+        """
         window = self.target
         if window is None:
             return
-        self.doc.set_window(window.title)
-        # **まだ 1 枚も撮っていないなら、動画の大きさを窓に合わせる。**
-        # 撮り始めてから変えると、それまでのショットが黒帯つきで並ぶ
-        if not any(r.shot for r in self.rows):
+        if not self.doc.window:
+            self.doc.set_window(window.title)
+        # **主な対象を選んでいて、まだ 1 枚も撮っていないときだけ大きさを合わせる。**
+        # 撮り始めてから変えるとそれまでのショットが黒帯つきで並ぶし、ダイアログの
+        # 大きさに合わせると本体が縮む
+        if (self.doc.window.casefold() in window.title.casefold()
+                and not any(r.shot for r in self.rows)):
             self.doc.set_size(capture.even(window.width), capture.even(window.height))
         self.refresh()
 
@@ -284,7 +314,10 @@ class ShootWindow:
             self.tree.selection_set(self._iid(pick))
             self.show(pick)
         width, height = self.doc.size
-        self.status.set(f"{self.path}   {summary(self.rows)}   "
+        # **主な対象を出しておく。** コンボはダイアログに移っていることがあるので、
+        # この 1 本が何を撮る動画なのかは別に見えている必要がある
+        target = self.doc.window or "(まだ決まっていません)"
+        self.status.set(f"対象: {target}   {summary(self.rows)}   "
                         f"{width}x{height}   → {self.outdir}")
 
     @staticmethod
@@ -493,26 +526,49 @@ class ShootWindow:
         self.refresh()
 
     # --- 起動 ---------------------------------------------------------
+    def _app_cwd(self) -> Path:
+        app = self.doc.raw.get("app") or {}
+        if app.get("cwd"):
+            # 相対パスは**それを書いたファイル**からの相対 (plan.json の隣)
+            return (self.path.parent / app["cwd"]).resolve()
+        return self.path.parent
+
     def on_launch(self) -> None:
-        """`app.start` を起こす / 畳む. **収録の仕込みは走らせない** ——
-        `app.setup` は `gmp record` (組み立て) の担当で、ここで走らせると
-        人が撮っている最中にデータを作り直すことになる。
+        """`app.setup` → `app.start` を起こす / 畳んで `app.teardown`.
+
+        **仕込みが走る場所はここしかない。** 支援収録では撮るのが人なので、
+        「収録の前」は**人が触り始める前**を指す。組み立て (`gmp record`) の
+        ときに走らせても、撮り終わったあとにデータを作り直すだけで意味が無い。
+
+        順序の不変条件はそのまま —— **仕込みは start より前**（仕込んだ
+        データをアプリが読む）、**後片付けはアプリを畳んでから**（掴まれた
+        ままのファイルを消しに行かない）。
+
+        **仕込みは同期で走る**ので、画面はそのあいだ止まる。数分かかるものを
+        `app.setup` に書かないこと。
         """
         if self.app_proc is not None and self.app_proc.poll() is None:
-            from .server import kill_tree
-
-            kill_tree(self.app_proc)
-            self.app_proc = None
-            self.launch_button.configure(text="起動")
-            self.status.set("終了しました")
+            self._shutdown()
             return
         app = self.doc.raw.get("app") or {}
         start = app.get("start")
         if not start:
             return
-        cwd = self.path.parent
-        if app.get("cwd"):
-            cwd = (self.path.parent / app["cwd"]).resolve()
+
+        from .server import HookError, run_hook
+
+        cwd = self._app_cwd()
+        if app.get("setup"):
+            self.status.set(f"仕込み: {app['setup']}")
+            self.window.update_idletasks()
+            try:
+                run_hook(app["setup"], cwd, "仕込み", verbose=False)
+            except HookError as exc:
+                # **仕込めていない画面を撮っても意味が無い**ので起動しない
+                messagebox.showerror("仕込みが失敗しました", str(exc),
+                                     parent=self.window)
+                self.status.set("仕込みが失敗したので起動していません")
+                return
         try:
             flags = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} \
                 if sys.platform == "win32" else {"start_new_session": True}
@@ -524,7 +580,30 @@ class ShootWindow:
                                  parent=self.window)
             return
         self.launch_button.configure(text="終了")
-        self.status.set(f"起動: {start}   (窓が出たら「調べ直す」)")
+        self.status.set(f"起動: {start}   (窓が出たら一覧に並びます)")
+        # 起動はこちらが焦点を持ったまま進むので `<FocusIn>` が来ない。
+        # 出てくるころに一度だけ数え直す (遅ければ「調べ直す」で足せる)
+        self.window.after(2000, self.reload_windows)
+
+    def _shutdown(self) -> None:
+        """アプリを畳んで後片付けを走らせる. **後片付けの失敗では止めない**."""
+        from .server import HookError, kill_tree, run_hook
+
+        if self.app_proc is not None and self.app_proc.poll() is None:
+            kill_tree(self.app_proc)
+        self.app_proc = None
+        self.launch_button.configure(text="起動")
+        teardown = (self.doc.raw.get("app") or {}).get("teardown")
+        if not teardown:
+            self.status.set("終了しました")
+            return
+        try:
+            run_hook(teardown, self._app_cwd(), "後片付け", verbose=False)
+        except HookError as exc:
+            # 撮り終えたものを片付けの失敗で捨てない。ただし黙りもしない
+            self.status.set(str(exc))
+            return
+        self.status.set("終了して後片付けまで済みました")
 
     # --- 保存 ---------------------------------------------------------
     def on_save(self) -> bool:
@@ -563,10 +642,10 @@ class ShootWindow:
                 "保存しますか", "保存していない変更があります。破棄して閉じますか。",
                 default=messagebox.NO, parent=self.window):
             return
+        # **閉じるときも後片付けまでやる。** 「終了」を押さずに窓を閉じる人は
+        # 必ずいるので、使い捨てのデータを置き去りにしない
         if self.app_proc is not None and self.app_proc.poll() is None:
-            from .server import kill_tree
-
-            kill_tree(self.app_proc)
+            self._shutdown()
         self.window.destroy()
 
 

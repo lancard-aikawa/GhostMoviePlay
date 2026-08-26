@@ -228,3 +228,138 @@ def test_shooting_without_a_window_does_nothing(shooter, monkeypatch):
                         lambda handle, out: pytest.fail("窓を選ばずに撮った"))
     shooter.picker.set("")
     shooter.on_shot()
+
+
+# --- 窓を選び直す -----------------------------------------------------
+def dialog(title="圧縮"):
+    return capture.Window(handle=9, title=title, process="7zG.exe",
+                          width=630, height=491)
+
+
+def test_picking_a_dialog_does_not_steal_the_target(shooter, monkeypatch):
+    """**1 つのアプリの操作は窓 1 つでは終わらない。** ダイアログを撮った拍子に
+    「この 1 本の対象」がダイアログになってはいけない.
+    """
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    assert shooter.doc.window == "電卓"
+
+    monkeypatch.setattr(capture, "windows", lambda **k: [dialog()])
+    shooter.reload_windows()
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+
+    assert shooter.doc.window == "電卓"
+    assert shooter.target.title == "圧縮"
+
+
+def test_a_dialog_does_not_resize_the_video(shooter, monkeypatch):
+    """ダイアログの大きさに合わせると本体が縮む."""
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    assert shooter.doc.size == (800, 600)
+
+    monkeypatch.setattr(capture, "windows", lambda **k: [dialog()])
+    shooter.reload_windows()
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    assert shooter.doc.size == (800, 600)
+
+
+def test_refreshing_keeps_the_window_you_picked(shooter, monkeypatch):
+    """撮る直前に相手が黙って入れ替わらないこと."""
+    both = [dialog(), capture.Window(handle=1, title="電卓", process="calc.exe",
+                                     width=800, height=600)]
+    monkeypatch.setattr(capture, "windows", lambda **k: both)
+    shooter.reload_windows()
+    shooter.picker.current(0)          # ダイアログを選ぶ
+    shooter._on_pick_window()
+
+    shooter.reload_windows()           # 一覧を数え直しても
+    assert shooter.target.title == "圧縮"
+
+
+def test_refreshing_falls_back_to_the_target(shooter, monkeypatch):
+    """選んでいた窓が消えたら、主な対象に戻る (開くたびに選ばせない)."""
+    both = [dialog(), capture.Window(handle=1, title="電卓", process="calc.exe",
+                                     width=800, height=600)]
+    monkeypatch.setattr(capture, "windows", lambda **k: both)
+    shooter.reload_windows()
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+
+    monkeypatch.setattr(capture, "windows", lambda **k: [both[1]])
+    shooter.reload_windows()
+    assert shooter.target.title == "電卓"
+
+
+# --- 仕込みと後片付け -------------------------------------------------
+def with_hooks(shooter, **app):
+    shooter.doc.raw["app"].update(app)
+    return shooter
+
+
+def test_setup_runs_before_start(shooter, monkeypatch):
+    """**仕込みは start より前。** 仕込んだデータをアプリが読む."""
+    order: list = []
+    from ghostmovieplay import server
+
+    monkeypatch.setattr(server, "run_hook",
+                        lambda cmd, cwd, label, verbose=True: order.append(label))
+    monkeypatch.setattr(ui_shoot.subprocess, "Popen",
+                        lambda *a, **k: order.append("start") or _FakeProc())
+    with_hooks(shooter, setup="python seed.py", start="app.exe")
+    shooter.on_launch()
+    assert order == ["仕込み", "start"]
+
+
+def test_a_failed_setup_does_not_start_the_app(shooter, monkeypatch):
+    """**仕込めていない画面を撮っても意味が無い。**"""
+    from ghostmovieplay import server
+
+    def boom(cmd, cwd, label, verbose=True):
+        raise server.HookError("仕込みが失敗しました")
+
+    started: list = []
+    monkeypatch.setattr(server, "run_hook", boom)
+    monkeypatch.setattr(ui_shoot.subprocess, "Popen",
+                        lambda *a, **k: started.append(1) or _FakeProc())
+    with_hooks(shooter, setup="python seed.py", start="app.exe")
+    shooter.on_launch()
+    assert started == []
+
+
+def test_teardown_runs_after_the_app_is_closed(shooter, monkeypatch):
+    """**掴まれたままのファイルを消しに行かない。**"""
+    order: list = []
+    from ghostmovieplay import server
+
+    monkeypatch.setattr(server, "run_hook",
+                        lambda cmd, cwd, label, verbose=True: order.append(label))
+    monkeypatch.setattr(server, "kill_tree", lambda proc: order.append("kill"))
+    monkeypatch.setattr(ui_shoot.subprocess, "Popen", lambda *a, **k: _FakeProc())
+    with_hooks(shooter, start="app.exe", teardown="python seed.py --clean")
+    shooter.on_launch()
+    shooter.on_launch()          # 2 回目は「終了」
+    assert order == ["kill", "後片付け"]
+
+
+def test_a_failed_teardown_does_not_block(shooter, monkeypatch):
+    """撮り終えたものを片付けの失敗で捨てない。ただし黙りもしない."""
+    from ghostmovieplay import server
+
+    def boom(cmd, cwd, label, verbose=True):
+        raise server.HookError("後片付けが失敗しました")
+
+    monkeypatch.setattr(server, "run_hook", boom)
+    monkeypatch.setattr(server, "kill_tree", lambda proc: None)
+    monkeypatch.setattr(ui_shoot.subprocess, "Popen", lambda *a, **k: _FakeProc())
+    with_hooks(shooter, start="app.exe", teardown="python seed.py --clean")
+    shooter.on_launch()
+    shooter.on_launch()
+    assert "後片付けが失敗しました" in shooter.status.get()
+
+
+class _FakeProc:
+    def poll(self):
+        return None
