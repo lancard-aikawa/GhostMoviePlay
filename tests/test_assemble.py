@@ -255,7 +255,18 @@ def test_every_segment_is_normalised_to_the_video_size(tmp_path, spy):
     """大きさを揃えないと concat が繋げない."""
     plan = make_plan([Beat(say="a", hold=1.0, shot=shot(tmp_path))])
     mod.assemble(plan, tmp_path, verbose=False)
-    assert all("scale=800:600" in chain for chain in filters(spy))
+    assert all("pad=800:600" in chain for chain in filters(spy))
+
+
+def test_a_small_dialog_is_not_blown_up_to_fill_the_frame(tmp_path, spy):
+    """**330x150 のダイアログを 1280 幅に伸ばすと文字が潰れる。**
+    小さいまま中央に置くほうが読める。
+    """
+    plan = make_plan([Beat(say="a", hold=1.0, shot=shot(tmp_path))])
+    mod.assemble(plan, tmp_path, verbose=False)
+    for chain in filters(spy):
+        assert f"min(iw*{mod.MAX_UPSCALE}" in chain, "引き伸ばしに上限が無い"
+        assert "pad=800:600" in chain, "枠は埋める (letterbox)"
 
 
 def test_no_beats_is_an_error(tmp_path, spy):

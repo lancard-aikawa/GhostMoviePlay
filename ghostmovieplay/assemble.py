@@ -54,14 +54,25 @@ def _warn(warnings: list[dict], kind: str, where: str | None, message: str) -> N
     warnings.append({"kind": kind, "where": where, "message": message})
 
 
+# 引き伸ばしの上限。**小さなダイアログを画面いっぱいに拡大しない** ——
+# 330x150 のパスワード入力を 1280 幅に伸ばすと 3.9 倍になり、文字が完全に
+# 潰れる。小さいまま中央に置くほうが読める
+MAX_UPSCALE = 2
+
+
 def _vf(width: int, height: int, fps: int) -> str:
     """どのショットも同じ大きさに揃える.
 
     **ウィンドウの大きさが途中で変わっても組み立てられる**ようにしておく (letterbox)。
     ただし黙って変えると気づけないので、呼び側が警告を残す。
+
+    **引き伸ばしは `MAX_UPSCALE` 倍まで。** ダイアログは本体よりずっと小さいので、
+    枠に合わせて伸ばすと文字がぼやける。縮めるほうに上限は要らない。
     """
-    return (f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+    fit = (f"scale=w=min(iw*{MAX_UPSCALE}\\,{width}):"
+           f"h=min(ih*{MAX_UPSCALE}\\,{height}):"
+           f"force_original_aspect_ratio=decrease")
+    return (f"{fit},pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
             f"fps={fps},setsar=1")
 
 

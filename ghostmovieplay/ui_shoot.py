@@ -578,9 +578,12 @@ class ShootWindow:
             at = order.index(row.address) if row.address in order else -1
             if 0 <= at < len(order) - 1:
                 target = order[at + 1]                      # 次の既存ビートへ
-            else:
-                # 末尾。**ここだけ増やす** (1 画像 1 コメントを保ったまま
-                # 「1 ステップに何枚も」を満たすのがビートの数)
+            elif not (row.say or row.do):
+                # 末尾で、**まだ何も書かれていないビート**を撮ったときだけ増やす。
+                # 骨だけの台本を撮りながら組み立てる道はこれで残る (1 画像
+                # 1 コメントを保ったまま「1 ステップに何枚も」を満たすのが
+                # ビートの数)。台本が書いてあるなら、最後を撮ったら終わり ——
+                # 空のビートが 1 つ余計に残る (実際に残った)
                 made = self.doc.add_beat(row.scene_index, row.beat_index)
                 target = f"{row.scene_id}#{made}"
         self.current = None

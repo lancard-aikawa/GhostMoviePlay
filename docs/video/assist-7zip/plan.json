@@ -14,8 +14,8 @@
     "teardown": "python make_sample.py --clean"
   },
   "video": {
-    "width": 1280,
-    "height": 720,
+    "width": 1440,
+    "height": 752,
     "fps": 30,
     "leader": 2.5,
     "trailer": 1.2
@@ -53,25 +53,29 @@
           "do": "まず「起動」を押す —— %USERPROFILE%\\gmp-sample にダミーが作られ、7-Zip がそこを開く（このフォルダは「終了」で消える使い捨て）。出てきた画面をそのまま撮る",
           "say": "社外に渡すファイルを、パスワードを付けて守ることにします。",
           "subtitle": "社外に渡すファイルを、パスワードを付けて守る",
-          "audio": "voice/000_leak.wav"
+          "audio": "voice/000_leak.wav",
+          "shot": "shots/0005-leak.png"
         },
         {
           "do": "ファイルを 4 つとも選ぶ（Ctrl+A）→ ツールバー左端の緑の「追加」を押す。メニューには圧縮の項目が無いので、押すのはツールバーのほう（エクスプローラーの「ファイル > 7-Zip > 圧縮」でも同じダイアログだが、撮るのは 7-Zip File Manager）",
           "say": "四つとも選んで、書庫に追加します。",
-          "audio": "voice/001_leak.wav"
+          "audio": "voice/001_leak.wav",
+          "shot": "shots/0006-leak.png"
         },
         {
           "do": "「圧縮」ダイアログが出たら撮る画面に戻る（ウィンドウは自動で切り替わる）。アーカイブ形式=zip、暗号化方式=AES-256、パスワード=1234、「パスワードを表示」を入れた状態を撮る",
           "say": "形式は zip。パスワードを入れて、暗号化方式は AES 256 にします。用意されている中でいちばん強いものです。",
           "subtitle": "形式は zip、暗号化方式は AES-256。いちばん強いものを選ぶ",
-          "audio": "voice/002_leak.wav"
+          "audio": "voice/002_leak.wav",
+          "shot": "shots/0008-leak.png"
         },
         {
           "do": "OK を押して gmp-sample.zip を作る → それをダブルクリックして開く（パスワードを訊かれず、ファイル名が並ぶ）",
           "say": "ところが、出来た書庫を開くとパスワードを訊かれません。中のファイル名が、そのまま全部読めます。",
           "subtitle": "開いてもパスワードを訊かれず、ファイル名が全部読める",
           "hold": 3.0,
-          "audio": "voice/003_leak.wav"
+          "audio": "voice/003_leak.wav",
+          "shot": "shots/0009-leak.png"
         }
       ]
     },
@@ -83,14 +87,16 @@
           "do": "そのまま（開いた zip の一覧を映しておく。画面を動かさない）",
           "say": "原因は暗号の強さではありません。zip という形式が、ファイル名の一覧を暗号化しない決まりだからです。",
           "subtitle": "zip は「ファイル名の一覧」を暗号化しない決まりになっている",
-          "audio": "voice/004_why.wav"
+          "audio": "voice/004_why.wav",
+          "shot": "shots/0001-why.png"
         },
         {
           "do": "「..」で一つ上に戻り、もう一度ツールバーの「追加」を押して圧縮ダイアログを出す。暗号化の欄に「ファイル名を暗号化」が無いことを映す",
           "say": "さきほどの画面をもう一度見ると、暗号化の欄に「ファイル名を暗号化」という項目がありません。",
           "subtitle": "zip では「ファイル名を暗号化」の項目が出てこない",
           "hold": 2.5,
-          "audio": "voice/005_why.wav"
+          "audio": "voice/005_why.wav",
+          "shot": "shots/0002-why.png"
         }
       ]
     },
@@ -102,21 +108,24 @@
           "do": "アーカイブ形式を 7z に変える → 現れた「ファイル名を暗号化」にチェックを入れる（圧縮先が gmp-sample.7z に変わる）",
           "say": "形式を 7z に変えると、その項目が現れます。チェックを入れて作り直します。",
           "subtitle": "形式を 7z にすると「ファイル名を暗号化」が現れる",
-          "audio": "voice/006_fix.wav"
+          "audio": "voice/006_fix.wav",
+          "shot": "shots/0002-fix.png"
         },
         {
           "do": "OK を押して作る → gmp-sample.7z をダブルクリックする（開いた時点でパスワードを訊かれる）",
           "say": "今度は開いた時点でパスワードを訊かれます。ファイル名は一つも見えません。",
           "subtitle": "開いた時点でパスワードを訊かれ、ファイル名は見えない",
           "hold": 3.0,
-          "audio": "voice/007_fix.wav"
+          "audio": "voice/007_fix.wav",
+          "shot": "shots/0003-fix.png"
         },
         {
           "do": "パスワードを入れて中身を映す。そのまま締める",
           "say": "隠せるかどうかを決めるのは、暗号の強さではなく書庫の形式です。",
           "subtitle": "隠せるかを決めるのは暗号の強さではなく書庫の形式",
           "hold": 2.5,
-          "audio": "voice/008_fix.wav"
+          "audio": "voice/008_fix.wav",
+          "shot": "shots/0004-fix.png"
         }
       ]
     }

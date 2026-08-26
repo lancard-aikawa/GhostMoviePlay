@@ -538,3 +538,19 @@ def test_launching_beats_whatever_you_last_touched(shooter, monkeypatch):
     shooter.on_launch()
     shooter._await_window(3)
     assert shooter.target.title == "電卓"
+
+
+def test_shooting_the_last_written_beat_does_not_add_one(shooter, monkeypatch):
+    """**台本が書いてあるなら、最後を撮ったら終わり。** 空のビートが 1 つ
+    余計に残っていた (実際に残った)。
+    """
+    monkeypatch.setattr(capture, "shot", lambda handle, out: out)
+    shooter.doc.set_text(0, 0, say="最後のひとこと", do="そのまま")
+    shooter.current = None
+    shooter.refresh()
+    shooter.picker.current(0)
+    shooter._on_pick_window()
+    shooter.advance.set(True)
+
+    shooter.on_shot()
+    assert len(shooter.doc.rows()) == 1
