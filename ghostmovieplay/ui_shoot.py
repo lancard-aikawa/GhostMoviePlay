@@ -1,4 +1,4 @@
-"""支援収録の窓 (tkinter). 人が操作して、撮れたものをビートに貯める.
+"""支援収録のウィンドウ (tkinter). 人が操作して、撮れたものをビートに貯める.
 
 **自動操作が届かない相手のための道。** ログインの要る業務アプリ、canvas、OAuth
 は `gmp record` が原理的に届かない。そこは人が手を動かすしかないので、画面は
@@ -7,7 +7,7 @@
 **ここも「決める」画面ではない。** コメント (`say`) は打てるが、**画面から
 Claude を呼ぶボタンは置かない** —— 言葉は Claude の領分で、頼み方は
 `撮る面` の「claude に書かせる」に 1 か所だけある (「画面は Claude の代わりを
-しない」)。Claude が plan.json の say を書いたら、この窓は開き直せば読める。
+しない」)。Claude が plan.json の say を書いたら、このウィンドウは開き直せば読める。
 
 **呼び名は台本に揃える。** 人が「セクション / ステップ」と呼ぶものは、
 plan.json では **シーン / ビート**。同じものに 2 つ名前を付けると、
@@ -62,10 +62,10 @@ def default_title(plan_path: Path) -> str:
 
 
 class ShootWindow:
-    """支援収録の窓."""
+    """支援収録のウィンドウ."""
 
     TICK = 200              # 録画中の時計の更新間隔 (ms)
-    LAUNCH_POLL = 800       # 起動したアプリの窓が出るのを待つ間隔 (ms)
+    LAUNCH_POLL = 800       # 起動したアプリのウィンドウが出るのを待つ間隔 (ms)
     LAUNCH_TRIES = 25       # 上の回数 (= 20 秒ほど)
 
     def __init__(self, parent: tk.Misc, plan_path: Path, on_saved=None):
@@ -76,14 +76,14 @@ class ShootWindow:
         self.found: list[capture.Window] = []
         self.recording: capture.Recording | None = None
         self.pending_clip: tuple[Row, str] | None = None
-        self.trouble = ""                   # 窓を数えられなかった理由
+        self.trouble = ""                   # ウィンドウを数えられなかった理由
         self.app_proc: subprocess.Popen | None = None
         self._photo = None                  # PhotoImage は参照を持たないと消える
 
         if self.path.is_file():
             self.doc = Doc.load(self.path)
         else:
-            # **まだ台本が無いときは骨から作る。** 窓を選ぶまで window は空で、
+            # **まだ台本が無いときは骨から作る。** ウィンドウを選ぶまで window は空で、
             # 空のままでは保存しない (「設定済みに見える嘘」を焼かない)
             self.doc = Doc.create(self.path, skeleton(
                 default_title(self.path), "", 1280, 720))
@@ -107,7 +107,7 @@ class ShootWindow:
         self.refresh()
         # **戻ってきたら自分で数え直す。** ダイアログが開くのは撮っている最中の
         # 普通のことで、そのたびに「調べ直す」を押させる筋合いは無い
-        # (ボタンは残してある —— こちらが焦点を持ったまま窓が増えることがある)
+        # (ボタンは残してある —— こちらが焦点を持ったままウィンドウが増えることがある)
         self.window.bind("<FocusIn>", self._on_focus, add="+")
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -139,7 +139,7 @@ class ShootWindow:
     def _build_head(self) -> None:
         head = tk.Frame(self.window)
         head.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 2))
-        tk.Label(head, text="撮る窓").pack(side=tk.LEFT)
+        tk.Label(head, text="ウィンドウ").pack(side=tk.LEFT)
         self.picker = ttk.Combobox(head, state="readonly", width=64)
         self.picker.pack(side=tk.LEFT, padx=6)
         self.picker.bind("<<ComboboxSelected>>", self._on_pick_window)
@@ -160,10 +160,10 @@ class ShootWindow:
         self.advance = tk.BooleanVar(value=True)
         tk.Checkbutton(bar, text="撮ったら次のビートを作る",
                        variable=self.advance).pack(side=tk.LEFT, padx=12)
-        # **録画だけ重なりに弱い。** 静止画は窓自身に描かせるので隠れていても
-        # 撮れるが、録画は画面の矩形を舐めるので手前の窓が写る
+        # **録画だけ重なりに弱い。** 静止画はウィンドウ自身に描かせるので隠れていても
+        # 撮れるが、録画は画面の矩形を舐めるので手前のウィンドウが写る
         tk.Label(bar, fg="#666",
-                 text="録画中は窓を隠さないこと（静止画は隠れていても撮れます）").pack(
+                 text="録画中はウィンドウを隠さないこと（静止画は隠れていても撮れます）").pack(
             side=tk.LEFT)
         # 撮れないときの理由。**空のときは何も出さない** (常に出すと帯が説明で埋まる)
         self.capture_note = tk.Label(self.window, text="", anchor="w", fg="#b00000",
@@ -230,11 +230,11 @@ class ShootWindow:
         self.subtitle = tk.Text(right, height=3, wrap="char")
         self.subtitle.pack(side=tk.TOP, fill=tk.X)
 
-    # --- 窓えらび ----------------------------------------------------
+    # --- ウィンドウえらび ----------------------------------------------------
     def reload_windows(self) -> None:
-        """撮れる窓を数え直す.
+        """撮れるウィンドウを数え直す.
 
-        **いま選んでいる窓を優先して選び直す。** ダイアログを撮ろうとして
+        **いま選んでいるウィンドウを優先して選び直す。** ダイアログを撮ろうとして
         選んだのに、一覧を更新した拍子に本体へ戻ってしまうと、撮る直前に
         黙って相手が入れ替わる。
         """
@@ -254,7 +254,7 @@ class ShootWindow:
         self.trouble = ""
         self.picker.configure(values=[w.label for w in self.found])
         self.picker.set("")
-        # 選んでいた窓 → 台本が覚えている窓 の順で選び直す (開くたびに選ばせない)
+        # 選んでいたウィンドウ → 台本が覚えているウィンドウ の順で選び直す (開くたびに選ばせない)
         for wanted in (holding, self.doc.window):
             if not wanted:
                 continue
@@ -269,7 +269,7 @@ class ShootWindow:
     def why_blocked(self) -> str:
         """撮れない理由. 撮れるなら空文字.
 
-        **黙って未選択にしない。** 対象がまだ立っていないだけなのか、別の窓を
+        **黙って未選択にしない。** 対象がまだ立っていないだけなのか、別のウィンドウを
         選べばいいのかは画面からしか分からない —— 撮ろうとして初めてモーダルで
         言われるのでは遅い (「押せないボタンには必ず理由を出す」)。
         """
@@ -282,9 +282,9 @@ class ShootWindow:
         if self.doc.window:
             more = ("「起動」で開けます" if (self.doc.raw.get("app") or {}).get("start")
                     else "アプリを開いてから「調べ直す」")
-            return (f"対象の窓「{self.doc.window}」が見つかりません。{more}。"
-                    "別の窓 (ダイアログなど) を撮るなら上の一覧から選んでください")
-        return "撮る窓を上の一覧から選んでください"
+            return (f"対象のウィンドウ「{self.doc.window}」が見つかりません。{more}。"
+                    "別のウィンドウ (ダイアログなど) を撮るなら上の一覧から選んでください")
+        return "ウィンドウを上の一覧から選んでください"
 
     def _refresh_capture(self) -> None:
         """撮影のボタンと、その理由を出し分ける."""
@@ -297,7 +297,7 @@ class ShootWindow:
         self.clip_button.configure(state=state)
 
     def _on_focus(self, event) -> None:
-        """窓に戻ってきたら数え直す.
+        """ウィンドウに戻ってきたら数え直す.
 
         撮っている最中にダイアログが開くのは普通のことなので、**戻ってきた
         ことを見て自分で調べ直す** (`ui_run` と同じ作法)。録画中は触らない。
@@ -316,8 +316,8 @@ class ShootWindow:
     def _on_pick_window(self, _event=None) -> None:
         """撮る相手を選ぶ. **選び直しても `app.window` は書き換えない。**
 
-        1 つのアプリの操作は**窓 1 つでは終わらない** —— 7-Zip なら圧縮
-        ダイアログは別の exe の別の窓で、そこも撮る。ここで毎回上書きすると、
+        1 つのアプリの操作は**ウィンドウ 1 つでは終わらない** —— 7-Zip なら圧縮
+        ダイアログは別の exe の別のウィンドウで、そこも撮る。ここで毎回上書きすると、
         ダイアログを撮った拍子に「この 1 本の対象」がダイアログになる。
         コンボは「いまどれを撮るか」で、`app.window` は「主な対象」。
         """
@@ -360,7 +360,7 @@ class ShootWindow:
         # いることがあるので、この 1 本が何を撮る動画なのかは別に見えている必要がある
         target = self.doc.window or "(まだ決まっていません)"
         picked = self.target.title if self.target else "未選択"
-        self.status.set(f"対象: {target}   撮る窓: {picked}   {summary(self.rows)}   "
+        self.status.set(f"対象: {target}   ウィンドウ: {picked}   {summary(self.rows)}   "
                         f"{width}x{height}   → {self.outdir}")
         self._refresh_capture()
 
@@ -402,7 +402,7 @@ class ShootWindow:
             self.preview.configure(image="", text="(表示できません)", height=SHOT_LINES)
         else:
             try:
-                # **master を渡す。** 省くと「既定の root」に乗るので、窓を
+                # **master を渡す。** 省くと「既定の root」に乗るので、ウィンドウを
                 # 作り直す場面でたまに読めなくなる
                 self._photo = tk.PhotoImage(master=self.window, file=str(small))
             except tk.TclError:
@@ -457,7 +457,7 @@ class ShootWindow:
             return None
         window = self.target
         if window is None:
-            messagebox.showinfo("撮れません", "上で撮る窓を選んでください",
+            messagebox.showinfo("撮れません", "上でウィンドウを選んでください",
                                 parent=self.window)
             return None
         return window
@@ -624,13 +624,13 @@ class ShootWindow:
                                  parent=self.window)
             return
         self.launch_button.configure(text="終了")
-        self.status.set(f"起動: {start}   (窓が出るのを待っています)")
+        self.status.set(f"起動: {start}   (ウィンドウが出るのを待っています)")
         # **起動はこちらが焦点を持ったまま進む**ので `<FocusIn>` が来ない。
         # 1 回だけ見て諦めると、重いアプリで黙って未選択のままになる
         self._await_window(self.LAUNCH_TRIES)
 
     def _await_window(self, left: int) -> None:
-        """対象の窓が出るまで数え直す. 出たら止める."""
+        """対象のウィンドウが出るまで数え直す. 出たら止める."""
         if left <= 0 or self.app_proc is None:
             return
         self.reload_windows()
@@ -664,10 +664,10 @@ class ShootWindow:
         self.capture_text()
         if not self.doc.window:
             messagebox.showinfo("保存しません",
-                                "先に撮る窓を選んでください（app.window に書きます）",
+                                "先にウィンドウを選んでください（app.window に書きます）",
                                 parent=self.window)
             return False
-        # **他所で書き換わっていたら訊く。** この窓は構造ごと書き戻すので、
+        # **他所で書き換わっていたら訊く。** このウィンドウは構造ごと書き戻すので、
         # Claude が同じ plan.json の say を書いている最中に上書きすると、
         # 書かれた文が黙って消える
         if self.doc.stale() and not messagebox.askyesno(
@@ -696,7 +696,7 @@ class ShootWindow:
                 "保存しますか", "保存していない変更があります。破棄して閉じますか。",
                 default=messagebox.NO, parent=self.window):
             return
-        # **閉じるときも後片付けまでやる。** 「終了」を押さずに窓を閉じる人は
+        # **閉じるときも後片付けまでやる。** 「終了」を押さずにウィンドウを閉じる人は
         # 必ずいるので、使い捨てのデータを置き去りにしない
         if self.app_proc is not None and self.app_proc.poll() is None:
             self._shutdown()

@@ -1,26 +1,26 @@
 """ウィンドウ単位の画面キャプチャ (Windows).
 
 **支援収録 (`gmp shoot`) の撮影担当。** 自動操作が届かない相手 —— ログインの要る
-業務アプリ、canvas、OAuth —— を人が操作し、その窓だけを撮る。
+業務アプリ、canvas、OAuth —— を人が操作し、そのウィンドウだけを撮る。
 
-**必ず窓単位で撮る。デスクトップ全体は撮らない。**
-窓を 1 つ起こすだけで、撮る対象と関係のないものが画面に載る (検証中、メモ帳が
-前のセッションのタブを復元して機密ファイル名を表示した)。範囲を窓に閉じておけば、
+**必ずウィンドウ単位で撮る。デスクトップ全体は撮らない。**
+ウィンドウを 1 つ起こすだけで、撮る対象と関係のないものが画面に載る (検証中、メモ帳が
+前のセッションのタブを復元して機密ファイル名を表示した)。範囲をウィンドウに閉じておけば、
 撮る本人が見ていないものは入らない。
 
-静止画は `PrintWindow` で**窓自身に描かせる**ので、手前に別の窓があっても画面外に
+静止画は `PrintWindow` で**ウィンドウ自身に描かせる**ので、手前に別のウィンドウがあっても画面外に
 はみ出していても綺麗に撮れる。代わりにマウスカーソルは写らない。
 動画は `ffmpeg -f gdigrab` で画面の矩形を舐めるので**カーソルは写るが重なりに弱い**。
-この違いは埋められないので、録画中は窓を隠さないこと。
+この違いは埋められないので、録画中はウィンドウを隠さないこと。
 
 実測して分かったこと (Windows 11):
 
 - `PrintWindow` の第 3 引数は **`2` (`PW_RENDERFULLCONTENT`) が要る**。`0` だと
   DirectComposition で描くアプリ (WinUI・Chromium・Electron) が真っ黒になる
 - ストア配信のアプリは launcher が別 PID に受け渡して終了するので、
-  **起動したときの PID を覚えても窓に辿り着けない**。窓の側から掴み直す
+  **起動したときの PID を覚えてもウィンドウに辿り着けない**。ウィンドウの側から掴み直す
 - `GetWindowRect` は不可視のリサイズ枠を含む。録画の範囲にそのまま使うと
-  窓の外が写り込むので、`DWMWA_EXTENDED_FRAME_BOUNDS` のほうを使う
+  ウィンドウの外が写り込むので、`DWMWA_EXTENDED_FRAME_BOUNDS` のほうを使う
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def _api():
 
 @dataclass(frozen=True)
 class Window:
-    """撮れる窓 1 つ."""
+    """撮れるウィンドウ 1 つ."""
 
     handle: int
     title: str
@@ -117,7 +117,7 @@ def _process_name(user32, handle: int) -> str:
 
 
 def windows(min_size: int = 120) -> list[Window]:
-    """いま開いている窓の一覧. **画素は返さない** ので安く安全に呼べる.
+    """いま開いているウィンドウの一覧. **画素は返さない** ので安く安全に呼べる.
 
     撮る前にこれで当たりを付ける手順にしておけば、何が写るか分かったうえで撮れる。
     """
@@ -136,7 +136,7 @@ def windows(min_size: int = 120) -> list[Window]:
         title = buf.value.strip()
         if not title:
             return True
-        # UWP の隠し窓は EnumWindows に出てくるが描画されていない
+        # UWP の隠しウィンドウは EnumWindows に出てくるが描画されていない
         cloaked = wintypes.DWORD()
         dwmapi.DwmGetWindowAttribute(
             wintypes.HWND(handle), DWMWA_CLOAKED,
@@ -160,7 +160,7 @@ def find(title: str) -> Window | None:
     """タイトルの部分一致で 1 つ選ぶ. 複数当たったら先頭.
 
     **起動したときの PID では掴まない。** ストア配信のアプリは launcher が
-    別 PID に受け渡して終了するので、PID を覚えても永遠に窓が見つからない。
+    別 PID に受け渡して終了するので、PID を覚えても永遠にウィンドウが見つからない。
     """
     if not title:
         return None
@@ -191,20 +191,20 @@ def even(value: int) -> int:
 
 
 def shot(handle: int, out: str | Path) -> Path:
-    """窓 1 つを PNG で撮る. **重なっていても画面外でも撮れる**.
+    """ウィンドウ 1 つを PNG で撮る. **重なっていても画面外でも撮れる**.
 
-    最小化中の窓は中身を持たないので撮れない (呼ぶ前に確かめること)。
+    最小化中のウィンドウは中身を持たないので撮れない (呼ぶ前に確かめること)。
     """
     user32, gdi32, dwmapi = _api()
     if not user32.IsWindow(handle):
-        raise CaptureError("その窓はもうありません")
+        raise CaptureError("そのウィンドウはもうありません")
     if user32.IsIconic(handle):
-        raise CaptureError("最小化されている窓は撮れません (元に戻してください)")
+        raise CaptureError("最小化されているウィンドウは撮れません (元に戻してください)")
 
     _left, _top, width, height = _rect(user32, dwmapi, handle, visible=False)
     width, height = even(width), even(height)
     if width < 2 or height < 2:
-        raise CaptureError("窓の大きさが取れません")
+        raise CaptureError("ウィンドウの大きさが取れません")
 
     window_dc = user32.GetWindowDC(handle)
     if not window_dc:
@@ -261,11 +261,11 @@ def _encode_png(raw: bytes, width: int, height: int, out: Path) -> Path:
 
 
 class Recording:
-    """窓の矩形を録画し続ける. `stop()` まで走る.
+    """ウィンドウの矩形を録画し続ける. `stop()` まで走る.
 
-    **`gdigrab` は画面の矩形を舐める方式**なので、録画中に別の窓を手前に出すと
+    **`gdigrab` は画面の矩形を舐める方式**なので、録画中に別のウィンドウを手前に出すと
     それが写る。`PrintWindow` のような重なり耐性は無い —— 埋められない差なので、
-    呼び側が「窓を隠さないでください」と言うこと。
+    呼び側が「ウィンドウを隠さないでください」と言うこと。
     """
 
     # ffmpeg に 'q' を送ってから諦めるまで
@@ -276,9 +276,9 @@ class Recording:
         self.fps = fps
         user32, _gdi32, dwmapi = _api()
         if not user32.IsWindow(handle):
-            raise CaptureError("その窓はもうありません")
+            raise CaptureError("そのウィンドウはもうありません")
         if user32.IsIconic(handle):
-            raise CaptureError("最小化されている窓は撮れません")
+            raise CaptureError("最小化されているウィンドウは撮れません")
         left, top, width, height = _rect(user32, dwmapi, handle, visible=True)
         self.width, self.height = even(width), even(height)
         self.out.parent.mkdir(parents=True, exist_ok=True)

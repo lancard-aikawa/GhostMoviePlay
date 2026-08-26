@@ -99,7 +99,7 @@ def test_empty_subtitle_removes_key(tmp_path):
 
 
 def test_stale_detects_outside_change(tmp_path):
-    """**他所で書き換わったら気づく。** この窓は構造ごと書き戻すので、
+    """**他所で書き換わったら気づく。** このウィンドウは構造ごと書き戻すので、
     Claude が say を書いている最中に黙って上書きしてはいけない.
     """
     path = base(tmp_path)

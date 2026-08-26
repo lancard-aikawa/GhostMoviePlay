@@ -188,7 +188,7 @@ def test_warnings_reach_timing_json(tmp_path, spy):
 
 
 def test_size_mismatch_is_a_warning_not_a_failure(tmp_path, spy, monkeypatch):
-    """窓の大きさを途中で変えても組み立てはできる (黒帯で埋める). 黙らない."""
+    """ウィンドウの大きさを途中で変えても組み立てはできる (黒帯で埋める). 黙らない."""
     monkeypatch.setattr(mod, "_size_of", lambda path: (640, 480))
     plan = make_plan([Beat(say="a", hold=1.0, shot=shot(tmp_path))])
     result = mod.assemble(plan, tmp_path, verbose=False)

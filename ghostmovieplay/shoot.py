@@ -66,7 +66,7 @@ def skeleton(title: str, window: str, width: int, height: int,
              fps: int = 30, project: str | None = None) -> dict[str, Any]:
     """支援収録の plan.json の骨.
 
-    **収録対象を嘘で埋めない** (`gmp init` の雛形と同じ規則)。窓のタイトルだけは
+    **収録対象を嘘で埋めない** (`gmp init` の雛形と同じ規則)。ウィンドウのタイトルだけは
     人が選んだ実物なので値として書く。say は空のまま —— そこは Claude の領分で、
     空なら「まだ書いていない」と見分けがつく。
     """
@@ -85,7 +85,7 @@ def skeleton(title: str, window: str, width: int, height: int,
 class Doc:
     """plan.json を生の辞書のまま持ち回す編集用の入れ物.
 
-    **保存前に他所で変わっていないかを見る。** この窓が構造ごと書き戻すので、
+    **保存前に他所で変わっていないかを見る。** このウィンドウが構造ごと書き戻すので、
     Claude が同じファイルの say を書いている最中に上書きすると、書かれた文が
     黙って消える。`stale()` が真なら呼び側が訊いてから保存する。
     """

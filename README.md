@@ -135,6 +135,9 @@ uv run gmp build docs/video/intro/plan.json --voice   # 約 100 秒
 **`素材` と `ショット` は別物。** `素材` は収録が作る無音の映像 1 本で、
 `ショット` は支援収録で人が撮ったビート 1 つぶんの画（それを並べると素材になる）。
 
+**GUI のそれは `ウィンドウ`。** 画面に出す言葉で `窓` と書かない
+（`窓` は claude を開くコンソールを指す散文にだけ残っている）。
+
 **`1本` は数え方としてしか使わない**（「動画が 1 本もありません」「動画 1 本ぶんの
 フォルダ」）。物の名前に使うと、`台本を作る` の隣の `1本を作る` が台本の数のことに
 読めるし、選ぶ欄の見出しにすると何を選ぶのか言えていない（画像を選ぶ欄に
@@ -218,7 +221,7 @@ gmp.toml の voice.dict に読みを足して。
 | `gmp kana <plan.json>` | 各ビートの読みを確認する（合成しない） |
 | `gmp voice <plan.json>` | `say` を音声化 → `voice/*.wav` |
 | `gmp voices` | VOICEVOX の話者一覧 |
-| `gmp shoot [plan.json]` | 支援収録: 人が操作した窓を撮ってビートに貯める（自動操作が届かない相手だけ） |
+| `gmp shoot [plan.json]` | 支援収録: 人が操作したウィンドウを撮ってビートに貯める（自動操作が届かない相手だけ） |
 | `gmp record <plan.json>` | 収録 → `raw.webm` + `timing.json`（止めない失敗は `warnings` に残る）。支援収録なら撮らずにショットを並べて `raw.mp4` |
 | `gmp render [timing.json]` | 字幕・音声を乗せて `output.mp4` |
 | `gmp build <plan.json>` | (voice +) record + render |

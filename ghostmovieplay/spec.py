@@ -431,7 +431,7 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
     # actions も要らず、代わりに「並びを決めて say を書く」が仕事になる
     window = values["app"].get("window")
     if window:
-        target = f"- 撮る窓: `{window}` (人がこの窓を操作します)"
+        target = f"- 撮るウィンドウ: `{window}` (人がこのウィンドウを操作します)"
         extra = "\n" + ASSIST_SCHEMA_NOTE
         done = ("シーンとビートの並びを決めて `say` を書いたら、そこで完了です。\n"
                 "このあと人が `gmp shoot` の画面でビートごとに画面を撮り、\n"

@@ -256,14 +256,14 @@ def assisted(project):
 
 
 def test_the_window_is_baked_into_the_plan_values(assisted):
-    """撮る窓も設定なので、Pass1 で plan.json に焼き切る."""
+    """撮るウィンドウも設定なので、Pass1 で plan.json に焼き切る."""
     assert _values(build_request(parse(assisted)))["app"]["window"] == "電卓"
 
 
 def test_assisted_request_asks_for_the_window_not_the_url(assisted):
     text = build_request(parse(assisted))
-    assert "撮る窓: `電卓`" in text
-    assert "人がこの窓を操作します" in text
+    assert "撮るウィンドウ: `電卓`" in text
+    assert "人がこのウィンドウを操作します" in text
 
 
 def test_assisted_request_forbids_actions(assisted):

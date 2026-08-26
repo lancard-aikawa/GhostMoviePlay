@@ -84,7 +84,7 @@ class Video:
 @dataclass
 class App:
     url: str = ""
-    # 支援収録の相手にする窓のタイトル (部分一致)。**ここが埋まっていると
+    # 支援収録の相手にするウィンドウのタイトル (部分一致)。**ここが埋まっていると
     # 「人が操作して撮る」1 本**になり、url は要らなくなる (ブラウザを開かない)。
     # PID ではなくタイトルで掴むのは、ストア配信のアプリが launcher から
     # 別 PID に受け渡して終了するため
@@ -331,8 +331,8 @@ def load(path: str | Path) -> Plan:
             scene.beats.append(beat)
         plan.scenes.append(scene)
 
-    # **支援収録は url を要らない。** ブラウザを開かず、人が操作した窓を撮るので、
-    # 収録対象は app.window (窓のタイトル) のほうで決まる
+    # **支援収録は url を要らない。** ブラウザを開かず、人が操作したウィンドウを撮るので、
+    # 収録対象は app.window (ウィンドウのタイトル) のほうで決まる
     if not plan.app.url and not plan.app.window:
         raise PlanError(f"{path}: app.url が必要です (支援収録なら app.window)")
     return plan

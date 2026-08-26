@@ -269,12 +269,12 @@ def cmd_ui(args) -> int:
 
 
 def cmd_shoot(args) -> int:
-    """支援収録の画面を開く. 人が操作した窓を撮ってビートに貯める.
+    """支援収録の画面を開く. 人が操作したウィンドウを撮ってビートに貯める.
 
     **自動操作が届かない相手のための道** (ログインの要る業務アプリ・canvas・
     OAuth)。撮った素材は `gmp record` が並べて 1 本にする。
 
-    plan.json がまだ無ければ骨から作る。窓を選ぶまでは保存しない ——
+    plan.json がまだ無ければ骨から作る。ウィンドウを選ぶまでは保存しない ——
     「設定済みに見える嘘」を焼かないため (`gmp init` の雛形と同じ規則)。
     """
     from . import capture
@@ -306,7 +306,7 @@ def cmd_shoot(args) -> int:
         return _err(str(exc))
     def close() -> None:
         # **閉じるのを断られたら抜けない** (録画中など)。抜けると mainloop が
-        # 終わって、窓が出たままプロセスだけ死ぬ
+        # 終わって、ウィンドウが出たままプロセスだけ死ぬ
         window.on_close()
         if not window.window.winfo_exists():
             root.quit()
@@ -930,7 +930,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--run", action="store_true", help="「撮る」面から開く")
     p.set_defaults(func=cmd_ui)
 
-    p = sub.add_parser("shoot", help="支援収録: 人が操作した窓を撮ってビートに貯める")
+    p = sub.add_parser("shoot", help="支援収録: 人が操作したウィンドウを撮ってビートに貯める")
     p.add_argument("plan", nargs="?", default="plan.json",
                    help="plan.json (無ければ骨から作る)。フォルダや video.md でもよい")
     p.set_defaults(func=cmd_shoot)

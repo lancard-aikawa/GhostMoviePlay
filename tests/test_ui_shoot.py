@@ -1,4 +1,4 @@
-"""支援収録の窓.
+"""支援収録のウィンドウ.
 
 人が操作して撮る道なので、**画面が壊れるとショットが迷子になる**。ここで見るのは
 「どのビートに入るのか」「打った文字が消えないか」「保存で他人の変更を潰さないか」。
@@ -60,17 +60,17 @@ def test_default_title_uses_the_folder(tmp_path):
         == "getting-started"
 
 
-# --- 窓 ---------------------------------------------------------------
+# --- ウィンドウ ---------------------------------------------------------------
 @pytest.fixture
 def shooter(tk_root, tmp_path, monkeypatch):
-    """撮る窓を 1 つ開く. 確認ダイアログは既定「いいえ」に潰す.
+    """撮るウィンドウを 1 つ開く. 確認ダイアログは既定「いいえ」に潰す.
 
     潰さないと、想定外のところで開いたモーダルがテストごと止める。
     """
     monkeypatch.setattr(ui_shoot.messagebox, "askyesno", lambda *a, **k: False)
     monkeypatch.setattr(ui_shoot.messagebox, "showerror", lambda *a, **k: None)
     monkeypatch.setattr(ui_shoot.messagebox, "showinfo", lambda *a, **k: None)
-    # 実際の窓は数えない (走らせる機械によって結果が変わる)
+    # 実際のウィンドウは数えない (走らせる機械によって結果が変わる)
     monkeypatch.setattr(capture, "windows", lambda **k: [
         capture.Window(handle=1, title="電卓", process="calc.exe",
                        width=800, height=600)])
@@ -95,7 +95,7 @@ def test_the_bottom_bar_stays_on_screen(shooter):
     window.update_idletasks()
     for child in window.pack_slaves():
         assert child.winfo_y() < window.winfo_height(), \
-            "下の帯が窓の外に出ている"
+            "下の帯がウィンドウの外に出ている"
 
 
 def test_typing_survives_moving_between_beats(shooter):
@@ -151,7 +151,7 @@ def test_dropping_a_shot_keeps_the_file(shooter, tmp_path):
 
 
 def test_saving_without_a_window_is_refused(shooter):
-    """窓が決まっていない plan.json を保存すると、読めない台本が残る."""
+    """ウィンドウが決まっていない plan.json を保存すると、読めない台本が残る."""
     shooter.doc.set_window("")
     assert shooter.on_save() is False
 
@@ -225,19 +225,19 @@ def test_a_failed_capture_leaves_the_beat_alone(shooter, monkeypatch):
 
 def test_shooting_without_a_window_does_nothing(shooter, monkeypatch):
     monkeypatch.setattr(capture, "shot",
-                        lambda handle, out: pytest.fail("窓を選ばずに撮った"))
+                        lambda handle, out: pytest.fail("ウィンドウを選ばずに撮った"))
     shooter.picker.set("")
     shooter.on_shot()
 
 
-# --- 窓を選び直す -----------------------------------------------------
+# --- ウィンドウを選び直す -----------------------------------------------------
 def dialog(title="圧縮"):
     return capture.Window(handle=9, title=title, process="7zG.exe",
                           width=630, height=491)
 
 
 def test_picking_a_dialog_does_not_steal_the_target(shooter, monkeypatch):
-    """**1 つのアプリの操作は窓 1 つでは終わらない。** ダイアログを撮った拍子に
+    """**1 つのアプリの操作はウィンドウ 1 つでは終わらない。** ダイアログを撮った拍子に
     「この 1 本の対象」がダイアログになってはいけない.
     """
     shooter.picker.current(0)
@@ -280,7 +280,7 @@ def test_refreshing_keeps_the_window_you_picked(shooter, monkeypatch):
 
 
 def test_refreshing_falls_back_to_the_target(shooter, monkeypatch):
-    """選んでいた窓が消えたら、主な対象に戻る (開くたびに選ばせない)."""
+    """選んでいたウィンドウが消えたら、主な対象に戻る (開くたびに選ばせない)."""
     both = [dialog(), capture.Window(handle=1, title="電卓", process="calc.exe",
                                      width=800, height=600)]
     monkeypatch.setattr(capture, "windows", lambda **k: both)
@@ -367,7 +367,7 @@ class _FakeProc:
 
 # --- 撮れない理由を出す -----------------------------------------------
 def test_a_found_target_is_selected_without_asking(shooter):
-    """開くたびに選ばせない (台本が覚えている窓に自分で当てる)."""
+    """開くたびに選ばせない (台本が覚えているウィンドウに自分で当てる)."""
     assert shooter.target is not None
     assert shooter.why_blocked() == ""
     assert shooter.shot_button.cget("state") == "normal"
@@ -375,7 +375,7 @@ def test_a_found_target_is_selected_without_asking(shooter):
 
 def test_a_missing_target_says_so(shooter, monkeypatch):
     """**黙って未選択にしない。** 撮ろうとして初めてモーダルで言うのでは遅い."""
-    monkeypatch.setattr(capture, "windows", lambda **k: [dialog("無関係な窓")])
+    monkeypatch.setattr(capture, "windows", lambda **k: [dialog("無関係なウィンドウ")])
     shooter.reload_windows()
 
     why = shooter.why_blocked()

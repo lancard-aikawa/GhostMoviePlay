@@ -57,7 +57,7 @@ def _warn(warnings: list[dict], kind: str, where: str | None, message: str) -> N
 def _vf(width: int, height: int, fps: int) -> str:
     """どのショットも同じ大きさに揃える.
 
-    **窓の大きさが途中で変わっても組み立てられる**ようにしておく (letterbox)。
+    **ウィンドウの大きさが途中で変わっても組み立てられる**ようにしておく (letterbox)。
     ただし黙って変えると気づけないので、呼び側が警告を残す。
     """
     return (f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
@@ -226,7 +226,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
         detail = ", ".join(f"{size} ({count} ビート)" for size, count in odd_sizes.items())
         _warn(warnings, "shot_size", None,
               f"ショットの大きさが video ({width}x{height}) と違います: {detail}。"
-              f"上下左右を黒で埋めています。窓の大きさを変えずに撮り直すと綺麗になります")
+              f"上下左右を黒で埋めています。ウィンドウの大きさを変えずに撮り直すと綺麗になります")
 
     # --- つなぐ -------------------------------------------------------
     listing = work / "concat.txt"
