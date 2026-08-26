@@ -292,6 +292,10 @@ scripts とロックファイルから起動コマンド、スクリプトの `-
 **台本の構造をそのまま使う。** 人が「セクション / ステップ」と呼ぶものは
 plan.json の **シーン / ビート**で、**1 ビート = ショット 1 つ + コメント 1 つ**。
 
+- **`say` と `do` は宛先が違う。** `say` は観る人への言葉、`do` は**撮る人への
+  やること**で動画には出ない。`do` が空だと、撮る画面を開いた人は
+  **シーンの意味は読めるのに次の一手が読めない**（実際にそうなった）。
+  書くのは Pass1 —— 対象を理解している Claude が並びと一緒に書く
 - **3 階層目を作らない。** 「1 ステップに画像を何枚も」を階層で表すと plan.json が
   2 階層で足りなくなり、`voice` も `render` も `check` もそれを知る羽目になる。
   **撮るたびにビートが増える**ことで満たすと、1 画像 1 コメントがそのまま守れる
@@ -600,6 +604,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | Pass1 に別ジャンルを足す | `spec.GUIDE` の 2 番（**品質規則とジャンル指定が混ざっている**。1・3〜7 はジャンルに依らないが 2 だけが「失敗を作れ」と言う）、`skills/ghostplay/SKILL.md` の description と手順 3、`docs/governance.md`、`tests/test_request.py`。**`video.md` の `scenes` はジャンルを変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る |
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
 | 台本から直せる項目 | `plan.EDITABLE` と `plan._apply`、`ui_plan` の入力欄と `redo_for`、`docs/settings.md` の撮る面、`tests/test_ui_plan.py`。**絵を決めるもの (actions / selector) を足さない** |
+| 撮る人への指示 (`do`) | `plan.Beat.do`、`shoot.Doc.set_text`（**音声を落とさない** —— 絵にも音にも触らないため）、`ui_shoot` の一覧と入力欄、`spec.ASSIST_SCHEMA_NOTE` と SKILL.md（**書かせないと空のまま**）、`docs/plan.md`、`tests/test_shoot.py`。**`plan.EDITABLE` には入れない** —— 台本エディタは絵と音を変えるものだけ |
 | 支援収録のショットの扱い | `plan.Beat.shot`、`shoot.Doc`（**生の JSON に当てる**）、`ui_shoot`、`assemble`（欠けたら黒画 + 警告）、`ui_run._shots_item`、`docs/plan.md` の支援収録、`tests/test_shoot.py` と `tests/test_assemble.py`。**3 階層目を作らない / 複製を作らない** |
 | 撮り方 (ウィンドウ・録画) | `capture.py`、`ui_shoot` の撮影バー、`docs/plan.md`。**デスクトップ全体を撮る道を作らない**（撮る対象と関係のないものが載る） |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |

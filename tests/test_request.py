@@ -288,3 +288,15 @@ def test_automated_request_is_unchanged(project):
     assert "支援収録" not in text
     assert "`shot` を書かないでください" not in text
     assert "gmp record plan.json` を実行し" in text
+
+
+def test_assisted_request_asks_for_the_operator_instructions(assisted):
+    """**`do` が空だと撮る人は何をすればいいのか分からない。** 必ず書かせる."""
+    text = build_request(parse(assisted))
+    assert "`do` を必ず書いてください" in text
+    assert "撮る人への指示" in text
+
+
+def test_automated_request_never_mentions_do(project):
+    """自動収録に撮る人はいない (混ぜると actions の代わりに書き始める)."""
+    assert "`do` を必ず書いてください" not in build_request(parse(project))

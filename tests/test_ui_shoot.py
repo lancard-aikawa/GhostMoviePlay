@@ -27,7 +27,7 @@ def make_plan(tmp_path, window="電卓"):
 # --- 画面を作らずに決まる部分 -----------------------------------------
 def row(**kwargs):
     base = dict(scene_index=0, beat_index=0, scene_id="s1", scene_title="",
-                say="", subtitle="", shot=None, audio=None)
+                say="", subtitle="", do="", shot=None, audio=None)
     base.update(kwargs)
     return Row(**base)
 
@@ -414,3 +414,36 @@ def test_an_unsupported_platform_says_why(shooter, monkeypatch):
     shooter.reload_windows()
     assert "Windows" in shooter.why_blocked()
     assert shooter.shot_button.cget("state") == "disabled"
+
+
+# --- 撮る人への指示 ---------------------------------------------------
+def test_the_list_shows_what_to_do(shooter):
+    """**開いただけでは何をすればいいのか分からない**、を埋める列."""
+    shooter.doc.set_text(0, 0, do="ファイルを 4 つとも選ぶ")
+    shooter.current = None
+    shooter.refresh()
+    values = shooter.tree.item(shooter._iid(shooter.rows[0]))["values"]
+    assert "ファイルを 4 つとも選ぶ" in str(values)
+
+
+def test_a_beat_without_an_instruction_says_so(shooter):
+    """**空欄にしない** —— 指示が無いのか見落としたのかが分からなくなる."""
+    values = shooter.tree.item(shooter._iid(shooter.rows[0]))["values"]
+    assert ui_shoot.MISSING_DO in str(values)
+
+
+def test_editing_the_instruction_sticks(shooter):
+    shooter.do.insert("1.0", "ツールバーの「追加」を押す")
+    shooter.capture_text()
+    assert shooter.doc.rows()[0].do == "ツールバーの「追加」を押す"
+
+
+def test_the_instruction_survives_moving_between_beats(shooter):
+    shooter.doc.add_beat(0, 0)
+    shooter.current = None
+    shooter.refresh()
+
+    shooter.show(shooter.rows[0])
+    shooter.do.insert("1.0", "ひとつめの操作")
+    shooter.show(shooter.rows[1])
+    assert shooter.doc.rows()[0].do == "ひとつめの操作"

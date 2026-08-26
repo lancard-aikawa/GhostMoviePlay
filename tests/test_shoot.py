@@ -217,3 +217,34 @@ def test_a_clip_and_a_still_never_share_a_number(tmp_path):
     still.write_bytes(b"x")
     clip, _ = next_shot_path(tmp_path, "intro", clip=True)
     assert still.stem != clip.stem
+
+
+# --- 撮る人への指示 (do) ----------------------------------------------
+def test_do_round_trips_through_load(tmp_path):
+    """**`say` は観る人への言葉、`do` は撮る人へのやること。** 別物として持つ."""
+    edited = Doc.load(base(tmp_path))
+    edited.set_text(0, 0, do="zip をダブルクリックして開く")
+    edited.save()
+    beat = load(edited.path).scenes[0].beats[0]
+    assert beat.do == "zip をダブルクリックして開く"
+    assert beat.say == ""
+
+
+def test_changing_do_keeps_the_audio(tmp_path):
+    """**`do` は絵にも音にも触らない。** 指示を直しただけで合成し直させない
+    (`say` を直したときは落とす)。
+    """
+    doc = skeleton("t", "電卓", 800, 600)
+    doc["scenes"][0]["beats"][0].update({"say": "そのまま", "audio": "voice/a.wav"})
+    path = write(tmp_path / "plan.json", doc)
+
+    edited = Doc.load(path)
+    assert edited.set_text(0, 0, do="ボタンを押す") == ["do"]
+    assert edited.raw["scenes"][0]["beats"][0]["audio"] == "voice/a.wav"
+
+
+def test_an_empty_do_removes_the_key(tmp_path):
+    edited = Doc.load(base(tmp_path))
+    edited.set_text(0, 0, do="なにか")
+    assert edited.set_text(0, 0, do="") == ["do"]
+    assert "do" not in edited.raw["scenes"][0]["beats"][0]

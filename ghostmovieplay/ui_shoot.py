@@ -34,6 +34,10 @@ SHOT_LINES = 12         # 画が無いときに空けておく高さ (行)
 # プレビューは台本エディタと同じ捨て場に置く (ショットの shots/ と混ぜない)
 PREVIEW = ("_shots", "preview-shoot.png")
 
+# 操作の指示が書かれていないビート。**空欄にしない** —— 何も出ていないと
+# 「指示が無い」のか「見落とした」のか分からない
+MISSING_DO = "（指示なし）"
+
 FOOTER_NOTE = ("撮れるのは選んでいるビート。コメント (say) は claude にも書かせられます"
                "（撮る面の「claude に書かせる」）")
 
@@ -196,14 +200,18 @@ class ShootWindow:
 
         left = tk.Frame(body)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.tree = ttk.Treeview(left, columns=("kind", "say"),
+        self.tree = ttk.Treeview(left, columns=("kind", "do", "say"),
                                  show="tree headings", selectmode="browse")
         self.tree.heading("#0", text="シーン / ビート")
         self.tree.heading("kind", text="ショット")
-        self.tree.heading("say", text="コメント")
-        self.tree.column("#0", width=180, anchor="w")
-        self.tree.column("kind", width=64, anchor="w")
-        self.tree.column("say", width=300, anchor="w")
+        # **撮る人が見るのは「操作」。** コメントは観る人への言葉なので、
+        # それだけだと開いた人は何をすればいいのか分からない
+        self.tree.heading("do", text="操作 (やること)")
+        self.tree.heading("say", text="コメント (言うこと)")
+        self.tree.column("#0", width=150, anchor="w")
+        self.tree.column("kind", width=56, anchor="w")
+        self.tree.column("do", width=250, anchor="w")
+        self.tree.column("say", width=190, anchor="w")
         scroll = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree.configure(yscrollcommand=scroll.set)
@@ -221,8 +229,16 @@ class ShootWindow:
                                    wraplength=380, justify=tk.LEFT)
         self.shot_label.pack(side=tk.TOP, fill=tk.X, pady=(4, 8))
 
-        tk.Label(right, text="コメント (say)", anchor="w").pack(side=tk.TOP, fill=tk.X)
-        self.say = tk.Text(right, height=5, wrap="char")
+        # **いちばん上に置く。** このビートを撮るために何をするのか、が
+        # 開いた人のいちばん知りたいこと (コメントは観る人への言葉)
+        tk.Label(right, text="操作 — このビートを撮るためにやること", anchor="w",
+                 font=("", 9, "bold")).pack(side=tk.TOP, fill=tk.X)
+        self.do = tk.Text(right, height=4, wrap="char", bg="#fffbe6")
+        self.do.pack(side=tk.TOP, fill=tk.X)
+
+        tk.Label(right, text="コメント (say) — 動画で読み上げる言葉", anchor="w").pack(
+            side=tk.TOP, fill=tk.X, pady=(8, 0))
+        self.say = tk.Text(right, height=4, wrap="char")
         self.say.pack(side=tk.TOP, fill=tk.X)
 
         tk.Label(right, text="字幕 (空なら原稿をそのまま使う)", anchor="w").pack(
@@ -349,7 +365,8 @@ class ShootWindow:
                                  values=("", ""))
             self.tree.insert(node, "end", iid=self._iid(row),
                              text=f"  {row.beat_index}",
-                             values=(row.kind, row.say[:40]))
+                             values=(row.kind, row.do[:36] or MISSING_DO,
+                                     row.say[:28]))
         pick = next((r for r in self.rows if r.address == keep), None) or (
             self.rows[0] if self.rows else None)
         if pick is not None:
@@ -385,6 +402,7 @@ class ShootWindow:
         """
         self.capture_text()
         self.current = row
+        self._set(self.do, row.do)
         self._set(self.say, row.say)
         self._set(self.subtitle, row.subtitle)
         self._show_preview(row)
@@ -447,6 +465,7 @@ class ShootWindow:
             self.current.scene_index, self.current.beat_index,
             say=self.say.get("1.0", tk.END).rstrip("\n"),
             subtitle=self.subtitle.get("1.0", tk.END).rstrip("\n"),
+            do=self.do.get("1.0", tk.END).rstrip("\n"),
         )
 
     # --- 撮る ---------------------------------------------------------

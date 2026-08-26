@@ -47,6 +47,7 @@ class Row:
     scene_title: str
     say: str
     subtitle: str
+    do: str
     shot: str | None
     audio: str | None
 
@@ -157,6 +158,7 @@ class Doc:
                     scene_title=str(scene.get("title") or ""),
                     say=str(beat.get("say") or ""),
                     subtitle=str(beat.get("subtitle") or ""),
+                    do=str(beat.get("do") or ""),
                     shot=beat.get("shot"), audio=beat.get("audio"),
                 ))
         return out
@@ -245,7 +247,8 @@ class Doc:
         self.dirty = True
 
     def set_text(self, scene_index: int, beat_index: int,
-                 say: str | None = None, subtitle: str | None = None) -> list[str]:
+                 say: str | None = None, subtitle: str | None = None,
+                 do: str | None = None) -> list[str]:
         """コメント (say) と字幕を書き換える. 戻り値は直した項目.
 
         **原稿を直したらそのビートの音声を落とす** (`plan._apply` と同じ規則) ——
@@ -266,6 +269,14 @@ class Doc:
                     done.append("subtitle")
             elif beat.pop("subtitle", None) is not None:
                 done.append("subtitle")
+        # **`do` は絵にも音にも触らない**ので、直しても音声は落とさない
+        if do is not None:
+            if do:
+                if do != beat.get("do"):
+                    beat["do"] = do
+                    done.append("do")
+            elif beat.pop("do", None) is not None:
+                done.append("do")
         if done:
             self.dirty = True
         return done

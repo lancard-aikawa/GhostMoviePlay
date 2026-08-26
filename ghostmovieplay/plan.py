@@ -49,6 +49,10 @@ class Beat:
 
     say: str = ""
     subtitle: str | None = None  # 省略時は say をそのまま字幕に使う
+    # **撮る人への指示** (支援収録)。`say` が観る人への言葉なのに対して、
+    # こちらは手を動かす人への「やること」—— 動画には一切出ない。
+    # 開いただけでは何をすればいいのか分からない、を埋めるためにある
+    do: str = ""
     hold: float = 0.0  # 操作が終わったあとの最低保持秒数
     actions: list[dict[str, Any]] = field(default_factory=list)
     audio: str | None = None  # TTS wav への相対パス (Pass2 で尺の決定に使う)
@@ -325,6 +329,7 @@ def load(path: str | Path) -> Plan:
                 actions=list(braw.get("actions") or []),
                 audio=braw.get("audio"),
                 shot=braw.get("shot"),
+                do=braw.get("do") or "",
             )
             for ai, action in enumerate(beat.actions):
                 _validate_action(action, f"{scene.id}.beats[{bi}].actions[{ai}]")
