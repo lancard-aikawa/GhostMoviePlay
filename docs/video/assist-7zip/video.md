@@ -16,7 +16,7 @@ app:
   teardown: python make_sample.py --clean
   # 引用符で始まると cmd が前後のクォートを剥がして壊れるので call を頭に置く。
   # ドライブ名を書かない (git に入る plan.json に機械依存の値を焼かないため)
-  start: call "%ProgramFiles%\7-Zip\7zFM.exe" "%USERPROFILE%\gmp-sample"
+  start: call "%ProgramFiles%\7-Zip\7zFM.exe" "%SystemDrive%\gmp-sample"
 
 determinism:
   # 人が撮るので決定論は成り立たない。焼いても嘘になるだけなので落とす
@@ -42,7 +42,7 @@ scenes:
 
 ## 撮り方
 
-1. 撮る画面で **`起動`** を押す。`~/gmp-sample` にダミー 4 件が作られ、
+1. 撮る画面で **`起動`** を押す。`C:\gmp-sample` にダミー 4 件が作られ、
    7-Zip がそのフォルダを開いた状態で立ち上がる（ウィンドウも自動で選ばれる）。
 2. ビートを選んで **`画像を撮る`**。`leak#1` と `leak#2` は操作している最中なので
    **`録画を始める`** のほうが合う（`leak#2` は原稿が 12 秒あり、静止画では長い）。
