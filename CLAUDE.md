@@ -5,6 +5,7 @@
 [README_BUNDLE.md](README_BUNDLE.md)。詳細は `docs/` にある（[環境の用意](docs/setup.md) /
 [設定](docs/settings.md) / [音声](docs/voice.md) / [plan.json](docs/plan.md) /
 [実装メモ](docs/internals.md) / [統治と習慣](docs/governance.md) /
+[研修と教材](docs/training.md) /
 [腐敗検知](docs/check.md) / [アイデア](docs/ideas/README.md)）。
 ここには **それらを読んでも分からないこと**（設計の前提、壊しやすい不変条件、
 実測して初めて分かった落とし穴）だけを書く。

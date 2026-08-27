@@ -255,6 +255,7 @@ gmp.toml の voice.dict に読みを足して。
 | [README_BUNDLE.md](README_BUNDLE.md) | **落とした設定で撮る**。Gallery の zip を受け取った側の手引き（Claude への頼み方つき） |
 | [docs/check.md](docs/check.md) | 台本が古くなっていないかを CI で見る (`gmp check`) |
 | [docs/governance.md](docs/governance.md) | 運用そのものを題材にする撮り方（統治・習慣・荒れたデータの仕込み） |
+| [docs/training.md](docs/training.md) | **研修と教材に使う**（社内 Web サービス、スクール）。SaaS を撮るときの壁 |
 | [docs/internals.md](docs/internals.md) | 実装メモ（なぜこの実装なのか） |
 | [CLAUDE.md](CLAUDE.md) | 設計の前提、壊しやすい不変条件、実測値 |
 
