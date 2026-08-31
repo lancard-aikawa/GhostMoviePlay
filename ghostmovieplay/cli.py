@@ -653,6 +653,24 @@ def cmd_record(args) -> int:
     # **支援収録の 1 本はブラウザを開かない。** 人が撮った素材を並べる
     # (`gmp shoot` で貯めたもの)。出すものは自動収録と同じ raw + timing なので、
     # このあとの `gmp render` は区別しない
+    # **Android で actions が書いてあるなら、機械が操作して撮る。**
+    # 人が撮ると、途中で状態が変わったまま撮り足して「同じ画面のはずの 2 枚で
+    # 表示が食い違う」ことが起きる (実際に起きた)。通しで撮れば無くなる
+    if plan.app.package and any(b.actions for _, b in plan.beats):
+        from .android import DriveError
+        from .ffmpeg import FFmpegError
+        from .record_android import record as drive
+
+        print(f"自動収録 (Android): {plan.title}  ({len(plan.beats)} beats -> {outdir})")
+        try:
+            result = drive(plan, outdir, verbose=args.verbose,
+                           serial=getattr(args, "serial", "") or "")
+        except (DriveError, FFmpegError, ValueError) as exc:
+            return _err(str(exc))
+        print(f"\n  video   {result.video}  ({result.duration:.2f}s)")
+        print(f"  timing  {result.timing}")
+        return 0
+
     if plan.app.assisted:
         from .assemble import assemble
         from .ffmpeg import FFmpegError
@@ -862,6 +880,9 @@ def cmd_demo(args) -> int:
 def _add_record_opts(p) -> None:
     p.add_argument("--out", help="出力ディレクトリ (既定: plan.json の隣の out/)")
     p.add_argument("--headed", action="store_true", help="ブラウザを表示して収録する")
+    # **シリアルは plan.json に無い** (機械ごとに違うので焼かない)。
+    # 繋がっているのが 1 台なら要らない
+    p.add_argument("--serial", default="", help="Android で撮る端末 (2 台以上繋いでいるとき)")
     p.add_argument(
         "--subtitle-mode", choices=["burn", "dom", "both"], default="burn",
         help="burn=ffmpegで焼く(既定) / dom=ページに描く / both",
