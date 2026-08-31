@@ -195,6 +195,30 @@ teardown = 'adb shell ime set com.google.android.inputmethod.latin/com.android.i
 `ADB Keyboard {ON}` の帯を出すので、そのまま撮ると**動画に写ります**。
 BACK は帯だけを閉じ、開いているダイアログは残ります（実測）。
 
+**ステータスバーには IME のアイコンが残ります。** 入力欄に触れた時点で
+demo mode の偽ステータスバーに ADBKeyboard のアイコンが増え、**その画面
+（ダイアログ）を閉じるまで消えません** —— BACK でも、別の場所を押しても、
+`demo enter` を送り直しても消えず、`exit` → `enter` が要ります（収録の途中では
+掛け直せない）。素のステータスバーには出ないので、**demo mode を使う代償**です。
+日本語を打つ 1 本では、そこは諦めることになります。
+
+### 起動したあとに、もう一度ステータスバーを整える
+
+**アプリが立ち上がるとバーにアイコンが増えます**（上記）。仕込みで整えるだけでは
+間に合わないので、`app.start` の後ろに demo mode の掛け直しを足します。
+
+```toml
+start = '''adb shell monkey -p com.example.app -c android.intent.category.LAUNCHER 1 && adb shell sleep 6 && adb shell am broadcast -a com.android.systemui.demo -e command exit && adb shell am broadcast -a com.android.systemui.demo -e command enter && adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0900'''
+```
+
+**通知はデモモードでは止まりません。** 隠せるのはステータスバーの中身だけで、
+**ヘッズアップ通知は上から降りてきます**（送信を撮る 1 本で、自分の送った
+お知らせが一覧の上に出た）。`app.setup` で DND にします。
+
+```toml
+setup = 'adb shell cmd notification set_dnd none && ...'   # teardown で set_dnd off
+```
+
 **ダンプは 1 回 2.6 秒。** 要素を探すたびに走るので、`wait_for` を並べるほど
 遅くなります。待つ必要のないところには書かないこと。
 
