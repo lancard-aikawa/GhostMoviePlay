@@ -186,7 +186,9 @@ class Doc:
         **`plan.App.assisted` と同じ組み合わせ。** 空のまま保存すると
         「設定済みに見える嘘」が残るので、呼び側はここで止める。
         """
-        return self.window or self.package
+        from .plan import assisted_target
+
+        return assisted_target(self.raw.get("app"))
 
     @property
     def size(self) -> tuple[int, int]:

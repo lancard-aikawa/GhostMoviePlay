@@ -36,6 +36,24 @@ ACTION_SPECS: dict[str, tuple[str, ...]] = {
 }
 
 
+# 支援収録の相手を書くキー。**増やすならここ 1 か所** (App.assisted も見ている)
+ASSIST_KEYS = ("window", "package")
+
+
+def assisted_target(app: dict[str, Any] | None) -> str:
+    """支援収録の相手. 空なら自動収録.
+
+    **`App.assisted` と同じ組み合わせを、まだ dataclass になっていない生の設定
+    から見る**ためのもの。依頼文を作る段と撮る画面は plan.json ができる前に動く。
+    """
+    if not isinstance(app, dict):
+        return ""
+    for key in ASSIST_KEYS:
+        if app.get(key):
+            return str(app[key])
+    return ""
+
+
 class PlanError(ValueError):
     """plan.json が壊れている."""
 
@@ -112,13 +130,14 @@ class App:
     def assisted(self) -> bool:
         """**人が操作して撮る 1 本か。**
 
-        撮る相手 (`window` / `package`) が埋まっていれば支援収録。
-        これを見る側が 4 つある (`plan.load` の検査・`gmp record` の分岐・
-        `gmp check` の除外・撮る面の行) ので、**相手を増やすときはここだけ直す**。
-        散らすと、片方だけ足したときに「撮れるのに検査が赤」のような
-        中途半端な状態ができる。
+        撮る相手 (`ASSIST_KEYS`) が埋まっていれば支援収録。これを見る側が
+        いくつもある (`plan.load` の検査・`gmp record` の分岐・`gmp check` の除外・
+        撮る面の行・依頼文の警告・撮る画面の保存) ので、**相手を増やすときは
+        `ASSIST_KEYS` だけを直す**。散らすと、片方だけ足したときに
+        「撮れるのに検査が赤」「撮れるのに app.url が無いと警告される」ような
+        中途半端な状態ができる (実際にできた)。
         """
-        return bool(self.window or self.package)
+        return any(getattr(self, key) for key in ASSIST_KEYS)
 
 
 @dataclass

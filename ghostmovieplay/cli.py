@@ -426,7 +426,11 @@ def cmd_plan(args) -> int:
     project_file = resolved.sources.get(settings.PROJECT)
     if project_file:
         print(f"  プロジェクトの既定: {project_file}")
-    if not resolved.get("app.url"):
+    # **支援収録は url を要らない** (ブラウザを開かず、人が操作した相手を撮る)。
+    # ここで window / package を見ないと、撮れる 1 本に毎回この警告が出る
+    from .plan import assisted_target
+
+    if not resolved.get("app.url") and not assisted_target(resolved.section("app")):
         print("  ! app.url がどこにも設定されていません"
               f" ({settings.PROJECT_FILE} か video.md に書いてください)")
 

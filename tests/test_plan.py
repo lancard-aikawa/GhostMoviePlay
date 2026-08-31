@@ -159,3 +159,20 @@ def test_a_serial_is_not_part_of_the_plan(tmp_path):
     data["app"] = {"package": "com.example.app", "serial": "ZY32MBLT69"}
     plan = load(write(tmp_path, data))
     assert not hasattr(plan.app, "serial")
+
+
+def test_the_assisted_target_is_read_from_raw_settings(tmp_path):
+    """**plan.json になる前にも同じ判定が要る。**
+
+    依頼文を作る段と撮る画面は plan.json ができる前に動く。ここが App.assisted と
+    ずれると「撮れるのに app.url が無いと警告される」ようなことになる (実際になった)。
+    """
+    from ghostmovieplay.plan import ASSIST_KEYS, assisted_target
+
+    assert assisted_target({"window": "電卓"}) == "電卓"
+    assert assisted_target({"package": "com.example.app"}) == "com.example.app"
+    assert assisted_target({"url": "http://x"}) == ""
+    assert assisted_target({}) == ""
+    assert assisted_target(None) == ""
+    # 相手を増やすときに片方だけ直していないか
+    assert set(ASSIST_KEYS) <= set(load(write(tmp_path, BASE)).app.__dict__)
