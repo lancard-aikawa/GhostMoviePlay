@@ -622,6 +622,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 止めない失敗を足した | `record.Recorder.warn()` の呼び出し（**print で済ませない**）、`timing.json` の `warnings`、`ui_run._record_item`、`cli.cmd_record` の一覧、`tests/test_record.py`。**当たっているときに出さない** —— 件数が信用されなくなる。**撮った環境の話なら `check.ENV_KINDS` に入れる** —— 入れないと `gmp check` が CI で必ず赤になる（知らない kind は赤に倒してある） |
 | 字幕の見た目 | `subtitles.py` の `layout()`（**寸法と 1 行の文字数はここが唯一の口**。`render` と `check` の両方が使う）と Style 行。**文字の大きさは短いほうの辺で決める** —— `height` から出すと縦画面で画面幅より大きい文字になる（実際に両端が切れた）。`CHAR_EM` は実測値なので、変えるなら測り直す。**クレジットは別スタイル**（右上・小さめ）で、字幕（下部中央）とぶつからない配置を保つ |
 | CLI のサブコマンド | `cli.py` の `main()`、README のコマンド表 |
+| シーンの達成条件 (`goal`) | `plan.Goal` と `load()` の検査、`record.Recorder.check_goal`（**`ENV_KINDS` に入れない** —— 撮った環境の話ではなく台本の欠陥）、`spec.PLAN_SCHEMA_DOC` と SKILL.md（**書かせないと空のまま**）、`docs/plan.md`、`docs/check.md`、`tests/test_record.py`。**Pass2 で見るので AI を入れない** —— 語彙は `contains` / `absent` だけ。**当たっているときに出さない** |
 | 撮らずに分かる欠陥を足した | `check.inspect`（**撮っても一緒に出る**ので、`--dry` で赤なら本番も赤を保つ）、`docs/check.md` の表、`tests/test_check.py`。リポジトリの台本は `tests/test_plan.py` が同じ規則で見ている |
 | 検査できない台本を足した | `check.SKIP` と `Report.summary()`（**「通った」に混ぜない**）、`docs/check.md`、`tests/test_check.py` |
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |

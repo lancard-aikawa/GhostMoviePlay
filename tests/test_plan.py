@@ -176,3 +176,42 @@ def test_the_assisted_target_is_read_from_raw_settings(tmp_path):
     assert assisted_target(None) == ""
     # 相手を増やすときに片方だけ直していないか
     assert set(ASSIST_KEYS) <= set(load(write(tmp_path, BASE)).app.__dict__)
+
+
+# --- フローの達成条件 ---------------------------------------------------
+def with_goal(tmp_path, goal):
+    data = json.loads(json.dumps(BASE))
+    data["scenes"][0]["goal"] = goal
+    return write(tmp_path, data)
+
+
+def test_a_goal_is_loaded(tmp_path):
+    """**操作が全部通っても目的を果たしたとは限らない**ので、別に持つ."""
+    plan = load(with_goal(tmp_path, {"says": "満点で終わる", "selector": "#result",
+                                     "contains": "21 点"}))
+    goal = plan.scenes[0].goal
+    assert goal.says == "満点で終わる" and goal.contains == "21 点"
+    assert goal.absent is None
+
+
+def test_a_goal_may_be_negative(tmp_path):
+    """「動いたが別のことをした」を捕まえるのは absent のほう."""
+    plan = load(with_goal(tmp_path, {"says": "全員に送っていない",
+                                     "selector": "#to", "absent": "全員"}))
+    assert plan.scenes[0].goal.absent == "全員"
+
+
+def test_a_goal_without_a_place_to_look_is_refused(tmp_path):
+    with pytest.raises(PlanError, match="selector"):
+        load(with_goal(tmp_path, {"says": "満点", "contains": "21"}))
+
+
+def test_a_goal_that_asserts_nothing_is_refused(tmp_path):
+    """**書いたのに何も見ない goal** は、通ったことにされるので危ない."""
+    with pytest.raises(PlanError, match="contains か absent"):
+        load(with_goal(tmp_path, {"says": "満点", "selector": "#result"}))
+
+
+def test_no_goal_is_fine(tmp_path):
+    """解説だけのシーンには書けない (画面の状態が変わらない)."""
+    assert load(write(tmp_path, BASE)).scenes[0].goal is None

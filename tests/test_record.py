@@ -18,8 +18,14 @@ from ghostmovieplay.record import Recorded, Recorder
 
 
 class FakeLocator:
-    def __init__(self, box):
+    def __init__(self, box, text=None):
         self._box = box
+        self._text = text
+
+    def inner_text(self, timeout=None):
+        if self._text is None:
+            raise RuntimeError("見つかりません")
+        return self._text
 
     @property
     def first(self):
@@ -53,8 +59,9 @@ class FakePage:
     PWError を投げるが、do() はどちらも「見つからなかった」に畳んでいる)。
     """
 
-    def __init__(self, boxes=None, rect=None, selected=""):
+    def __init__(self, boxes=None, rect=None, selected="", texts=None):
         self.boxes = boxes or {}
+        self.texts = texts or {}      # 達成条件が読む文字
         self.rect = rect            # FIND_TEXT_JS の戻り (None = 見つからない)
         self.selected = selected    # SNAP_RANGE_JS の戻り (確定した選択)
         self.mouse = FakeMouse()
@@ -70,7 +77,7 @@ class FakePage:
         return None
 
     def locator(self, selector):
-        return FakeLocator(self.boxes.get(selector))
+        return FakeLocator(self.boxes.get(selector), self.texts.get(selector))
 
 
 def recorder(page, tmp_path):
@@ -180,3 +187,63 @@ def test_strict_turns_warnings_into_a_failure(monkeypatch, tmp_path):
 def test_strict_passes_a_clean_recording(monkeypatch, tmp_path):
     plan_path = _fake_record(monkeypatch, tmp_path, [])
     assert main(["record", str(plan_path), "--strict"]) == 0
+
+
+# --- フローの達成条件 ---------------------------------------------------
+def scene_with(goal):
+    from ghostmovieplay.plan import Goal, Scene
+
+    return Scene(id="good-game", goal=Goal(**goal))
+
+
+def test_a_met_goal_says_nothing(tmp_path):
+    """**当たっているときに出さない。** 出すと件数が信用されなくなる."""
+    rec = recorder(FakePage(texts={"#result": "GOOD GAME!  21 点 (満点)"}), tmp_path)
+    rec.check_goal(scene_with({"says": "満点", "selector": "#result",
+                               "contains": "21 点 (満点)"}))
+    assert rec.warnings == []
+
+
+def test_an_unmet_goal_is_counted(tmp_path):
+    """**操作が全部通っても目的を果たしたとは限らない。**
+
+    examples/demo の盤面を釣り合いのために変えたら、セレクタは全部生きていて
+    クリックも通り、gmp check まで緑のまま、ナレーションだけが嘘になった。
+    """
+    rec = recorder(FakePage(texts={"#result": "終了  20 点 / 満点 21"}), tmp_path)
+    rec.check_goal(scene_with({"says": "満点 21 点で終わっている",
+                               "selector": "#result", "contains": "21 点 (満点)"}))
+    assert [w["kind"] for w in rec.warnings] == ["goal_failed"]
+    assert "20 点" in rec.warnings[0]["message"]      # 実際に何だったかを出す
+    assert rec.warnings[0]["where"] == "good-game"
+
+
+def test_a_forbidden_state_is_counted(tmp_path):
+    """「動いたが別のことをした」を捕まえるのは absent のほう."""
+    rec = recorder(FakePage(texts={"#to": "宛先: 全員"}), tmp_path)
+    rec.check_goal(scene_with({"says": "全員に送っていない", "selector": "#to",
+                               "absent": "全員"}))
+    assert [w["kind"] for w in rec.warnings] == ["goal_failed"]
+
+
+def test_an_unreadable_goal_is_counted(tmp_path):
+    """**確かめられないことを「通った」にしない。** 見に行った先が無いのは赤."""
+    rec = recorder(FakePage(), tmp_path)
+    rec.check_goal(scene_with({"says": "満点", "selector": "#gone",
+                               "contains": "21"}))
+    assert [w["kind"] for w in rec.warnings] == ["goal_failed"]
+
+
+def test_a_scene_without_a_goal_is_left_alone(tmp_path):
+    from ghostmovieplay.plan import Scene
+
+    rec = recorder(FakePage(), tmp_path)
+    rec.check_goal(Scene(id="why"))
+    assert rec.warnings == []
+
+
+def test_the_goal_failure_is_not_environmental():
+    """**ENV_KINDS に入れない。** これは撮った環境の話ではなく台本の欠陥."""
+    from ghostmovieplay.check import ENV_KINDS
+
+    assert "goal_failed" not in ENV_KINDS

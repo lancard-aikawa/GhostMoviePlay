@@ -85,10 +85,39 @@ class Beat:
 
 
 @dataclass
+class Goal:
+    """そのシーンが**目的を果たしたか**を、画面から機械的に確かめる条件.
+
+    **`actions` が全部通っても目的を果たしているとは限らない。** 実例:
+    `examples/demo` の盤面の数字を釣り合いのために変えると、セレクタは全部
+    生きているのでクリックは通り、`gmp record` も `gmp check` も緑のまま、
+    ナレーションだけが「21 点。満点です」と嘘になる (実際にそうなった)。
+
+    **AI を入れない** (Pass2 の不変条件)。語彙は「その要素の文字が
+    こうなっている / なっていない」だけに絞ってある。
+
+    - `says`     —— 人が読む言い方。警告にそのまま出る
+    - `selector` —— 見る場所
+    - `contains` —— 含んでいてほしい文字
+    - `absent`   —— **含んでいてはいけない文字**。
+      「動いたが別のことをした」を捕まえるのはこちらで、`contains` では
+      捕まらない (送信は成功していて、宛先だけが違う、など)
+    """
+
+    says: str = ""
+    selector: str = ""
+    contains: str | None = None
+    absent: str | None = None
+
+
+@dataclass
 class Scene:
     id: str
     title: str = ""
     beats: list[Beat] = field(default_factory=list)
+    # **1 連の流れの達成条件。** 書けるなら書く —— これが無いと、
+    # 「操作は通ったが目的を果たしていない」を誰も見ていないことになる
+    goal: Goal | None = None
 
 
 @dataclass
@@ -358,6 +387,15 @@ def load(path: str | Path) -> Plan:
 
     for si, sraw in enumerate(scenes):
         scene = Scene(id=sraw.get("id", f"scene{si}"), title=sraw.get("title", ""))
+        graw = sraw.get("goal")
+        if graw:
+            if not isinstance(graw, dict) or not graw.get("selector"):
+                raise PlanError(f"{path}: scene {scene.id!r} の goal に selector がありません")
+            if not (graw.get("contains") or graw.get("absent")):
+                raise PlanError(
+                    f"{path}: scene {scene.id!r} の goal に contains か absent が要ります")
+            scene.goal = Goal(**{k: v for k, v in graw.items()
+                                 if k in Goal.__annotations__})
         beats = sraw.get("beats") or []
         if not beats:
             raise PlanError(f"{path}: scene {scene.id!r} に beats がありません")

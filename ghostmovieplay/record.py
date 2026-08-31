@@ -125,6 +125,42 @@ class Recorder:
         self.warnings.append({"kind": kind, "where": self.where, "message": message})
         print(f"    ! {message}")
 
+    def check_goal(self, scene) -> None:
+        """シーンの達成条件を見る. **満たしていなければ警告に残す**.
+
+        **操作が全部通ったことは、目的を果たした証明にならない。**
+        `examples/demo` の盤面を釣り合いのために変えたら、セレクタは全部生きて
+        いるのでクリックは通り、`gmp check` まで緑のまま、ナレーションだけが
+        「21 点。満点です」と嘘になった (実際にそうなった)。
+
+        **`ENV_KINDS` に入れない。** これは撮った環境の話ではなく、台本が
+        画面に当たっていないという本物の欠陥なので、`gmp check` は赤にする。
+        """
+        goal = getattr(scene, "goal", None)
+        if goal is None:
+            return
+        self.where = scene.id
+        try:
+            got = self.page.locator(goal.selector).first.inner_text(timeout=2000)
+        except Exception:
+            self.warn("goal_failed",
+                      f"達成条件を確かめられません ({goal.selector} が見つかりません): "
+                      f"{goal.says}")
+            return
+        got = " ".join(got.split())
+        if goal.contains and goal.contains not in got:
+            self.warn("goal_failed",
+                      f"目的を果たしていません: {goal.says} "
+                      f"({goal.selector} = {got!r})")
+            return
+        if goal.absent and goal.absent in got:
+            self.warn("goal_failed",
+                      f"あってはいけない状態です: {goal.says} "
+                      f"({goal.selector} = {got!r})")
+            return
+        if self.verbose:
+            print(f"    goal ok  {goal.says}")
+
     # --- 時刻 ---------------------------------------------------------
     def now(self) -> float:
         return time.monotonic() - self.t0
@@ -469,6 +505,7 @@ def record(
                 print(f"  ● scene {scene.id}" + (f" — {scene.title}" if scene.title else ""))
             for i, beat in enumerate(scene.beats):
                 entries.append(rec.play_beat(scene, beat, i))
+            rec.check_goal(scene)
 
         rec.sleep(v.trailer)
         wall_total = time.monotonic() - wall_start

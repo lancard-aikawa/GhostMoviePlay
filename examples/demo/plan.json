@@ -123,7 +123,12 @@
           ],
           "audio": "voice/005_fail-greedy.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "満点に届かず終わっている",
+        "selector": "#result",
+        "absent": "満点)"
+      }
     },
     {
       "id": "why",
@@ -225,7 +230,12 @@
           ],
           "audio": "voice/014_good-game.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "満点 21 点で終わっている",
+        "selector": "#result",
+        "contains": "21 点 (満点)"
+      }
     }
   ]
 }
