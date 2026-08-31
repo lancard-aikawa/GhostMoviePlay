@@ -184,11 +184,9 @@ class ShootWindow:
         self.advance = tk.BooleanVar(value=True)
         tk.Checkbutton(bar, text="撮ったら次のビートへ",
                        variable=self.advance).pack(side=tk.LEFT, padx=12)
-        # **録画だけ重なりに弱い。** 静止画はウィンドウ自身に描かせるので隠れていても
-        # 撮れるが、録画は画面の矩形を舐めるので手前のウィンドウが写る
-        tk.Label(bar, fg="#666",
-                 text="録画中はウィンドウを隠さないこと（静止画は隠れていても撮れます）").pack(
-            side=tk.LEFT)
+        # **撮る前の注意は相手によって違う。** Windows は「ウィンドウを隠すな」
+        # (録画だけ重なりに弱い)、Android は「画面全体が写る」(範囲を狭められない)
+        tk.Label(bar, fg="#666", text=self.cap.CAUTION).pack(side=tk.LEFT)
         # 撮れないときの理由。**空のときは何も出さない** (常に出すと帯が説明で埋まる)
         self.capture_note = tk.Label(self.window, text="", anchor="w", fg="#b00000",
                                      justify=tk.LEFT, wraplength=1040)

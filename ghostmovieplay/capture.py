@@ -49,6 +49,9 @@ UNSUPPORTED = "画面キャプチャは Windows でだけ使えます"
 # **選んだ相手の名前を plan.json に書き戻してよいか。** ウィンドウのタイトルは
 # 機械に依らないのでそのまま `app.window` になる (Android のシリアルは違う)
 NAMES_THE_TARGET = True
+# 撮る前に人へ言っておくこと。**録画だけ重なりに弱い** (静止画は PrintWindow で
+# ウィンドウ自身に描かせるが、録画は gdigrab で画面の矩形を舐める)
+CAUTION = "録画中はウィンドウを隠さないこと（静止画は隠れていても撮れます）"
 
 
 def supported() -> bool:

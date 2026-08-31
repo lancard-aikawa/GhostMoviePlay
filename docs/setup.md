@@ -15,10 +15,13 @@ Windows 11 での手順。他の OS でも動くが、実測値と `winget` の�
 | **Chromium** (playwright) | `gmp record`（収録） | `uv run playwright install chromium` |
 | **VOICEVOX** | `gmp voice`（ナレーション） | `winget install HiroshibaKazuyuki.VOICEVOX.CPU` |
 | **Claude Code** | `gmp plan --run` と画面の「台本を作る」 | [claude.com/claude-code](https://claude.com/claude-code) |
+| **adb** (platform-tools) | Android の[支援収録](plan.md#自動操作が届かない相手を撮る支援収録) | [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) を PATH に |
 
-下 2 つは**要るときだけ**でよい。音声なしの動画（字幕だけ）は VOICEVOX なしで
+下 3 つは**要るときだけ**でよい。音声なしの動画（字幕だけ）は VOICEVOX なしで
 撮れるし、台本を手で書く・対話の claude に書かせるなら `claude` コマンドは要らない
 （`gmp plan` は依頼文 `PLAN_REQUEST.md` を書き出すだけの使い方ができる）。
+`adb` は Android のアプリを撮る 1 本にしか要らない（Windows のアプリを撮るなら
+`app.window` の道で、こちらは何も足さなくていい）。
 
 ## 通しの手順
 

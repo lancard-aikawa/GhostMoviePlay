@@ -66,6 +66,10 @@ UNSUPPORTED = "adb が見つかりません (platform-tools を PATH に通し�
 # **書き戻さない。** シリアルも機種名も機械ごとに違うので、焼くと別の端末で
 # 繋がらない (`voice.url` と同じ理由)。どの端末で撮るかは毎回選ぶ
 NAMES_THE_TARGET = False
+# **範囲を狭められないことを、撮る前に言う。** Windows は「ウィンドウを隠すな」で
+# 済むが、Android は画面全体しか撮れないので、通知・SSID・キャリア名が必ず入る
+# (実測で全部入った)。減らす手は docs/plan.md にある
+CAUTION = "画面全体が写ります（通知・時計・電波・SSID も）。先にサイレントにしてください"
 
 
 def supported() -> bool:

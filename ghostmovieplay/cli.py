@@ -68,6 +68,16 @@ def cmd_doctor(args) -> int:
               " (gmp plan --run と画面の「台本を作る」が使えません。\n"
               "       Claude Code を入れるか、gmp plan で依頼文だけ書き出してください)")
 
+    # Android の支援収録に要る。**無くても他は全部動く**ので落第にしない
+    # (claude と同じ扱い —— 使えない道が 1 つあることだけ言う)
+    adb = shutil.which("adb")
+    if adb:
+        print(f"  OK   adb  ({adb})")
+    else:
+        print("  --   adb が見つかりません"
+              " (Android の支援収録が使えません。\n"
+              "       platform-tools を入れて PATH に通してください)")
+
     print("\n準備完了" if ok else "\n不足があります (docs/setup.md)")
     return 0 if ok else 1
 

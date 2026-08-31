@@ -88,6 +88,37 @@ Android のアプリを撮るなら、代わりに `app.package` に**パッケ�
 あとは同じ。**端末のシリアルは書かない** —— 機械ごとに違う値なので、焼くと別の
 端末で繋がらない（`voice.url` と同じ理由）。どの端末で撮るかは撮る画面で選ぶ。
 
+#### Android は画面全体しか撮れない
+
+Windows は `PrintWindow` でウィンドウ 1 つを撮るので「撮る本人が見ていないものは
+入らない」が保てる。**Android は範囲を狭められない** —— 通知・時計・電波・
+Wi-Fi の SSID・キャリア名が必ず入る（実測で全部入った）。撮る前に減らしておく。
+
+```powershell
+adb shell settings put global sysui_demo_allowed 1
+adb shell am broadcast -a com.android.systemui.demo -e command enter
+adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0900
+adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false
+adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi hide -e mobile hide
+adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
+```
+
+実測（moto g05 / Android 15）では、これで
+`12:08 + 通知アイコン 6 個 + VoLTE + Wi-Fi + 電波 + 電池` が `9:00 + 電池` だけになった。
+撮っている最中に降ってくるバナーが心配なら、あわせてサイレントにしておく
+（`adb shell cmd notification set_dnd priority`）。
+
+**撮り終わったら必ず戻す。** 人の端末を借りて撮ることがあるので、
+`app.teardown` に書いておくと閉じるときに走る。
+
+```powershell
+adb shell am broadcast -a com.android.systemui.demo -e command exit
+adb shell settings put global sysui_demo_allowed 0
+```
+
+仕込みは `app.setup`、後片付けは `app.teardown`。撮る画面の `起動` で仕込みが
+走り、閉じるときに後片付けが走る（**順序の不変条件は Windows と同じ**）。
+
 ```jsonc
 {
   "app": { "window": "電卓" },        // ← ここが埋まっていると支援収録
