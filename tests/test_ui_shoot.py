@@ -554,3 +554,75 @@ def test_shooting_the_last_written_beat_does_not_add_one(shooter, monkeypatch):
 
     shooter.on_shot()
     assert len(shooter.doc.rows()) == 1
+
+
+# --- 撮り方の選択 (Windows のウィンドウか、Android の端末か) ---------------
+def test_the_backend_follows_the_plan():
+    """**繋がっている端末の有無では決めない。**
+
+    端末を挿したまま Windows の 1 本を開くと、撮る相手の一覧が端末に化ける。
+    """
+    from ghostmovieplay import capture_android
+
+    assert ui_shoot.backend({"app": {"window": "電卓"}}) is capture
+    assert ui_shoot.backend({"app": {"package": "com.example.app"}}) is capture_android
+    assert ui_shoot.backend({"app": {}}) is capture
+    assert ui_shoot.backend({}) is capture
+
+
+def make_android_plan(tmp_path):
+    directory = tmp_path / "docs" / "video" / "android"
+    directory.mkdir(parents=True)
+    target = directory / "plan.json"
+    raw = skeleton("テスト", "", 720, 1604)
+    raw["app"].pop("window", None)
+    raw["app"]["package"] = "com.example.app"
+    target.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+    return target
+
+
+@pytest.fixture
+def android_shooter(tk_root, tmp_path, monkeypatch):
+    from ghostmovieplay import capture_android
+
+    monkeypatch.setattr(ui_shoot.messagebox, "askyesno", lambda *a, **k: False)
+    monkeypatch.setattr(ui_shoot.messagebox, "showerror", lambda *a, **k: None)
+    monkeypatch.setattr(ui_shoot.messagebox, "showinfo", lambda *a, **k: None)
+    monkeypatch.setattr(capture_android, "supported", lambda: True)
+    monkeypatch.setattr(capture_android, "windows", lambda: [
+        capture_android.Device(handle="ZY32MBLT69", title="moto g05",
+                               process="Android 15", width=720, height=1604)])
+    window = ui_shoot.ShootWindow(tk_root, make_android_plan(tmp_path))
+    yield window
+    window.window.destroy()
+
+
+def test_an_android_take_lists_devices(android_shooter):
+    from ghostmovieplay import capture_android
+
+    assert android_shooter.cap is capture_android
+    assert [d.handle for d in android_shooter.found] == ["ZY32MBLT69"]
+
+
+def test_the_device_is_never_written_into_the_plan(android_shooter):
+    """**シリアルも機種名も焼かない。** 機械ごとに違うので別の端末で繋がらない.
+
+    印は `app.package` のほうで、そちらは既に埋まっている。
+    """
+    from ghostmovieplay.plan import load
+
+    android_shooter.picker.current(0)
+    android_shooter._on_pick_window()
+    assert android_shooter.on_save() is True
+    saved = load(android_shooter.path)
+    assert saved.app.package == "com.example.app"
+    assert not saved.app.window
+    assert "ZY32MBLT69" not in android_shooter.path.read_text(encoding="utf-8")
+
+
+def test_an_android_take_still_matches_the_screen_size(android_shooter):
+    """まだ 1 枚も撮っていないので、動画の大きさは端末の画面に合う."""
+    android_shooter.picker.current(0)
+    android_shooter._on_pick_window()
+    video = android_shooter.doc.raw["video"]
+    assert (video["width"], video["height"]) == (720, 1604)

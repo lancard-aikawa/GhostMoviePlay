@@ -26,7 +26,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from . import capture, paths
+from . import capture, capture_android, paths
 from .shoot import Doc, Row, ShootError, next_shot_path, progress, skeleton
 
 SHOT_WIDTH = 360        # プレビューの幅 (px)
@@ -60,6 +60,17 @@ def summary(rows: list[Row]) -> str:
     return f"ショット {have} / {total} ビート"
 
 
+def backend(raw: dict):
+    """撮る相手に合わせて capture を選ぶ.
+
+    **plan.json が決める。繋がっている端末の有無では決めない** —— 端末を挿した
+    まま Windows の 1 本を開くと、撮る相手の一覧が端末に化ける。印は
+    `app.package` で、`plan.App.assisted` が見ているのと同じもの。
+    """
+    app = raw.get("app") or {}
+    return capture_android if app.get("package") else capture
+
+
 def default_title(plan_path: Path) -> str:
     """plan.json をこれから作るときの題名. フォルダ名を使う."""
     return plan_path.parent.name or "untitled"
@@ -78,8 +89,8 @@ class ShootWindow:
         self.on_saved = on_saved
         self.current: Row | None = None
         self.rows: list[Row] = []
-        self.found: list[capture.Window] = []
-        self.recording: capture.Recording | None = None
+        self.found: list[capture.Window | capture_android.Device] = []
+        self.recording: capture.Recording | capture_android.Recording | None = None
         self.pending_clip: tuple[Row, str] | None = None
         self.trouble = ""                   # ウィンドウを数えられなかった理由
         self.last_touched = 0               # 直前に触っていたウィンドウ
@@ -94,6 +105,8 @@ class ShootWindow:
             self.doc = Doc.create(self.path, skeleton(
                 default_title(self.path), "", 1280, 720))
 
+        # **相手ごとの撮り方はここで 1 回だけ決める。** 以降は self.cap を呼ぶ
+        self.cap = backend(self.doc.raw)
         self.outdir = self._outdir()
 
         self.window = tk.Toplevel(parent)
@@ -261,14 +274,14 @@ class ShootWindow:
         選んだのに、一覧を更新した拍子に本体へ戻ってしまうと、撮る直前に
         黙って相手が入れ替わる。
         """
-        if not capture.supported():
-            self.picker.configure(values=["(Windows でだけ使えます)"])
+        if not self.cap.supported():
+            self.picker.configure(values=[f"({self.cap.UNSUPPORTED})"])
             self.found = []
             self._refresh_capture()
             return
         holding = self.target.title if self.target else ""
         try:
-            self.found = capture.windows()
+            self.found = self.cap.windows()
         except capture.CaptureError as exc:
             self.found = []
             self.trouble = str(exc)
@@ -303,8 +316,8 @@ class ShootWindow:
         選べばいいのかは画面からしか分からない —— 撮ろうとして初めてモーダルで
         言われるのでは遅い (「押せないボタンには必ず理由を出す」)。
         """
-        if not capture.supported():
-            return "画面キャプチャは Windows でだけ使えます"
+        if not self.cap.supported():
+            return self.cap.UNSUPPORTED
         if self.trouble:
             return self.trouble
         if self.target is not None:
@@ -314,7 +327,7 @@ class ShootWindow:
                     else "アプリを開いてから「調べ直す」")
             return (f"対象のウィンドウ「{self.doc.window}」が見つかりません。{more}。"
                     "別のウィンドウ (ダイアログなど) を撮るなら上の一覧から選んでください")
-        return "ウィンドウを上の一覧から選んでください"
+        return f"{self.cap.NOUN}を上の一覧から選んでください"
 
     def _refresh_capture(self) -> None:
         """撮影のボタンと、その理由を出し分ける."""
@@ -335,7 +348,7 @@ class ShootWindow:
         """
         if not self.window.winfo_exists():
             return
-        handle = capture.foreground()
+        handle = self.cap.foreground()
         if handle:
             self.last_touched = handle
         self.window.after(self.FOREGROUND_POLL, self._watch_foreground)
@@ -351,7 +364,7 @@ class ShootWindow:
         self.reload_windows()
 
     @property
-    def target(self) -> capture.Window | None:
+    def target(self) -> capture.Window | capture_android.Device | None:
         index = self.picker.current()
         if index is None or index < 0 or index >= len(self.found):
             return None
@@ -368,14 +381,16 @@ class ShootWindow:
         window = self.target
         if window is None:
             return
-        if not self.doc.window:
+        # **Android は書き戻さない。** シリアルも機種名も機械依存なので、焼くと
+        # 別の端末で繋がらない (印は `app.package` のほうで、既に埋まっている)
+        if self.cap.NAMES_THE_TARGET and not self.doc.window:
             self.doc.set_window(window.title)
         # **主な対象を選んでいて、まだ 1 枚も撮っていないときだけ大きさを合わせる。**
         # 撮り始めてから変えるとそれまでのショットが黒帯つきで並ぶし、ダイアログの
         # 大きさに合わせると本体が縮む
         if (self.doc.window.casefold() in window.title.casefold()
                 and not any(r.shot for r in self.rows)):
-            self.doc.set_size(capture.even(window.width), capture.even(window.height))
+            self.doc.set_size(self.cap.even(window.width), self.cap.even(window.height))
         self.refresh()
 
     # --- 一覧 ---------------------------------------------------------
@@ -461,7 +476,7 @@ class ShootWindow:
                 self.preview.configure(image=self._photo, text="", height=0)
         seconds = ""
         if source.suffix.lower() == ".mp4":
-            length = capture.duration(source)
+            length = self.cap.duration(source)
             seconds = f"   {length:.1f} 秒" if length else ""
         self.shot_label.configure(text=f"{row.shot}{seconds}")
 
@@ -473,7 +488,7 @@ class ShootWindow:
         out.parent.mkdir(parents=True, exist_ok=True)
         try:
             if source.suffix.lower() == ".mp4":
-                length = capture.duration(source) or 0.0
+                length = self.cap.duration(source) or 0.0
                 return ffmpeg.frame_at(source, length / 2, out, width=SHOT_WIDTH)
             ffmpeg.run(["-i", str(source), "-vf", f"scale={SHOT_WIDTH}:-2", str(out)])
         except ffmpeg.FFmpegError:
@@ -497,7 +512,7 @@ class ShootWindow:
         )
 
     # --- 撮る ---------------------------------------------------------
-    def _ready(self) -> capture.Window | None:
+    def _ready(self) -> capture.Window | capture_android.Device | None:
         if self.current is None:
             messagebox.showinfo("撮れません", "先にビートを選んでください",
                                 parent=self.window)
@@ -517,7 +532,7 @@ class ShootWindow:
         row = self.current
         dest, relative = next_shot_path(self.outdir, row.scene_id, clip=False)
         try:
-            capture.shot(window.handle, dest)
+            self.cap.shot(window.handle, dest)
         except capture.CaptureError as exc:
             messagebox.showerror("撮れません", str(exc), parent=self.window)
             return
@@ -534,7 +549,7 @@ class ShootWindow:
         row = self.current
         dest, relative = next_shot_path(self.outdir, row.scene_id, clip=True)
         try:
-            self.recording = capture.Recording(window.handle, dest)
+            self.recording = self.cap.Recording(window.handle, dest)
         except capture.CaptureError as exc:
             messagebox.showerror("録画できません", str(exc), parent=self.window)
             return
@@ -739,9 +754,11 @@ class ShootWindow:
     # --- 保存 ---------------------------------------------------------
     def on_save(self) -> bool:
         self.capture_text()
-        if not self.doc.window:
+        # **撮る相手が決まるまで保存しない** (「設定済みに見える嘘」を焼かない)。
+        # Android は `app.package` が印なので、開いた時点で既に決まっている
+        if not self.doc.target:
             messagebox.showinfo("保存しません",
-                                "先にウィンドウを選んでください（app.window に書きます）",
+                                f"先に{self.cap.NOUN}を選んでください（app.window に書きます）",
                                 parent=self.window)
             return False
         # **他所で書き換わっていたら訊く。** このウィンドウは構造ごと書き戻すので、

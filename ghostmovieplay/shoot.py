@@ -175,6 +175,20 @@ class Doc:
         return str(app.get("window") or "") if isinstance(app, dict) else ""
 
     @property
+    def package(self) -> str:
+        app = self.raw.get("app")
+        return str(app.get("package") or "") if isinstance(app, dict) else ""
+
+    @property
+    def target(self) -> str:
+        """撮る相手 (ウィンドウのタイトル か Android のパッケージ).
+
+        **`plan.App.assisted` と同じ組み合わせ。** 空のまま保存すると
+        「設定済みに見える嘘」が残るので、呼び側はここで止める。
+        """
+        return self.window or self.package
+
+    @property
     def size(self) -> tuple[int, int]:
         video = self.raw.get("video") or {}
         return int(video.get("width", 1280)), int(video.get("height", 720))

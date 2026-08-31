@@ -60,6 +60,14 @@ _HEADERS = (16, 12)
 _PIX_FMT = {1: "rgba", 2: "rgb0"}
 
 
+# --- 撮る画面が backend ごとに出し分けるもの (capture.py と対) ----------
+NOUN = "端末"
+UNSUPPORTED = "adb が見つかりません (platform-tools を PATH に通してください)"
+# **書き戻さない。** シリアルも機種名も機械ごとに違うので、焼くと別の端末で
+# 繋がらない (`voice.url` と同じ理由)。どの端末で撮るかは毎回選ぶ
+NAMES_THE_TARGET = False
+
+
 def supported() -> bool:
     """adb があるか. **端末が繋がっているかは見ない** (それは `windows()` の話)."""
     return shutil.which(ADB) is not None

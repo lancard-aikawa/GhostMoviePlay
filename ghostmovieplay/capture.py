@@ -41,6 +41,16 @@ class CaptureError(RuntimeError):
     """撮れなかった."""
 
 
+# --- 撮る画面が backend ごとに出し分けるもの --------------------------
+# 撮る相手の呼び名 (画面の文言に使う)
+NOUN = "ウィンドウ"
+# 使えないときに理由として出す文
+UNSUPPORTED = "画面キャプチャは Windows でだけ使えます"
+# **選んだ相手の名前を plan.json に書き戻してよいか。** ウィンドウのタイトルは
+# 機械に依らないのでそのまま `app.window` になる (Android のシリアルは違う)
+NAMES_THE_TARGET = True
+
+
 def supported() -> bool:
     return sys.platform == "win32"
 
