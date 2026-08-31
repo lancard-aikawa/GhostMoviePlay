@@ -77,7 +77,12 @@
           "hold": 3.4,
           "audio": "voice/002_why.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "素朴に撮ると無音が入る、と言えている",
+        "selector": "#problem",
+        "contains": "考えるたびに無音の数十秒が入る"
+      }
     },
     {
       "id": "passes",
@@ -141,7 +146,12 @@
           ],
           "audio": "voice/007_passes.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "Pass2 に AI が無いと言えている",
+        "selector": "#pass2",
+        "contains": "AI なし"
+      }
     },
     {
       "id": "plan",
@@ -170,7 +180,12 @@
           ],
           "audio": "voice/009_plan.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "台本が JSON で読めることを見せている",
+        "selector": "#plancode",
+        "contains": "\"say\""
+      }
     },
     {
       "id": "settings",
@@ -225,7 +240,12 @@
           ],
           "audio": "voice/013_settings.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "設定が 3 層だと言えている",
+        "selector": "#layers",
+        "contains": "設定は 3 層"
+      }
     },
     {
       "id": "output",
@@ -247,7 +267,12 @@
           "hold": 3.4,
           "audio": "voice/015_output.wav"
         }
-      ]
+      ],
+      "goal": {
+        "says": "出来上がりが字幕・音声つきの 1 本だと言えている",
+        "selector": "#output",
+        "contains": "字幕・音声・クレジットまで入った 1 本"
+      }
     }
   ]
 }
