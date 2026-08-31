@@ -73,6 +73,7 @@ LABELS: dict[str, str] = {
     "app.url": "収録する URL",
     "app.window": "支援収録で撮るウィンドウ",
     "app.package": "支援収録で撮る Android アプリ",
+    "app.precondition": "撮る前に満たしておくこと",
     "app.ready": "準備完了のセレクタ",
     "app.start": "起動コマンド",
     "app.cwd": "ソースのフォルダ",
@@ -217,6 +218,7 @@ TABS: tuple[Tab, ...] = (
                 # 人が操作したウィンドウを撮る)。埋めると撮る面に「素材」の行が出る
                 _one("app.window", "支援収録で撮るウィンドウ"),
                 _one("app.package", "支援収録で撮る Android アプリ"),
+                _one("app.precondition", "撮る前に満たしておくこと"),
             )),
             Group("仕込みと後片付け", (
                 # 収録前に走らせる (荒れたデータを作る・使い捨てのデータルートを

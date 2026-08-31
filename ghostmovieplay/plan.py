@@ -116,6 +116,10 @@ class App:
     # 違う値なので、焼くと別の端末では繋がらない (voice.url と同じ理由)。
     # どの端末で撮るかは撮る画面で選ぶ
     package: str | None = None
+    # **撮る前に人が満たしておくこと** (支援収録)。手順ではなく前提なので
+    # `beat.do` には混ぜない —— 混ぜると 1 枚目を撮ろうとして初めて詰まる。
+    # 撮る画面がいちばん上に出す
+    precondition: str | None = None
     ready: str | None = None  # ここが見えるまで待ってから収録開始
     start: str | None = None  # 開発サーバの起動コマンド。既に応答していれば起動しない
     cwd: str | None = None  # start の実行ディレクトリ (plan.json からの相対)

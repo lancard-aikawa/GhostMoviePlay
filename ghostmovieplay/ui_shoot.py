@@ -123,6 +123,7 @@ class ShootWindow:
         self._build_footer()
         self._build_status()
         self._build_edit()
+        self._build_precondition()
         self._build_head()
         self._build_capture()
         self._build_body()
@@ -164,6 +165,23 @@ class ShootWindow:
         tk.Label(bar, textvariable=self.status, anchor="w", fg="#444",
                  wraplength=1040, justify=tk.LEFT).pack(
             side=tk.LEFT, fill=tk.X, padx=10, pady=2)
+
+    def _build_precondition(self) -> None:
+        """撮る前に満たしておくことを、いちばん上に出す.
+
+        **前提は手順ではない。** `do` に混ぜると 1 枚目を撮ろうとして初めて
+        詰まる (ログインしていない、撮ってはいけない画面を開いている)。
+        難しいところを人に任せるなら、**任せたことを画面が言う**必要がある。
+        空なら何も出さない (常に出すと帯が説明で埋まる)。
+        """
+        text = ((self.doc.raw.get("app") or {}).get("precondition") or "").strip()
+        if not text:
+            return
+        bar = tk.Frame(self.window, bg="#fff8e1")
+        bar.pack(side=tk.TOP, fill=tk.X)
+        tk.Label(bar, text=f"撮る前に： {text}", bg="#fff8e1", fg="#5d4037",
+                 anchor="w", justify=tk.LEFT, wraplength=1040).pack(
+            side=tk.LEFT, fill=tk.X, padx=10, pady=4)
 
     def _build_head(self) -> None:
         head = tk.Frame(self.window)

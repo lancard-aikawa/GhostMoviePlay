@@ -123,6 +123,10 @@ SCHEMA: tuple[Setting, ...] = (
     # **シリアルは書かない** —— 機械ごとに違うので、焼くと別の端末で繋がらない
     Setting("app.package", "str", None, _PV, "plan",
             "支援収録で撮る Android アプリ (com.example.app)。埋めると URL は要らない"),
+    # 支援収録で撮る人に出す前提。**手順ではない** (手順は beat.do)。
+    # ログイン済み・撮ってはいけない画面など、始める前に知る必要があるもの
+    Setting("app.precondition", "str", None, _PV, "plan",
+            "撮る前に人が満たしておくこと (支援収録の画面のいちばん上に出る)"),
     Setting("app.ready", "str", None, _PV, "plan",
             "これが見えたら準備完了とみなすセレクタ"),
     Setting("app.start", "str", None, _PV, "plan",

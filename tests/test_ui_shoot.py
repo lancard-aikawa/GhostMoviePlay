@@ -715,3 +715,33 @@ def test_closing_the_window_also_tidies_up(tk_root, tmp_path, monkeypatch):
     shooter.on_launch()
     shooter.on_close()
     assert "後片付け" in ran
+
+
+# --- 撮る前の前提 -------------------------------------------------------
+def test_a_precondition_is_shown_at_the_top(tk_root, tmp_path, monkeypatch):
+    """**任せたことを画面が言う。**
+
+    ログイン済みかどうかのような前提を `do` に混ぜると、1 枚目を撮ろうとして
+    初めて詰まる。開いた瞬間に読める場所に出す。
+    """
+    shooter = open_shooter(
+        tk_root, hooked_plan(tmp_path, precondition="デモテナントにログイン済みであること"),
+        monkeypatch)
+    try:
+        labels = [w.cget("text") for w in shooter.window.winfo_children()
+                  for w in w.winfo_children() if isinstance(w, ui_shoot.tk.Label)]
+        assert any("デモテナントにログイン済み" in x for x in labels)
+        assert any(x.startswith("撮る前に") for x in labels)
+    finally:
+        shooter.window.destroy()
+
+
+def test_no_precondition_takes_no_room(tk_root, tmp_path, monkeypatch):
+    """空なら何も出さない (常に出すと帯が説明で埋まる)."""
+    shooter = open_shooter(tk_root, hooked_plan(tmp_path), monkeypatch)
+    try:
+        labels = [w.cget("text") for w in shooter.window.winfo_children()
+                  for w in w.winfo_children() if isinstance(w, ui_shoot.tk.Label)]
+        assert not any(x.startswith("撮る前に") for x in labels)
+    finally:
+        shooter.window.destroy()
