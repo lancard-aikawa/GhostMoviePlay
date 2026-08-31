@@ -300,3 +300,24 @@ def test_assisted_request_asks_for_the_operator_instructions(assisted):
 def test_automated_request_never_mentions_do(project):
     """自動収録に撮る人はいない (混ぜると actions の代わりに書き始める)."""
     assert "`do` を必ず書いてください" not in build_request(parse(project))
+
+
+# --- 撮る価値の前提 -----------------------------------------------------
+def test_the_request_is_not_narrowed_to_failures(project):
+    """**軸は「分からなくて離れてしまうか」で、失敗はその一種でしかない。**
+
+    ここを「失敗を作れ」に狭めると、7-Zip の 1 本のような「操作は全部通るのに
+    目的を果たしていない」題材が選べなくなる (あの zip は正常に作られる)。
+    """
+    text = build_request(parse(project))
+    assert "離れ" in text, "離脱の軸が依頼文から消えている"
+    for shape in ("通るのに目的を果たしていない", "選べない・見つからない",
+                  "順序に縛られる", "引き返せない"):
+        assert shape in text, f"障害の型が漏れている: {shape}"
+
+
+def test_the_quality_bar_survives(project):
+    """広げても「ただ下手なだけ」は落とす (具体的な因果があるものを選ばせる)."""
+    text = build_request(parse(project))
+    assert "ただ下手なだけ" in text
+    assert "分かっている人でも引っかかる" in text
