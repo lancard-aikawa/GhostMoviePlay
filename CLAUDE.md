@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 使い方は [README.md](README.md)、Windows アプリを人が操作して撮る手引きは
-[README_WINAPP.md](README_WINAPP.md)、Gallery から落とした設定で撮る側の手引きは
+[README_WINAPP.md](README_WINAPP.md)、Android は [README_ANDROID.md](README_ANDROID.md)、
+Gallery から落とした設定で撮る側の手引きは
 [README_BUNDLE.md](README_BUNDLE.md)。詳細は `docs/` にある（[環境の用意](docs/setup.md) /
 [設定](docs/settings.md) / [音声](docs/voice.md) / [plan.json](docs/plan.md) /
 [実装メモ](docs/internals.md) / [統治と習慣](docs/governance.md) /
@@ -630,6 +631,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 撮る価値の前提を変える | `spec.GUIDE` の 1・2 番（**2 番が「何を撮る価値があるか」を決める唯一の行**。3〜7 は前提に依らない品質規則）、`skills/ghostplay/SKILL.md` の description・価値の 1 行・手順 3、`README.md` の冒頭、`docs/ideas/README.md` の「芯にあるもの」、`docs/governance.md`、`settings.PROJECT_TEMPLATE` の persona/topics、`tests/test_request.py`。**`video.md` の `scenes` は前提を変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る。**「失敗」に狭めない** —— 操作が全部通っても目的を果たしていなければ同じだけ障害で、7-Zip の 1 本が実際にそれ（zip は正常に作られる）|
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
 | 台本から直せる項目 | `plan.EDITABLE` と `plan._apply`、`ui_plan` の入力欄と `redo_for`、`docs/settings.md` の撮る面、`tests/test_ui_plan.py`。**絵を決めるもの (actions / selector) を足さない** |
+| 支援収録の手引き | **共通のことは `README_WINAPP.md` にだけ書く。** `README_ANDROID.md` は「Android で違うところ」に徹して、`do` と `say` の書き方・1 ビート = ショット 1 つ・組み立ては書き写さない（写すと片方だけ古くなる）。逆に**画面全体しか撮れないこと**は Android にしか無いので、あちらにだけ書く |
 | 撮る人への指示 (`do`) | `README_WINAPP.md` の頼み方、`plan.Beat.do`、`shoot.Doc.set_text`（**音声を落とさない** —— 絵にも音にも触らないため）、`ui_shoot` の一覧と入力欄、`spec.ASSIST_SCHEMA_NOTE` と SKILL.md（**書かせないと空のまま**）、`docs/plan.md`、`tests/test_shoot.py`。**`plan.EDITABLE` には入れない** —— 台本エディタは絵と音を変えるものだけ |
 | 支援収録のショットの扱い | `plan.Beat.shot`、`shoot.Doc`（**生の JSON に当てる**）、`ui_shoot`、`assemble`（欠けたら黒画 + 警告）、`ui_run._shots_item`、`docs/plan.md` の支援収録、`tests/test_shoot.py` と `tests/test_assemble.py`。**3 階層目を作らない / 複製を作らない** |
 | 撮り方 (ウィンドウ・録画) | `capture.py`、`ui_shoot` の撮影バー、`docs/plan.md`、`README_WINAPP.md` の「進め方」。**デスクトップ全体を撮る道を作らない**（撮る対象と関係のないものが載る） |

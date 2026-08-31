@@ -32,7 +32,8 @@ Pass3  gmp render   AI なし   字幕焼き込み・音声 mix → mp4
 **自動操作が届かない相手** —— OAuth、canvas、Windows のネイティブアプリ、自動操作が
 許されない業務アプリ —— だけは、Pass2 の代わりに**人が操作して撮る**（`gmp shoot`）。
 撮ったショットを並べれば Pass3 はそのまま通る。決定論を失うので、届く相手には
-使わないこと。**頼み方と進め方は [README_WINAPP.md](README_WINAPP.md)**。
+使わないこと。**頼み方と進め方は [README_WINAPP.md](README_WINAPP.md)**（Android は
+[README_ANDROID.md](README_ANDROID.md)）。
 
 ## 使い方
 
@@ -185,10 +186,11 @@ scenes は「問題 → 何がそうさせたか → 正解ルート」の 3 幕
 
 依頼文の場所は `gmp plan <video.md>` が出す（`gmp where <video.md>` でも分かる）。
 
-### Windows アプリ（自分で操作して撮る）
+### Windows アプリ / Android アプリ（自分で操作して撮る）
 
 自動操作が届かない相手は、Claude が台本を書き、**撮るのは人**になる。
-頼み方と手順は **[README_WINAPP.md](README_WINAPP.md)** にまとめてある。
+頼み方と手順は **[README_WINAPP.md](README_WINAPP.md)**、
+Android は **[README_ANDROID.md](README_ANDROID.md)** にまとめてある。
 
 ### 撮り直し・手直し
 
@@ -253,6 +255,7 @@ gmp.toml の voice.dict に読みを足して。
 | [docs/voice.md](docs/voice.md) | VOICEVOX、読みの指定、クレジット表記 |
 | [docs/plan.md](docs/plan.md) | plan.json の書式、action 一覧、尺の見積り |
 | [README_WINAPP.md](README_WINAPP.md) | **Windows アプリを撮る**（支援収録）。Claude への頼み方と、自分で操作する手順 |
+| [README_ANDROID.md](README_ANDROID.md) | **Android アプリを撮る**（支援収録）。Windows と違うところと、端末の繋ぎ方 |
 | [README_BUNDLE.md](README_BUNDLE.md) | **落とした設定で撮る**。Gallery の zip を受け取った側の手引き（Claude への頼み方つき） |
 | [docs/check.md](docs/check.md) | 台本が古くなっていないかを CI で見る (`gmp check`) |
 | [docs/governance.md](docs/governance.md) | 運用そのものを題材にする撮り方（統治・習慣・荒れたデータの仕込み） |

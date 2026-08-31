@@ -65,7 +65,8 @@ README の[未実装](../../README.md#未実装)が「この延長線上にあ�
 
 `record` を挿げ替えれば `plan` / `voice` / `render` はそのまま使える。
 
-- **[Android アプリ](android.md)** —— 見積り済み。Pass2 だけの差し替えで届く
+- **[Android アプリ](android.md)** —— **人が撮る道は入った**（[手引き](../../README_ANDROID.md)）。
+  残るのは自動操作で、Pass2 だけの差し替えで届く
 - **[Windows デスクトップアプリ](desktop.md)** —— 見積り済み。UI Automation に
   selector があるので決定論を保てる。**届かない相手を人が撮る道 (支援収録) は入った**
   ので、残りは「人の代わりに操作する部分」だけ
