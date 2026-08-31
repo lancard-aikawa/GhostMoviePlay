@@ -13,6 +13,11 @@
 - **ダンプはウィンドウが idle になるまで待つ。** アニメーションが止まらない
   画面では `ERROR: could not get idle state` で落ちる。落ちたら握り潰さず、
   待って撮り直す側に判断させる
+- **`input text` は日本語を黙って落とす。** 非 ASCII は端末側の KeyCharacterMap
+  に無いので、コマンドは成功して入力欄が空のまま残る (a-lamo で実測。**失敗が
+  画面にもログにも出ない**)。ローマ字は IME が変換してしまい
+  (`zentai renraku` → 「全体れんらく」)、**学習状態で結果が変わる**ので
+  決定論にならない。日本語は `ADBKeyboard` に broadcast で渡す
 
 **セレクタは接頭辞を必ず書かせる。** 省略時に「たぶん content-desc」と推測すると、
 当たらなかったのか間違ったものに当たったのかが区別できない。
@@ -26,6 +31,7 @@
 
 from __future__ import annotations
 
+import base64
 import html
 import re
 import subprocess
@@ -38,6 +44,14 @@ from .capture_android import _argv, _run, _text
 # ダンプが idle を待てずに落ちたときの、諦めるまでの回数
 DUMP_TRIES = 3
 REMOTE_DUMP = "/sdcard/gmp-ui.xml"
+
+# 日本語を打つための IME (senzhk/ADBKeyBoard)。**端末に入れるのは撮る人の仕事**で、
+# ここは入れない —— 人の端末にアプリを勝手に足す道を作らない。既定に据えるのも
+# `app.setup` の役目 (仕込みと後片付けはそこに書く、という決まりのまま)
+ADB_KEYBOARD = "com.android.adbkeyboard"
+# **base64 で渡す** (`ADB_INPUT_TEXT` ではなく)。日本語をそのまま並べると、
+# ホストの shell と端末の shell の 2 回の引用を抜けられない
+ADB_KEYBOARD_ACTION = "ADB_INPUT_B64"
 
 _BOUNDS = re.compile(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]")
 _NODE = re.compile(r"<node\s([^>]*?)/?>")
@@ -144,6 +158,7 @@ class Driver:
         self.serial = serial
         self.width, self.height = size
         self._nodes: list[Node] | None = None
+        self._ime: str | None = None
 
     # --- 読む ---------------------------------------------------------
     def refresh(self) -> list[Node]:
@@ -197,11 +212,37 @@ class Driver:
         _run("shell", "input", "tap", str(x), str(y), serial=self.serial)
         self._nodes = None          # 押したら画面が変わる
 
+    def ime(self) -> str:
+        """いま既定になっている IME. **1 回読んだら覚える** (adb 1 往復ぶん)."""
+        if self._ime is None:
+            self._ime = _text("shell", "settings", "get", "secure",
+                              "default_input_method", serial=self.serial)
+        return self._ime
+
     def type_text(self, selector: str, text: str) -> None:
-        """入力欄を押してから打つ. **`input text` は空白を打てない**ので %s に置く."""
+        """入力欄を押してから打つ. **`input text` は空白を打てない**ので %s に置く.
+
+        **ADBKeyboard が既定なら、いつでも broadcast で渡す。** ASCII だけ
+        `input text` に戻すと、同じ台本が端末の状態で 2 通りの打ち方になる。
+        """
         self.tap(selector)
         time.sleep(0.4)
-        _run("shell", "input", "text", text.replace(" ", "%s"), serial=self.serial)
+        if self.ime().startswith(ADB_KEYBOARD):
+            msg = base64.b64encode(text.encode("utf-8")).decode("ascii")
+            _run("shell", "am", "broadcast", "-a", ADB_KEYBOARD_ACTION,
+                 "--es", "msg", msg, serial=self.serial)
+        elif text.isascii():
+            _run("shell", "input", "text", text.replace(" ", "%s"), serial=self.serial)
+        else:
+            # **黙って空のまま撮らない。** `input text` は非 ASCII を落として
+            # 成功するので、ここで止めないと打てていない画が撮れる (実際に撮れた)
+            raise DriveError(
+                f"日本語は `input text` では打てません: {text!r}\n"
+                f"  ADBKeyboard を入れて既定の IME にしてください "
+                f"(いまの既定: {self.ime() or '読めません'})\n"
+                f"  adb install ADBKeyboard.apk && "
+                f"adb shell ime enable {ADB_KEYBOARD}/.AdbIME && "
+                f"adb shell ime set {ADB_KEYBOARD}/.AdbIME")
         self._nodes = None
 
     def key(self, name: str) -> None:

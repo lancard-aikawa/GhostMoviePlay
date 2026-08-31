@@ -156,7 +156,7 @@ uv run gmp shoot docs/video/xxx/plan.json
 **それ以外は撮る前に落とします**。とくに `highlight` は使えません（疑似カーソルも
 枠も DOM に注入した JS なので、他人のアプリの上には出せない）。
 
-### 必ず踏む 3 つ
+### 必ず踏むもの
 
 **`app.setup` に `am force-stop` を書く。** 書かないと、**前回どこで終わったかを
 引き継いだまま**始まります（`作成` の画面を開いたまま放置していて、最初のビートが
@@ -167,10 +167,33 @@ uv run gmp shoot docs/video/xxx/plan.json
 setup = 'adb shell am force-stop com.example.app'
 ```
 
-**日本語は `input text` で打てない。** IME を通るので、ローマ字に読める小文字は
-変換されます（実測: `kaigi` → **かいぎ**、`jidou-shuroku` → **自動ー収録**）。
-**大文字・数字・記号が混じれば素通し**します（`Test-2026 Q3` はそのまま）。
-入力する文字はそれに合わせるか、アプリ側のデータとして仕込むこと。
+**日本語を打つには ADBKeyboard を入れる。** `input text` は非 ASCII を**黙って
+落とします** —— コマンドは成功して、入力欄が空のまま残ります（実測。ローマ字を
+書いても IME が変換してしまい、`zentai renraku` が「全体れんらく」になった。
+**変換は IME の学習状態で変わる**ので決定論になりません）。ADBKeyboard を入れて
+既定の IME にすれば、`type` がそのまま日本語を打てます（broadcast で渡すので
+IME の変換を通りません）。入れていない端末で日本語を書くと、**撮る前に落ちます**。
+
+```powershell
+# 1. 入れる (Play Protect が古い targetSdk を弾くので、検証を一時的に切る)
+adb shell settings put global verifier_verify_adb_installs 0
+adb install -r --bypass-low-target-sdk-block ADBKeyboard.apk
+adb shell settings delete global verifier_verify_adb_installs   # 必ず戻す
+adb shell ime enable com.android.adbkeyboard/.AdbIME
+```
+
+既定に据えるのと戻すのは **`app.setup` / `app.teardown`** に書きます（撮る前後に
+走らせるものはそこ、という決まりのまま）。戻し先は端末ごとに違うので、
+`adb shell settings get secure default_input_method` で先に控えておくこと。
+
+```toml
+setup = 'adb shell ime set com.android.adbkeyboard/.AdbIME && adb shell am force-stop com.example.app'
+teardown = 'adb shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME'
+```
+
+**打ったら `press KEYCODE_BACK` で閉じる。** ADBKeyboard は画面の下端に
+`ADB Keyboard {ON}` の帯を出すので、そのまま撮ると**動画に写ります**。
+BACK は帯だけを閉じ、開いているダイアログは残ります（実測）。
 
 **ダンプは 1 回 2.6 秒。** 要素を探すたびに走るので、`wait_for` を並べるほど
 遅くなります。待つ必要のないところには書かないこと。

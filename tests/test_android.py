@@ -6,8 +6,11 @@
 
 from __future__ import annotations
 
+import base64
+
 import pytest
 
+from ghostmovieplay import android
 from ghostmovieplay.android import (
     DriveError, Driver, Node, matches, parse, point_at,
 )
@@ -134,3 +137,60 @@ def test_a_point_needs_no_dump(monkeypatch):
 def test_the_command_line_targets_one_device():
     d = Driver("ZY32", (720, 1604))
     assert d.argv("shell", "input", "tap") == ["adb", "-s", "ZY32", "shell", "input", "tap"]
+
+
+# --- 打つ ---------------------------------------------------------------
+def typing(monkeypatch, ime, text):
+    """`type_text` が adb に何を渡したかを覗く. **端末は要らない**."""
+    sent: list[tuple[str, ...]] = []
+    d = Driver("SERIAL", (720, 1604))
+    monkeypatch.setattr(d, "point", lambda selector: (10, 20))
+    monkeypatch.setattr(d, "ime", lambda: ime)
+    monkeypatch.setattr(android, "_run",
+                        lambda *args, **kw: sent.append(args) or None)
+    monkeypatch.setattr(android.time, "sleep", lambda seconds: None)
+    d.type_text("id=post_title_field", text)
+    return sent
+
+
+def test_ascii_is_typed_as_key_events(monkeypatch):
+    """ADBKeyboard を入れていない端末でも、英数字はそのまま打てる."""
+    sent = typing(monkeypatch, "com.google.android.inputmethod.latin/.LatinIME",
+                  "Test 2026")
+    assert ("shell", "input", "text", "Test%s2026") in sent
+
+
+def test_japanese_needs_the_adb_keyboard(monkeypatch):
+    """**黙って空のまま撮らない。** `input text` は非 ASCII を落として成功する."""
+    with pytest.raises(DriveError) as exc:
+        typing(monkeypatch, "com.google.android.inputmethod.latin/.LatinIME",
+               "9月の全体連絡")
+    assert "ADBKeyboard" in str(exc.value)      # 入れ方まで言う
+    assert "ime set" in str(exc.value)
+
+
+def test_japanese_goes_through_the_adb_keyboard_as_base64(monkeypatch):
+    """日本語は 2 回の引用を抜けられないので base64 で渡す."""
+    sent = typing(monkeypatch, f"{android.ADB_KEYBOARD}/.AdbIME", "9月の全体連絡")
+    call = next(a for a in sent if a[:2] == ("shell", "am"))
+    assert android.ADB_KEYBOARD_ACTION in call
+    assert base64.b64decode(call[-1]).decode("utf-8") == "9月の全体連絡"
+
+
+def test_the_adb_keyboard_takes_ascii_too(monkeypatch):
+    """**打ち方を端末の状態で分けない。** 同じ台本が 2 通りに動くのを防ぐ."""
+    sent = typing(monkeypatch, f"{android.ADB_KEYBOARD}/.AdbIME", "Test 2026")
+    assert not any(a[:3] == ("shell", "input", "text") for a in sent)
+    call = next(a for a in sent if a[:2] == ("shell", "am"))
+    assert base64.b64decode(call[-1]).decode("utf-8") == "Test 2026"
+
+
+def test_the_ime_is_read_once(monkeypatch):
+    """既定の IME を打つたびに読むと、adb の往復がビートごとに増える."""
+    reads = []
+    d = Driver("SERIAL", (720, 1604))
+    monkeypatch.setattr(android, "_text",
+                        lambda *args, **kw: reads.append(args) or "com.example/.IME")
+    assert d.ime() == "com.example/.IME"
+    assert d.ime() == "com.example/.IME"
+    assert len(reads) == 1
