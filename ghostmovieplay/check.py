@@ -143,7 +143,7 @@ def _long_captions(path: Path, plan) -> tuple[dict, ...]:
     検査が通った字幕が実際には 3 行になる (`AUDIO_TAIL` と同じ話)。
     """
     from . import settings
-    from .subtitles import wrap
+    from .subtitles import layout, wrap
 
     try:
         resolved = settings.load(spec=path)
@@ -151,6 +151,10 @@ def _long_captions(path: Path, plan) -> tuple[dict, ...]:
         max_lines = int(resolved.get("subtitle.max_lines"))
     except (settings.SettingsError, OSError, TypeError, ValueError):
         return ()   # 設定が読めないことを台本のせいにしない
+
+    # **実際に折り返す幅で数える。** 設定の上限だけ見ていると、縦画面のように
+    # 幅の狭い 1 本で「通ったのに 4 行になる」ことになる
+    max_chars = layout(plan.video.width, plan.video.height, max_chars)["limit"]
 
     found: list[dict] = []
     for scene in plan.scenes:

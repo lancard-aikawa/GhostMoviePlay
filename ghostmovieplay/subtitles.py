@@ -43,6 +43,39 @@ def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")")
 
 
+# 1 文字が font size の何倍の幅を占めるか。**実測値** —— 1280x720 で
+# Fontsize 44 の日本語 32 文字が約 860px だったので 0.61。**少し大きめに取る**
+# (フォントを差し替えたときに、狭い側だけ黙ってはみ出すのを避ける)
+CHAR_EM = 0.65
+
+
+def layout(width: int, height: int, max_chars: int = 26) -> dict[str, int]:
+    """画面の大きさから字幕の寸法と 1 行の文字数を決める.
+
+    **文字の大きさは短いほうの辺で決める。** height から出していたので、
+    縦長 (720x1604) では画面幅の 1/7 もある文字になり、**3 文字で画面から
+    はみ出した** (実際にはみ出した)。横長では height がたまたま短いほうの辺
+    だったので、縦の 1 本を撮るまで露見しなかった。
+
+    **1 行の文字数は、設定の上限と「幅に入る数」の小さいほう。** 上限だけ見て
+    いると、狭い画面で必ずはみ出す。ここが `wrap()` に渡る唯一の口で、
+    `check` も同じ数を使う (同じ数え方を 2 か所に書かない)。
+    """
+    size = max(20, round(min(width, height) * 0.061))
+    margin_h = round(width * 0.06)
+    usable = max(size, width - 2 * margin_h)
+    fits = int(usable / (size * CHAR_EM))
+    return {
+        "size": size,
+        "margin_h": margin_h,
+        "margin_v": round(height * 0.055),
+        "credit_size": max(12, round(min(width, height) * 0.028)),
+        # `wrap` は句読点が来なければ limit + 6 まで伸ばすので、そのぶん引く。
+        # 既定 (1280x720) では 42 文字入るので 26 のまま変わらない
+        "limit": max(6, min(max_chars, fits - 6)),
+    }
+
+
 def build_ass(
     timing: dict,
     font: str = DEFAULT_FONT,
@@ -52,10 +85,12 @@ def build_ass(
     v = timing.get("video", {})
     width = int(v.get("width", 1280))
     height = int(v.get("height", 720))
-    size = max(20, round(height * 0.061))
-    margin_v = round(height * 0.055)
-    margin_h = round(width * 0.06)
-    credit_size = max(12, round(height * 0.028))
+    box = layout(width, height, max_chars)
+    size = box["size"]
+    margin_v = box["margin_v"]
+    margin_h = box["margin_h"]
+    credit_size = box["credit_size"]
+    max_chars = box["limit"]
 
     head = f"""[Script Info]
 ScriptType: v4.00+

@@ -15,7 +15,7 @@ Pass1 と Pass3 はほぼそのまま使える。
 | `plan` (Pass1) | Kotlin / Compose を読ませる。selector が CSS → resource-id / content-desc / text | 小（SKILL.md の書き換え） |
 | `voice` | **そのまま** | なし |
 | `record` (Pass2) | Playwright → Appium (UiAutomator2)、`record_video` → scrcpy | **中〜大** |
-| `render` (Pass3) | ほぼそのまま。縦画面向けに `subtitles.py` の配置調整 | 小 |
+| `render` (Pass3) | **そのまま**（縦画面の字幕は入った） | なし |
 
 `Recorder.play_beat` の「音声の尺がビートの尺を決める」「実測時刻を timing.json に書く」
 というロジックは丸ごと生き残る。`Recorder.do()` の分岐も Appium とほぼ 1:1 で、
