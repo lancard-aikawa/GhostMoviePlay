@@ -109,6 +109,18 @@ Android のアプリを撮るなら、代わりに `app.package` に**パッケ�
 あとは同じ。**端末のシリアルは書かない** —— 機械ごとに違う値なので、焼くと別の
 端末で繋がらない（`voice.url` と同じ理由）。どの端末で撮るかは撮る画面で選ぶ。
 
+#### Android は機械にも操作させられる
+
+ビートに `actions` を書くと `gmp record` が人の代わりに操作して撮る。
+セレクタは **`desc=` / `desc*=` / `id=` / `text=` / `at=`** の接頭辞つきで書く
+（**Flutter はラベルを `text` ではなく `content-desc` に載せる**ので `desc=`）。
+使えるのは `click` / `type` / `press` / `wait_for` / `sleep` / `scroll_to` だけで、
+**それ以外は撮る前に落とす**（`highlight` は他人のアプリの上に出せない）。
+
+**`app.setup` に `am force-stop` を書く** —— 書かないと前回どこで終わったかを
+引き継いだまま始まる。**`pm clear` は使わない**（ログインごと消える）。
+詳しくは [README_ANDROID.md](../README_ANDROID.md)。
+
 #### Android は画面全体しか撮れない
 
 Windows は `PrintWindow` でウィンドウ 1 つを撮るので「撮る本人が見ていないものは

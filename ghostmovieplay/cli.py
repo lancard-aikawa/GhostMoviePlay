@@ -663,7 +663,8 @@ def cmd_record(args) -> int:
 
         print(f"自動収録 (Android): {plan.title}  ({len(plan.beats)} beats -> {outdir})")
         try:
-            result = drive(plan, outdir, verbose=args.verbose,
+            # record サブコマンドに --verbose は無い (check だけが持っている)
+            result = drive(plan, outdir, verbose=True,
                            serial=getattr(args, "serial", "") or "")
         except (DriveError, FFmpegError, ValueError) as exc:
             return _err(str(exc))
