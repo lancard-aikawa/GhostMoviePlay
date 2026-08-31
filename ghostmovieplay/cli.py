@@ -639,7 +639,7 @@ def cmd_record(args) -> int:
     # **支援収録の 1 本はブラウザを開かない。** 人が撮った素材を並べる
     # (`gmp shoot` で貯めたもの)。出すものは自動収録と同じ raw + timing なので、
     # このあとの `gmp render` は区別しない
-    if plan.app.window:
+    if plan.app.assisted:
         from .assemble import assemble
         from .ffmpeg import FFmpegError
 

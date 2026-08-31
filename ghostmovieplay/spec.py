@@ -458,8 +458,11 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
     # **支援収録は依頼文の中身が変わる。** 操作するのが人なので、セレクタも
     # actions も要らず、代わりに「並びを決めて say を書く」が仕事になる
     window = values["app"].get("window")
-    if window:
-        target = f"- 撮るウィンドウ: `{window}` (人がこのウィンドウを操作します)"
+    package = values["app"].get("package")
+    if window or package:
+        target = (f"- 撮るウィンドウ: `{window}` (人がこのウィンドウを操作します)"
+                  if window else
+                  f"- 撮る Android アプリ: `{package}` (人が端末を操作します)")
         extra = "\n" + ASSIST_SCHEMA_NOTE
         done = ("シーンとビートの並びを決めて `say` を書いたら、そこで完了です。\n"
                 "このあと人が `gmp shoot` の画面でビートごとに画面を撮り、\n"

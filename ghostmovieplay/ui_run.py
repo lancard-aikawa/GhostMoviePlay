@@ -126,7 +126,7 @@ def survey(spec: Path | None) -> Survey:
 
     outdir = paths.resolve_outdir(plan_path, project=loaded.project, app_cwd=loaded.app.cwd)
     seconds, measured = estimate(loaded, outdir)
-    assisted = bool(loaded.app.window)
+    assisted = loaded.app.assisted
     rows = [written, script]
     if assisted:
         # **ショットの行は支援収録のときだけ出す。** 自動収録では撮る段がショットも

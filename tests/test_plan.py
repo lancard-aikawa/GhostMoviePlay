@@ -116,3 +116,46 @@ def test_committed_plans_survive_a_move_to_another_machine():
     for path in plans:
         found = check.inspect(path, load(path))
         assert not found, f"{path}: " + " / ".join(f["message"] for f in found)
+
+
+# --- 支援収録の印 (人が操作して撮る 1 本か) -------------------------------
+def test_a_window_makes_it_assisted(tmp_path):
+    """Windows のウィンドウを撮る 1 本. **url は要らない**."""
+    data = json.loads(json.dumps(BASE))
+    data["app"] = {"window": "電卓"}
+    plan = load(write(tmp_path, data))
+    assert plan.app.assisted
+
+
+def test_a_package_makes_it_assisted(tmp_path):
+    """Android のアプリを撮る 1 本. window と同じ役目で、撮るのが端末の画面になる."""
+    data = json.loads(json.dumps(BASE))
+    data["app"] = {"package": "com.example.app"}
+    plan = load(write(tmp_path, data))
+    assert plan.app.assisted
+    assert plan.app.package == "com.example.app"
+
+
+def test_a_url_is_not_assisted(tmp_path):
+    """自動収録は支援収録ではない (ショットの行を出すと段と行が 1 対 1 でなくなる)."""
+    assert not load(write(tmp_path, BASE)).app.assisted
+
+
+def test_the_error_names_both_ways_to_assist(tmp_path):
+    """どちらを書けばいいのか分からないまま行き止まらないように."""
+    data = json.loads(json.dumps(BASE))
+    data["app"] = {}
+    with pytest.raises(PlanError, match="app.package"):
+        load(write(tmp_path, data))
+
+
+def test_a_serial_is_not_part_of_the_plan(tmp_path):
+    """**端末のシリアルは焼かない。** 機械ごとに違うので、別の端末で繋がらない.
+
+    知らないキーは `App.__annotations__` で落ちる —— 書いても効かないことを
+    ここで固定しておく (効くようにするなら voice.url と同じ扱いが要る)。
+    """
+    data = json.loads(json.dumps(BASE))
+    data["app"] = {"package": "com.example.app", "serial": "ZY32MBLT69"}
+    plan = load(write(tmp_path, data))
+    assert not hasattr(plan.app, "serial")

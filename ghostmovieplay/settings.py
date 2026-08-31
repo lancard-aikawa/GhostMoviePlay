@@ -119,6 +119,10 @@ SCHEMA: tuple[Setting, ...] = (
     # (ログインの要る業務アプリ・canvas・OAuth) のための道
     Setting("app.window", "str", None, _PV, "plan",
             "支援収録で撮るウィンドウのタイトル (部分一致)。埋めると URL は要らない"),
+    # Android の 1 本。window と同じ役目で、撮るのが端末の画面になる。
+    # **シリアルは書かない** —— 機械ごとに違うので、焼くと別の端末で繋がらない
+    Setting("app.package", "str", None, _PV, "plan",
+            "支援収録で撮る Android アプリ (com.example.app)。埋めると URL は要らない"),
     Setting("app.ready", "str", None, _PV, "plan",
             "これが見えたら準備完了とみなすセレクタ"),
     Setting("app.start", "str", None, _PV, "plan",

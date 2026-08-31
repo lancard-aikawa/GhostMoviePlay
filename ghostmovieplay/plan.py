@@ -93,6 +93,11 @@ class App:
     # PID ではなくタイトルで掴むのは、ストア配信のアプリが launcher から
     # 別 PID に受け渡して終了するため
     window: str | None = None
+    # Android の 1 本 (`com.example.app`)。**window と同じ役目**で、撮るのが
+    # ウィンドウではなく端末の画面になる。**シリアルは書かない** —— 機械ごとに
+    # 違う値なので、焼くと別の端末では繋がらない (voice.url と同じ理由)。
+    # どの端末で撮るかは撮る画面で選ぶ
+    package: str | None = None
     ready: str | None = None  # ここが見えるまで待ってから収録開始
     start: str | None = None  # 開発サーバの起動コマンド。既に応答していれば起動しない
     cwd: str | None = None  # start の実行ディレクトリ (plan.json からの相対)
@@ -102,6 +107,18 @@ class App:
     # 荒れたデータを仕込んでから撮る題材はこれが主役になる (docs/governance.md)
     setup: str | None = None
     teardown: str | None = None   # 落ちても収録は失敗にしない (警告に残す)
+
+    @property
+    def assisted(self) -> bool:
+        """**人が操作して撮る 1 本か。**
+
+        撮る相手 (`window` / `package`) が埋まっていれば支援収録。
+        これを見る側が 4 つある (`plan.load` の検査・`gmp record` の分岐・
+        `gmp check` の除外・撮る面の行) ので、**相手を増やすときはここだけ直す**。
+        散らすと、片方だけ足したときに「撮れるのに検査が赤」のような
+        中途半端な状態ができる。
+        """
+        return bool(self.window or self.package)
 
 
 @dataclass
@@ -336,8 +353,9 @@ def load(path: str | Path) -> Plan:
             scene.beats.append(beat)
         plan.scenes.append(scene)
 
-    # **支援収録は url を要らない。** ブラウザを開かず、人が操作したウィンドウを撮るので、
-    # 収録対象は app.window (ウィンドウのタイトル) のほうで決まる
-    if not plan.app.url and not plan.app.window:
-        raise PlanError(f"{path}: app.url が必要です (支援収録なら app.window)")
+    # **支援収録は url を要らない。** ブラウザを開かず、人が操作した相手を撮るので、
+    # 収録対象は app.window (ウィンドウのタイトル) か app.package (Android) で決まる
+    if not plan.app.url and not plan.app.assisted:
+        raise PlanError(
+            f"{path}: app.url が必要です (支援収録なら app.window か app.package)")
     return plan

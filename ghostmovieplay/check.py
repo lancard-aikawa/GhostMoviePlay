@@ -203,7 +203,7 @@ def check_one(path: Path, record_fn=None) -> Result:
     # clone した機械には無い。並べ直しても「まだアプリに当たっているか」は
     # 分からないので、**通ったことにしない** (docs/ideas/desktop.md)。
     # 撮らずに分かる欠陥だけは同じように見る
-    if plan.app.window:
+    if plan.app.assisted:
         if found:
             return Result(path, STALE, f"直すところ {len(found)} 件", found)
         return Result(path, SKIP, "支援収録なので撮り直せません (この検査は効きません)")
