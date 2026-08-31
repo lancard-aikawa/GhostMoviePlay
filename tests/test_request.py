@@ -321,3 +321,14 @@ def test_the_quality_bar_survives(project):
     text = build_request(parse(project))
     assert "ただ下手なだけ" in text
     assert "分かっている人でも引っかかる" in text
+
+
+def test_the_request_asks_for_the_screen_name_in_do(assisted):
+    """**`do` はどの画面かから書き始めさせる。**
+
+    書いていないと、撮る人は前のビートから移動したのかどうかが読めない
+    (実際に読めなかった)。
+    """
+    text = build_request(parse(assisted))
+    assert "<画面の名前>：<やること>" in text
+    assert "どの画面か" in text
