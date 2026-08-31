@@ -95,6 +95,11 @@ class ShootWindow:
         self.trouble = ""                   # ウィンドウを数えられなかった理由
         self.last_touched = 0               # 直前に触っていたウィンドウ
         self.app_proc: subprocess.Popen | None = None
+        # **仕込んだかどうかは、プロセスの生死とは別に持つ。** `app.start` が
+        # すぐ終わるコマンド (adb でアプリを起こすなど) だと、プロセスで見ていると
+        # 押した直後にもう「起動していない」ことになり、**後片付けが走らない**。
+        # `app.start` が無くて `app.setup` だけの 1 本も同じ (実際にそうなった)
+        self.prepared = False
         self._photo = None                  # PhotoImage は参照を持たないと消える
 
         if self.path.is_file():
@@ -168,8 +173,11 @@ class ShootWindow:
         self.picker.pack(side=tk.LEFT, padx=6)
         self.picker.bind("<<ComboboxSelected>>", self._on_pick_window)
         tk.Button(head, text="調べ直す", command=self.reload_windows).pack(side=tk.LEFT)
-        self.launch_button = tk.Button(head, text="起動", width=8, command=self.on_launch)
-        if (self.doc.raw.get("app") or {}).get("start"):
+        # **`app.setup` だけの 1 本にもボタンを出す。** 仕込みが走る場所はここしか
+        # 無いので、出さないと仕込みも後片付けも永遠に走らない (実際に走らなかった)
+        self.launch_button = tk.Button(head, text=self._launch_labels()[0],
+                                       width=8, command=self.on_launch)
+        if self._has_hooks():
             self.launch_button.pack(side=tk.LEFT, padx=(12, 0))
 
     def _build_capture(self) -> None:
@@ -650,6 +658,20 @@ class ShootWindow:
             return (self.path.parent / app["cwd"]).resolve()
         return self.path.parent
 
+    def _has_hooks(self) -> bool:
+        app = self.doc.raw.get("app") or {}
+        return any(app.get(key) for key in ("start", "setup", "teardown"))
+
+    def _launch_labels(self) -> tuple[str, str]:
+        """(押す前, 押したあと) のボタンの文字.
+
+        **起こすものが無いなら「起動」と書かない。** `app.setup` だけの 1 本で
+        起動と書くと、何かが立ち上がるのを待ってしまう (Android は人がアプリを開く)。
+        """
+        if (self.doc.raw.get("app") or {}).get("start"):
+            return "起動", "終了"
+        return "仕込む", "片付ける"
+
     def on_launch(self) -> None:
         """`app.setup` → `app.start` を起こす / 畳んで `app.teardown`.
 
@@ -664,12 +686,12 @@ class ShootWindow:
         **仕込みは同期で走る**ので、画面はそのあいだ止まる。数分かかるものを
         `app.setup` に書かないこと。
         """
-        if self.app_proc is not None and self.app_proc.poll() is None:
+        if self.prepared:
             self._shutdown()
             return
         app = self.doc.raw.get("app") or {}
         start = app.get("start")
-        if not start:
+        if not self._has_hooks():
             return
 
         from .server import HookError, run_hook
@@ -686,6 +708,13 @@ class ShootWindow:
                                      parent=self.window)
                 self.status.set("仕込みが失敗したので起動していません")
                 return
+        self.prepared = True
+        self.launch_button.configure(text=self._launch_labels()[1])
+        if not start:
+            # 起こすものが無い 1 本 (Android など)。**仕込みだけ済ませて人に渡す。**
+            # ここで諦めると、仕込みを走らせる道が画面のどこにも無くなる
+            self.status.set("仕込みました。アプリは手で開いてください")
+            return
         try:
             flags = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} \
                 if sys.platform == "win32" else {"start_new_session": True}
@@ -695,8 +724,8 @@ class ShootWindow:
         except OSError as exc:
             messagebox.showerror("起動できません", f"{start}\n\n{exc}",
                                  parent=self.window)
+            self._shutdown()      # 仕込んだものを片付けてから戻る
             return
-        self.launch_button.configure(text="終了")
         self.status.set(f"起動: {start}   (ウィンドウが出るのを待っています)")
         # **起動はこちらが焦点を持ったまま進む**ので `<FocusIn>` が来ない。
         # 1 回だけ見て諦めると、重いアプリで黙って未選択のままになる
@@ -733,7 +762,8 @@ class ShootWindow:
         if self.app_proc is not None and self.app_proc.poll() is None:
             kill_tree(self.app_proc)
         self.app_proc = None
-        self.launch_button.configure(text="起動")
+        self.prepared = False
+        self.launch_button.configure(text=self._launch_labels()[0])
         teardown = (self.doc.raw.get("app") or {}).get("teardown")
         if not teardown:
             self.status.set("終了しました")
@@ -803,7 +833,7 @@ class ShootWindow:
             return
         # **閉じるときも後片付けまでやる。** 「終了」を押さずにウィンドウを閉じる人は
         # 必ずいるので、使い捨てのデータを置き去りにしない
-        if self.app_proc is not None and self.app_proc.poll() is None:
+        if self.prepared:
             self._shutdown()
         self.window.destroy()
 

@@ -626,3 +626,92 @@ def test_an_android_take_still_matches_the_screen_size(android_shooter):
     android_shooter._on_pick_window()
     video = android_shooter.doc.raw["video"]
     assert (video["width"], video["height"]) == (720, 1604)
+
+
+# --- 仕込みと後片付け ---------------------------------------------------
+def hooked_plan(tmp_path, **app):
+    directory = tmp_path / "docs" / "video" / "hooked"
+    directory.mkdir(parents=True)
+    target = directory / "plan.json"
+    raw = skeleton("テスト", "", 720, 1604)
+    raw["app"].pop("window", None)
+    raw["app"].update({"package": "com.example.app", **app})
+    target.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+    return target
+
+
+def open_shooter(tk_root, path, monkeypatch):
+    from ghostmovieplay import capture_android
+
+    monkeypatch.setattr(ui_shoot.messagebox, "askyesno", lambda *a, **k: False)
+    monkeypatch.setattr(ui_shoot.messagebox, "showerror", lambda *a, **k: None)
+    monkeypatch.setattr(capture_android, "supported", lambda: True)
+    monkeypatch.setattr(capture_android, "windows", lambda: [])
+    return ui_shoot.ShootWindow(tk_root, path)
+
+
+def test_setup_alone_still_gets_a_button(tk_root, tmp_path, monkeypatch):
+    """**仕込みが走る場所は「起動」しか無い。**
+
+    app.start が無いからとボタンを隠すと、仕込みも後片付けも永遠に走らない
+    (Android の 1 本で実際に走らなかった)。
+    """
+    shooter = open_shooter(tk_root, hooked_plan(tmp_path, setup="echo x"), monkeypatch)
+    try:
+        assert shooter._has_hooks()
+        assert shooter.launch_button.winfo_manager()   # pack されている
+        # 起こすものが無いので「起動」とは書かない
+        assert shooter._launch_labels() == ("仕込む", "片付ける")
+    finally:
+        shooter.window.destroy()
+
+
+def test_a_start_command_is_called_launch(tk_root, tmp_path, monkeypatch):
+    shooter = open_shooter(tk_root, hooked_plan(tmp_path, start="echo x"), monkeypatch)
+    try:
+        assert shooter._launch_labels() == ("起動", "終了")
+    finally:
+        shooter.window.destroy()
+
+
+def test_nothing_to_run_hides_the_button(tk_root, tmp_path, monkeypatch):
+    shooter = open_shooter(tk_root, hooked_plan(tmp_path), monkeypatch)
+    try:
+        assert not shooter._has_hooks()
+        assert not shooter.launch_button.winfo_manager()
+    finally:
+        shooter.window.destroy()
+
+
+def test_teardown_runs_even_without_a_live_process(tk_root, tmp_path, monkeypatch):
+    """**後片付けをプロセスの生死で判定しない。**
+
+    app.start がすぐ終わるコマンド (adb でアプリを起こすなど) だと、押した直後に
+    もう「起動していない」ことになって片付けが走らない。
+    """
+    ran = []
+    monkeypatch.setattr("ghostmovieplay.server.run_hook",
+                        lambda cmd, cwd, label, verbose=False: ran.append((label, cmd)))
+    shooter = open_shooter(
+        tk_root, hooked_plan(tmp_path, setup="echo in", teardown="echo out"), monkeypatch)
+    try:
+        shooter.on_launch()
+        assert shooter.prepared is True
+        assert ran == [("仕込み", "echo in")]
+        shooter.on_launch()               # もう一度押すと片付け
+        assert shooter.prepared is False
+        assert ran[-1] == ("後片付け", "echo out")
+    finally:
+        shooter.window.destroy()
+
+
+def test_closing_the_window_also_tidies_up(tk_root, tmp_path, monkeypatch):
+    """「片付ける」を押さずに閉じる人は必ずいる."""
+    ran = []
+    monkeypatch.setattr("ghostmovieplay.server.run_hook",
+                        lambda cmd, cwd, label, verbose=False: ran.append(label))
+    shooter = open_shooter(
+        tk_root, hooked_plan(tmp_path, setup="echo in", teardown="echo out"), monkeypatch)
+    shooter.on_launch()
+    shooter.on_close()
+    assert "後片付け" in ran
