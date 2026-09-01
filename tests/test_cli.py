@@ -124,3 +124,17 @@ def test_where_on_a_broken_plan_says_why(tmp_path, capsys):
     broken = tmp_path / "plan.json"
     broken.write_text("{ not json", encoding="utf-8")
     assert main(["where", str(broken)]) == 1
+
+
+# --- render に渡すもの ---------------------------------------------------
+def test_render_says_which_file_it_wants(plan_file, capsys):
+    """**台本を渡したら timing.json を教える。**
+
+    黙って台本の隣を探すと `raw.webm が見つかりません` としか出ず、渡すものが
+    違うことに気づけない (実際に踏んだ。支援収録と Android が出すのは raw.mp4
+    なので、ファイル名まで違う)。
+    """
+    assert main(["render", str(plan_file)]) == 1
+    err = capsys.readouterr().err
+    assert "timing.json" in err and "plan.json ではありません" in err
+    assert "gmp record" in err or "gmp render" in err     # 次の一手を出す

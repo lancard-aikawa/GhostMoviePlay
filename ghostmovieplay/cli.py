@@ -656,7 +656,7 @@ def cmd_record(args) -> int:
     # **Android で actions が書いてあるなら、機械が操作して撮る。**
     # 人が撮ると、途中で状態が変わったまま撮り足して「同じ画面のはずの 2 枚で
     # 表示が食い違う」ことが起きる (実際に起きた)。通しで撮れば無くなる
-    if plan.app.package and any(b.actions for _, b in plan.beats):
+    if plan.driven:
         from .android import DriveError
         from .ffmpeg import FFmpegError
         from .record_android import record as drive
@@ -720,6 +720,20 @@ def cmd_render(args) -> int:
         timing = timing / "timing.json"
     if not timing.exists():
         return _err(f"{timing} がありません (先に gmp record)")
+    if timing.name == "plan.json":
+        # **台本を渡されたら、出力先の timing.json を教える。** 黙って台本の隣を
+        # 探すと `raw.webm が見つかりません` とだけ出て、**渡すものが違うことに
+        # 気づけない** (実際に踏んだ。しかも支援収録と Android の道が出すのは
+        # `raw.mp4` なので、ファイル名まで違う)
+        head = "render に渡すのは timing.json です (plan.json ではありません)"
+        try:
+            _, outdir = _load_plan(timing)
+        except Exception:       # noqa: BLE001 — 案内のためだけの読み込み
+            return _err(head)
+        found = outdir / "timing.json"
+        if found.exists():
+            return _err(f"{head}\n  gmp render {found}")
+        return _err(f"{head}\n  まだありません。先に: gmp record {timing}")
 
     # 見た目と画質は機械の設定 (この機械に入っているフォントを指すため)。
     # 引数があればそれが勝つ
@@ -796,6 +810,17 @@ def cmd_check(args) -> int:
 
     def record_one(plan, path):
         outdir = paths.resolve_outdir(path, project=plan.project, app_cwd=plan.app.cwd)
+        if plan.driven:
+            # **端末が無いのは台本のせいではない。** 赤にすると、電話を繋いで
+            # いない機械 (CI を含む) が常に赤になって、誰も件数を見なくなる
+            from .android import DriveError
+            from .record_android import record as drive
+
+            try:
+                return drive(plan, outdir, verbose=args.verbose,
+                             serial=getattr(args, "serial", "") or "")
+            except DriveError as exc:
+                raise checker.Cannot(f"端末で撮り直せません: {exc}") from exc
         return record(plan, outdir, headless=True, verbose=args.verbose)
 
     if args.dry:
