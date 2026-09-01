@@ -88,6 +88,7 @@ LABELS: dict[str, str] = {
     "determinism.seed": "乱数の seed",
     "determinism.time": "固定する開始時刻",
     "home": "生成物の置き場所",
+    "projects": "撮る対象のフォルダ",
     "engine.voicevox.url": "VOICEVOX の接続先",
     "render.font": "字幕フォント",
     "render.crf": "画質 (CRF)",
@@ -254,6 +255,10 @@ TABS: tuple[Tab, ...] = (
         (
             Group("置き場所", (
                 _one("home", "生成物の置き場所"),
+                # 素材を撮る対象の外に置いた 1 本が、どこで app.start を
+                # 走らせるか。**プロジェクト名で引く** (機械に 1 個だけ持つと
+                # 2 本目のプロジェクトで嘘になる)
+                _one("projects", "撮る対象のフォルダ"),
             )),
             Group("VOICEVOX", (
                 _one("engine.voicevox.url", "接続先"),
@@ -353,21 +358,31 @@ def format_dict_text(entries: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def parse_dict_text(text: str) -> dict[str, Any]:
-    """読み辞書のテキストを dict に戻す. 壊れた行は SettingsError."""
+def parse_dict_text(text: str, accents: bool = True) -> dict[str, Any]:
+    """読み辞書のテキストを dict に戻す. 壊れた行は SettingsError.
+
+    `accents=False` は「`名前 = 値` だけの表」用 (`projects`)。**値を
+    コンマで割らない** —— フォルダ名にコンマがあると、アクセントとして
+    読もうとして「数字で書きます」と言い出す。
+    """
+    # 出す名前を書式に合わせる (フォルダの登録で「表記と読み」と言わない)
+    noun, form, both = (
+        ("読み", "`表記 = 読み`", "表記と読みの両方") if accents
+        else ("登録", "`名前 = 値`", "名前と値の両方")
+    )
     entries: dict[str, Any] = {}
     for number, line in enumerate(text.splitlines(), start=1):
         row = line.strip()
         if not row or row.startswith("#"):
             continue
         if "=" not in row:
-            raise settings.SettingsError(f"読み {number} 行目: `表記 = 読み` の形で書きます")
+            raise settings.SettingsError(f"{noun} {number} 行目: {form} の形で書きます")
         surface, _, rest = row.partition("=")
         surface = surface.strip()
-        reading, _, accent = rest.partition(",")
+        reading, _, accent = rest.partition(",") if accents else (rest, "", "")
         reading, accent = reading.strip(), accent.strip()
         if not surface or not reading:
-            raise settings.SettingsError(f"読み {number} 行目: 表記と読みの両方が要ります")
+            raise settings.SettingsError(f"{noun} {number} 行目: {both}が要ります")
         if accent:
             try:
                 entries[surface] = {"pronunciation": reading, "accent": int(accent)}
@@ -422,7 +437,7 @@ def plan_writes(edits: list[Edit]) -> dict[str, dict[str, Any]]:
         if not text:
             value = {} if setting.kind == "table" else None
         elif setting.kind == "table":
-            value = parse_dict_text(edit.text)
+            value = parse_dict_text(edit.text, accents=edit.path == "voice.dict")
         else:
             try:
                 value = settings.parse_value(edit.path, text)

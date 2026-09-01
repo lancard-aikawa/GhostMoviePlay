@@ -90,6 +90,14 @@ SCHEMA: tuple[Setting, ...] = (
     # --- 機械だけが決められるもの (bake=runtime) ---------------------
     Setting("home", "path", _default_home, _M, "runtime",
             "生成物の出力ルート"),
+    # 素材 (video.md / plan.json) を撮る対象の中に置かないための表。
+    # **プロジェクト名で引く表**にしてある —— 単一の `project.root` にすると、
+    # 同じ機械で 2 本目のプロジェクトを撮った瞬間に嘘になる (グローバル設定に
+    # プロジェクト固有の事実を置けなくしてあるのと同じ理由)。
+    # **plan.json には焼かない** (`voice.url` と同じ扱い)。焼くと、clone した
+    # 別の機械に無いパスが残る。読む口は machine_value() 1 つだけ
+    Setting("projects", "table", None, _M, "runtime",
+            "撮る対象のフォルダ (プロジェクト名 = フォルダ)"),
     Setting("engine.voicevox.url", "str", "http://127.0.0.1:50021", _M, "runtime",
             "VOICEVOX ENGINE の接続先"),
     Setting("render.font", "str", DEFAULT_FONT, _M, "runtime",
@@ -315,10 +323,13 @@ def env_layer() -> dict[str, Any]:
     キーを大文字にして `.` を `_` にした名前。機械の層に置ける設定だけを見る
     (環境変数は「この機械・この起動だけ」を差し替える口なので、口調や
     シーン構成のようにプロジェクトが決めるべきものは対象にしない)。
+
+    表 (kind="table") は見ない。1 個の文字列では書けないので、拾っても
+    「テーブルが必要です」と警告するだけになる。
     """
     found: dict[str, Any] = {}
     for setting in SCHEMA:
-        if MACHINE not in setting.layers:
+        if MACHINE not in setting.layers or setting.kind == "table":
             continue
         value = os.environ.get(env_var_name(setting.path))
         if value:
@@ -506,6 +517,23 @@ def machine_value(path: str) -> Any:
             " (plan.json に焼かれる値は Pass1 で解決してください)"
         )
     return resolve(machine=paths.load_config()).get(path)
+
+
+def project_root(name: str | None) -> Path | None:
+    """撮る対象のフォルダを、プロジェクト名で引く (`projects`).
+
+    素材 (video.md / plan.json) を撮る対象の中に置かないときに、`app.start`
+    と `app.setup` を走らせる場所がここで決まる。**機械の設定だけを見る** ——
+    `machine_value` を通っているので、plan.json に焼かれる値と混ざらない。
+
+    登録が無ければ None。呼び側 (`paths.record_base`) は従来どおり
+    plan.json の隣を基準にする。
+    """
+    if not name:
+        return None
+    table = machine_value("projects") or {}
+    value = table.get(str(name))
+    return Path(str(value)).expanduser() if value else None
 
 
 def _where(layer: str, source: Path | None) -> str:
@@ -731,7 +759,9 @@ def parse_value(path: str, text: str) -> Any:
     if setting.kind == "list":
         return [x.strip() for x in text.split(",") if x.strip()]
     if setting.kind == "table":
-        raise SettingsError(f"{path!r} はテーブルなので設定ファイルを直接編集してください")
+        raise SettingsError(
+            f"{path!r} はテーブルです。1 件ずつなら `{path}.<名前>=<値>` で書けます"
+        )
     return _coerce(setting, text)
 
 

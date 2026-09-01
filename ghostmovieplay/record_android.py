@@ -22,7 +22,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from . import capture_android
+from . import capture_android, paths
 from .android import DriveError, Driver
 from .assemble import Assembled, assemble
 from .plan import Plan
@@ -161,7 +161,7 @@ def record(plan: Plan, outdir: str | Path, verbose: bool = True,
         warnings.append({"kind": kind, "where": where, "message": message})
         print(f"    ! {message}")
 
-    root = base or (plan.source.parent if plan.source else Path.cwd())
+    root = base or paths.record_base(plan.project, plan.source, plan.app.cwd)
     # **仕込みと起動は Web と同じ道を通す。** 順序の不変条件 (仕込みは start より
     # 前、後片付けはアプリを畳んでから) をここで作り直さない
     with prepared(plan.app, root, verbose=verbose, problems=problems):

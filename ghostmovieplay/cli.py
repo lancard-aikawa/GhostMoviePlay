@@ -92,11 +92,16 @@ def cmd_where(args) -> int:
           + ("" if paths.config_path().exists() else "  (未作成)"))
     print(f"  動画フォルダ {paths.user_videos_dir()}")
 
-    from .settings import find_project_file
+    from .settings import find_project_file, machine_value
 
     project_file = find_project_file(args.plan or Path.cwd())
     if project_file:
         print(f"  プロジェクトの既定 {project_file}")
+
+    # 素材を対象の外へ置いた 1 本は、ここに登録した場所で app.start が走る。
+    # **暗黙の置き場所は必ず見せる** (出力ルートと同じ理由)
+    for name, root in (machine_value("projects") or {}).items():
+        print(f"  撮る対象     {name} -> {root}")
 
     if not args.plan:
         print("\n  plan.json を渡すとその動画の出力先が出ます: gmp where plan.json")
@@ -199,6 +204,14 @@ def cmd_config(args) -> int:
                 return _err(f"--set は KEY=VALUE の形で渡します (もらった値: {item!r})")
             key = key.strip()
             setting = settings.SETTINGS.get(key)
+            # 表 (kind="table") は 1 件ずつ指す。`projects.<名前>=<フォルダ>` が
+            # 書けないと、撮る対象の登録が設定画面からしかできない
+            entry = None
+            if setting is None:
+                head, _, leaf = key.rpartition(".")
+                parent = settings.SETTINGS.get(head)
+                if leaf and parent is not None and parent.kind == "table":
+                    setting, entry = parent, leaf
             if setting is None:
                 return _err(f"未知の設定 {key!r} (使えるキーは gmp config で一覧できます)")
             if settings.MACHINE not in setting.layers:
@@ -209,7 +222,10 @@ def cmd_config(args) -> int:
                     "その動画だけなら video.md に書いてください"
                 )
             try:
-                _assign(config, key, settings.parse_value(key, raw.strip()))
+                _assign(
+                    config, key,
+                    raw.strip() if entry else settings.parse_value(key, raw.strip()),
+                )
             except settings.SettingsError as exc:
                 return _err(str(exc))
         for key in removals:

@@ -670,11 +670,19 @@ class ShootWindow:
 
     # --- 起動 ---------------------------------------------------------
     def _app_cwd(self) -> Path:
+        """仕込み・起動・後片付けを走らせる場所.
+
+        **収録と同じ答えを出す** (`paths.record_base`)。ここに基準を書き足すと、
+        素材を対象の外に置いた 1 本で、撮る画面と `gmp record` が別の場所で
+        仕込みを走らせる。
+        """
         app = self.doc.raw.get("app") or {}
+        meta = self.doc.raw.get("meta") or {}
+        base = paths.record_base(meta.get("project"), self.path, app.get("cwd"))
         if app.get("cwd"):
             # 相対パスは**それを書いたファイル**からの相対 (plan.json の隣)
-            return (self.path.parent / app["cwd"]).resolve()
-        return self.path.parent
+            return (base / app["cwd"]).resolve()
+        return base
 
     def _has_hooks(self) -> bool:
         app = self.doc.raw.get("app") or {}

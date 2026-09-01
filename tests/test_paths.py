@@ -78,6 +78,48 @@ def test_project_name_is_sanitized(tmp_path):
     assert out.parent.name == "my-app-1"
 
 
+# --- 収録が走る場所 ---------------------------------------------------
+def test_record_base_is_next_to_the_plan_by_default(tmp_path):
+    source = tmp_path / "docs" / "intro" / "plan.json"
+    assert paths.record_base(None, source) == source.parent
+
+
+def test_record_base_uses_the_registered_project(monkeypatch, tmp_path):
+    """素材を外に置いた 1 本は、機械に登録したフォルダで走る."""
+    target = tmp_path / "Repos" / "a-lamo"
+    monkeypatch.setattr(
+        paths, "load_config", lambda: {"projects": {"a-lamo": str(target)}},
+    )
+    source = tmp_path / "home" / "a-lamo" / "intro" / "plan.json"
+    assert paths.record_base("a-lamo", source) == target
+
+
+def test_record_base_keeps_app_cwd_relative_to_the_plan(monkeypatch, tmp_path):
+    """**app.cwd があれば基準を動かさない。** 動かすと既存の台本が別の場所を指す."""
+    target = tmp_path / "Repos" / "a-lamo"
+    monkeypatch.setattr(
+        paths, "load_config", lambda: {"projects": {"a-lamo": str(target)}},
+    )
+    source = tmp_path / "a-lamo" / "docs" / "video" / "intro" / "plan.json"
+    assert paths.record_base("a-lamo", source, "../../..") == source.parent
+
+
+def test_record_base_ignores_unregistered_projects(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths, "load_config", lambda: {"projects": {"other": "X:/x"}})
+    source = tmp_path / "home" / "a-lamo" / "intro" / "plan.json"
+    assert paths.record_base("a-lamo", source) == source.parent
+
+
+def test_record_base_finds_the_project_by_folder_name(monkeypatch, tmp_path):
+    """meta.project が無くても、置き場所の <project> で引ける."""
+    target = tmp_path / "Repos" / "a-lamo"
+    monkeypatch.setattr(
+        paths, "load_config", lambda: {"projects": {"a-lamo": str(target)}},
+    )
+    source = tmp_path / "home" / "a-lamo" / "intro" / "plan.json"
+    assert paths.record_base(None, source) == target
+
+
 # --- プラットフォーム差 -----------------------------------------------
 def test_videos_dir_differs_per_platform(monkeypatch):
     """macOS は Movies、Windows/Linux は Videos。共通の名前は無い."""

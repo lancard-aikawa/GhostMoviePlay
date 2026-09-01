@@ -156,6 +156,31 @@ def project_name(project: str | None, source: Path, app_cwd: str | None = None) 
     return sanitize(parent.name, fallback="misc")
 
 
+def record_base(project: str | None, source: Path | None,
+                app_cwd: str | None = None) -> Path:
+    """収録が `app.start` / `app.setup` を走らせる基準のフォルダ.
+
+    素材 (video.md / plan.json) を撮る対象の中に置くなら、基準は昔から
+    plan.json の隣で足りている。**外に出した 1 本だけ**、対象の場所を
+    どこかに書く必要がある —— それを plan.json に書くと機械依存の値を
+    焼くことになるので、機械の設定 `projects` にプロジェクト名で登録して、
+    ここで引く。
+
+    **`app.cwd` が書いてあれば従来どおり plan.json の隣。** 相対パスは
+    「それを書いたファイルからの相対」という意味なので、機械の設定で基準を
+    ずらすと、既に撮れている台本が黙って別の場所を指す。素材を外に出す 1 本は
+    `app.cwd` を書かず、登録した場所をそのまま基準にする。
+    """
+    here = source.parent if source else Path.cwd()
+    if app_cwd:
+        return here
+
+    from . import settings
+
+    name = project_name(project, source) if source else project
+    return settings.project_root(name) or here
+
+
 def resolve_outdir(
     source: Path,
     project: str | None = None,

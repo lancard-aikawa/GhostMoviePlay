@@ -120,6 +120,21 @@ def test_where_shows_the_same_outdir_the_stages_use(plan_file, capsys, isolate_o
     assert "output.mp4" in out
 
 
+def test_registering_a_project_folder_from_the_cli(tmp_path, monkeypatch, capsys):
+    """撮る対象の登録が設定画面からしかできない、にしない."""
+    from pathlib import Path
+
+    from ghostmovieplay import paths, settings
+
+    monkeypatch.setattr(paths, "config_path", lambda: tmp_path / "config.toml")
+    assert main(["config", "--set", "projects.a-lamo=C:/Repos/a-lamo"]) == 0
+    assert settings.project_root("a-lamo") == Path("C:/Repos/a-lamo")
+
+    # 暗黙の置き場所なので gmp where が言えること
+    assert main(["where"]) == 0
+    assert "C:/Repos/a-lamo" in capsys.readouterr().out
+
+
 def test_where_on_a_broken_plan_says_why(tmp_path, capsys):
     broken = tmp_path / "plan.json"
     broken.write_text("{ not json", encoding="utf-8")

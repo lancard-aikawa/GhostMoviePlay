@@ -26,7 +26,7 @@ from pathlib import Path
 from playwright.sync_api import Error as PWError
 from playwright.sync_api import sync_playwright
 
-from . import determinism, ffmpeg
+from . import determinism, ffmpeg, paths
 from .overlay import OVERLAY_JS
 from .plan import AUDIO_TAIL, Beat, Plan, Scene
 from .server import prepared, serve
@@ -452,7 +452,7 @@ def record(
 
     v = plan.video
     entries: list[dict] = []
-    base = plan.source.parent if plan.source else Path.cwd()
+    base = paths.record_base(plan.project, plan.source, plan.app.cwd)
 
     # 仕込み → サーバ → ブラウザ の順に入り、抜けるときは逆順。
     # **後片付けはブラウザとサーバを畳んでから** (掴まれたままのファイルを

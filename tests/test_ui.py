@@ -137,6 +137,14 @@ def test_dictionary_ignores_blank_and_comment_lines():
     assert ui.parse_dict_text("\n# めも\n語 = ゴ\n") == {"語": "ゴ"}
 
 
+# --- 撮る対象のフォルダ (名前 = 値 だけの表) --------------------------
+def test_project_folders_keep_a_comma_in_the_path():
+    """アクセントとして読むと、コンマを含むフォルダが保存できない."""
+    assert ui.parse_dict_text("a-lamo = C:/Repos/a, b", accents=False) == {
+        "a-lamo": "C:/Repos/a, b"
+    }
+
+
 # --- 保存する値を決める -----------------------------------------------
 def edit(path, text, original="", target=settings.PROJECT):
     return ui.Edit(path=path, text=text, original=original, target=target)
@@ -183,6 +191,14 @@ def test_a_bad_value_names_the_setting():
 def test_dictionary_edits_go_through_as_a_table():
     writes = ui.plan_writes([edit("voice.dict", "語 = ゴ", original="")])
     assert writes[settings.PROJECT]["voice.dict"] == {"語": "ゴ"}
+
+
+def test_project_folders_are_saved_without_accents():
+    """撮る対象の登録は `名前 = フォルダ` だけ. アクセントとして割らない."""
+    writes = ui.plan_writes([
+        edit("projects", "a-lamo = C:/Repos/a, b", target=settings.MACHINE),
+    ])
+    assert writes[settings.MACHINE]["projects"] == {"a-lamo": "C:/Repos/a, b"}
 
 
 # --- 実際に書く -------------------------------------------------------

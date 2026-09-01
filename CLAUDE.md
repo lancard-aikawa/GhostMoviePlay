@@ -524,6 +524,21 @@ plan.json はプロジェクトにあって階層が違うので、相対で持�
 `Origin.source` にどのファイルが書いたかを覚えてあるのはこのためで、由来の
 追跡は表示のためだけの機能ではない。
 
+**素材 (`video.md` / `plan.json`) を撮る対象の外に置く 1 本だけ、基準が
+plan.json の隣では足りない。** 対象の場所は機械の設定 `projects` に
+**プロジェクト名で**登録して、`paths.record_base()` が引く（読む口は
+`settings.machine_value()` のまま）。plan.json に書くと機械依存のパスを
+焼くことになるので焼かない。決めごとは 2 つ:
+
+- **機械に 1 個だけ持たない。** `project.root` のような単数の値にすると、
+  同じ機械で 2 本目のプロジェクトを撮った瞬間に嘘になる（グローバル設定に
+  プロジェクト固有の事実を置けなくしてあるのと同じ理由）
+- **`app.cwd` が書いてあるほうが強い。** 書いてあれば従来どおり plan.json の
+  隣が基準。ここを登録で上書きすると、既に撮れている台本が黙って別の場所を
+  指す（`docs/video/intro` は `../../..` で対象を指している）。外に出す 1 本は
+  `app.cwd` を書かない。**撮る画面 (`ui_shoot._app_cwd`) も同じ答えを出す** ——
+  片方だけ直すと、仕込みだけ別の場所で走る
+
 なお **TOML の裸のキーは ASCII だけ**。`voice.dict` に日本語の表記を書くときは
 `'語' = 'ゴ'` とクォートする（`settings.dump` は自動でクォートする）。
 
@@ -629,6 +644,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録の前後に走らせるもの | `plan.App` の `setup` / `teardown`、`server.prepared`（**仕込みが落ちたら止める / 後片付けは止めない**）、`settings.SCHEMA` の `app.*`、`ui.TABS` の「仕込みと後片付け」、`spec.PLAN_SCHEMA_DOC` と SKILL.md、`docs/plan.md`、`tests/test_server.py` |
+| 収録が走る場所 | **`paths.record_base()` の 1 か所**（`record.record` / `record_android.record` / `ui_shoot._app_cwd` が**同じ答えを出す必要がある** —— 散らすと、仕込みだけ別の場所で走る）、機械の設定 `projects`（`settings.project_root`）、`gmp where` の表示、`docs/settings.md`、`tests/test_paths.py`。**`app.cwd` があるほうが強い**（既存の台本の基準を動かさない）|
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
 | 撮る価値の前提を変える | `spec.GUIDE` の 1・2 番（**2 番が「何を撮る価値があるか」を決める唯一の行**。3〜7 は前提に依らない品質規則）、`skills/ghostplay/SKILL.md` の description・価値の 1 行・手順 3、`README.md` の冒頭、`docs/ideas/README.md` の「芯にあるもの」、`docs/governance.md`、`settings.PROJECT_TEMPLATE` の persona/topics、`tests/test_request.py`。**`video.md` の `scenes` は前提を変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る。**「失敗」に狭めない** —— 操作が全部通っても目的を果たしていなければ同じだけ障害で、7-Zip の 1 本が実際にそれ（zip は正常に作られる）|
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |

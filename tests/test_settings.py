@@ -357,6 +357,40 @@ def test_machine_value_ignores_the_project_file(monkeypatch, tmp_path):
     assert settings.machine_value("render.font") != "のっとる"
 
 
+def test_project_root_reads_the_machine_table(monkeypatch, tmp_path):
+    """撮る対象のフォルダは機械の設定から引く (plan.json には焼かない)."""
+    cfg = tmp_path / "config.toml"
+    monkeypatch.setattr(paths, "config_path", lambda: cfg)
+    paths.save_config({"projects": {"a-lamo": "C:/Repos/a-lamo"}})
+
+    assert settings.project_root("a-lamo") == Path("C:/Repos/a-lamo")
+    assert settings.project_root("知らない子") is None
+    assert settings.project_root(None) is None
+
+
+def test_projects_is_not_baked_into_the_plan():
+    """焼くと、clone した別の機械に無いパスが plan.json に残る."""
+    assert settings.SETTINGS["projects"].bake == "runtime"
+    assert settings.SETTINGS["projects"].layers == (settings.MACHINE,)
+
+
+def test_projects_survives_a_config_roundtrip(monkeypatch, tmp_path):
+    """[projects] を書いて読み直せること (表なので dump の経路が別)."""
+    cfg = tmp_path / "config.toml"
+    monkeypatch.setattr(paths, "config_path", lambda: cfg)
+    paths.save_config({"projects": {"a-lamo": "C:/Repos/a-lamo", "紹介": "C:/Repos/g"}})
+    assert paths.load_config()["projects"] == {
+        "a-lamo": "C:/Repos/a-lamo", "紹介": "C:/Repos/g",
+    }
+
+
+def test_env_does_not_try_to_fill_a_table(monkeypatch):
+    """1 個の文字列では書けないので、拾って警告するだけにしない."""
+    monkeypatch.setenv(settings.env_var_name("projects"), "C:/Repos/a-lamo")
+    assert "projects" not in settings.env_layer()
+    assert not settings.resolve().warnings
+
+
 def test_pass23_modules_do_not_read_settings():
     """record / render / subtitles が設定ファイルを読まないこと.
 
