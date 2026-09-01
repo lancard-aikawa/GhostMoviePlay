@@ -32,6 +32,8 @@ from pathlib import Path
 
 APP_DIR_NAME = "GhostMoviePlay"
 ENV_HOME = "GHOSTMOVIEPLAY_HOME"
+ENV_STAGE = "GHOSTMOVIEPLAY_STAGE"
+STAGE_DIR_NAME = "gmp"
 CONFIG_NAME = "config.toml"
 
 _INVALID = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -75,6 +77,25 @@ def user_videos_dir() -> Path:
     except (OSError, subprocess.SubprocessError):
         pass
     return Path.home() / "Videos"
+
+
+# --- 撮影用の使い捨て置き場 -------------------------------------------
+def stage_home() -> Path:
+    """仕込みが使い捨てのデータを置く場所 (`%SystemDrive%\\gmp`).
+
+    **ドライブ直下に 1 段だけ掘る。** 撮る相手はここのパスを画面に出す
+    (7-Zip はタイトルバーとアドレスバー、GlossPop は画面上端)。深いところや
+    `%USERPROFILE%` の下だと**公開する動画にユーザー名が写り込む**。かといって
+    ドライブ直下に 1 本ずつ作ると散らかるので、`gmp` の下に集める。
+
+    **設定にしない。** ここは画に写るので、機械ごとに変えられるようにすると
+    同じ plan.json が機械ごとに違う絵を出す (`bake="runtime"` は「絵と音を
+    変えない値だけ」)。仕込みには `GHOSTMOVIEPLAY_STAGE` で渡すが、値を決める
+    のはこの関数だけで、環境変数から読み直しはしない。
+
+    掘るのはここではなく仕込みの仕事 (何を置くかを知っているのはあちら)。
+    """
+    return Path(os.environ.get("SystemDrive", "C:") + "/" + STAGE_DIR_NAME)
 
 
 # --- 設定ファイル -----------------------------------------------------

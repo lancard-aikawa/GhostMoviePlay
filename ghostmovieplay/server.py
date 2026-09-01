@@ -22,9 +22,29 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import paths
 from .plan import App
 
 POLL_INTERVAL = 0.4
+
+
+def hook_env() -> dict[str, str]:
+    """`app.setup` / `app.start` / `app.teardown` に渡す環境.
+
+    **使い捨ての置き場所をこちらから教える** (`GHOSTMOVIEPLAY_STAGE`)。
+    仕込みが自分で名前を決めると、ドライブ直下に 1 本ずつフォルダが増え、
+    撮り終わったあと何が誰のものか分からなくなる（実際に散らかった）。
+    掘るのと消すのは仕込みの仕事で、こちらは場所だけ渡す。
+
+    **utf-8 で出させる。** 既定 (Windows は cp932) だと、utf-8 を吐く仕込みの
+    出力を読む裏スレッドが UnicodeDecodeError で落ちて**出力がまるごと消える**
+    —— 失敗の理由を出したいときに限って何も残らない。
+    """
+    return {
+        **os.environ,
+        "PYTHONIOENCODING": "utf-8",
+        paths.ENV_STAGE: str(paths.stage_home()),
+    }
 
 
 def is_up(url: str, timeout: float = 2.0) -> bool:
@@ -88,16 +108,14 @@ def run_hook(command: str, cwd: Path, label: str, verbose: bool = True) -> None:
     if verbose:
         print(f"  {label}: {command}  (cwd={cwd})")
     try:
-        # **utf-8 で読む。** 既定 (Windows は cp932) だと、utf-8 を吐く仕込みの
-        # 出力を読む裏スレッドが UnicodeDecodeError で落ちて**出力がまるごと
-        # 消える** —— 失敗の理由を出したいときに限って何も残らない。
-        # 画面から呼ぶときは PYTHONIOENCODING=utf-8 が子まで伝わるので必ず踏む。
-        # こちらからも渡して、Python の仕込みの出し方を揃えておく
+        # **utf-8 で読む。** 渡す環境は hook_env() が持っている (使い捨ての
+        # 置き場所と出力のエンコーディング)。起動と同じものを渡さないと、
+        # 仕込みと起動で置き場所がずれる
         proc = subprocess.run(
             command, shell=True, cwd=str(cwd),
             capture_output=True, text=True, timeout=HOOK_TIMEOUT,
             encoding="utf-8", errors="replace",
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            env=hook_env(),
         )
     except subprocess.TimeoutExpired as exc:
         raise HookError(
@@ -166,7 +184,7 @@ def serve(app: App, base: Path, verbose: bool = True):
         popen_kw["start_new_session"] = True
 
     proc = subprocess.Popen(
-        app.start, shell=True, cwd=str(cwd),
+        app.start, shell=True, cwd=str(cwd), env=hook_env(),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **popen_kw,
     )
 

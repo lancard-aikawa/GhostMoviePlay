@@ -10,7 +10,7 @@ app:
   #
   # **`Krita` では掴めない。** 部分一致なので、タイトルに Krita と入っている
   # 別のウィンドウ (この動画を書いているエディタがまさにそうだった) が先に
-  # 当たる。使い捨てのキャンバスの名前で掴む —— 1 本目が `gmp-sample` で
+  # 当たる。使い捨てのキャンバスの名前で掴む —— 1 本目が `gmp\sample` で
   # 掴んでいるのと同じ手
   window: sketch.png
   # 空文字はプロジェクトの値を打ち消す。ブラウザを開かないので URL は要らない
@@ -23,7 +23,7 @@ app:
   # ドライブ名を書かない (git に入る plan.json に機械依存の値を焼かないため)。
   # **ファイルを引数で開く** —— 引数なしだと Krita はウェルカム画面を出し、
   # 撮る本人の「最近使ったドキュメント」が動画の 1 枚目に載る
-  start: call "%ProgramFiles%\Krita (x64)\bin\krita.exe" "%SystemDrive%\gmp-canvas\sketch.png"
+  start: call "%ProgramFiles%\Krita (x64)\bin\krita.exe" "%SystemDrive%\gmp\canvas\sketch.png"
 
 video:
   # **撮ったウィンドウの実寸。** 既定の 1280x720 のままだと、ショット
@@ -62,7 +62,7 @@ scenes:
 
 ## 撮り方
 
-1. 撮る画面で **`起動`** を押す。`C:\gmp-canvas\sketch.png`（四角が 2 つ並んだ
+1. 撮る画面で **`起動`** を押す。`C:\gmp\canvas\sketch.png`（四角が 2 つ並んだ
    白いキャンバス）が作られ、Krita がそれを開いた状態で立ち上がる。
 2. 一覧の `操作 (やること)` を上から読んで、そのとおりに操作してから撮る。
 3. 撮り終わったら **`終了`**。キャンバスは撮影中に描いたものごと消える

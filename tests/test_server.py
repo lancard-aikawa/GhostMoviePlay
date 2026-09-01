@@ -136,6 +136,30 @@ def test_hooks_run_in_the_app_cwd(tmp_path):
     assert (work / "here").exists()
 
 
+def test_hooks_are_told_where_to_stage(tmp_path):
+    """使い捨ての置き場所はこちらから渡す (仕込みが名前を発明しない)."""
+    from ghostmovieplay import paths
+
+    app = App(
+        url="file:///x",
+        setup=f'"{sys.executable}" -c "'
+              f"import os;open('stage','w').write(os.environ['{paths.ENV_STAGE}'])\"",
+    )
+    with server.prepared(app, tmp_path, verbose=False):
+        pass
+    assert (tmp_path / "stage").read_text() == str(paths.stage_home())
+
+
+def test_the_stage_is_one_folder_under_the_drive_root():
+    """深いところに置くと、撮る相手が出すパスにユーザー名が混ざる."""
+    from ghostmovieplay import paths
+
+    stage = paths.stage_home()
+    assert stage.name == paths.STAGE_DIR_NAME
+    assert stage.parent == stage.parent.parent      # ドライブ直下
+    assert "Users" not in str(stage)
+
+
 def test_a_missing_cwd_is_rejected_before_anything_runs(tmp_path):
     app = App(url="file:///x", cwd="nope", setup="echo hi")
     with pytest.raises(server.HookError, match="app.cwd"):

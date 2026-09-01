@@ -8,9 +8,12 @@ r"""撮影用の使い捨てキャンバスを用意する / 片付ける (`app.
 ある。Krita は引数なしで起動すると**最近使ったドキュメントをサムネイル付きで
 並べる** —— 撮る本人の作業中のファイル名が、動画の 1 枚目に丸ごと載る。
 
-置き場所を `C:\gmp-canvas` にしているのは、**Krita がタイトルバーにパスではなく
-ファイル名しか出さない**とはいえ、「最近使ったファイル」やダイアログでは
-フルパスが見えるため。`%USERPROFILE%` の下だと**ユーザー名が写り込む**。
+置き場所は **`GHOSTMOVIEPLAY_STAGE`（`C:\gmp`）の下**。収録が渡してくる撮影用の
+使い捨て置き場で、**自分で名前を決めない** —— 各自がドライブ直下に 1 本ずつ
+作っていたころ、撮り終わったあと何が誰のものか分からなくなった。深いところや
+`%USERPROFILE%` の下に置かないのは、Krita はタイトルバーにファイル名しか
+出さないとはいえ、「最近使ったファイル」やダイアログで**フルパスが見える**ため
+（`%USERPROFILE%` だと**ユーザー名が写り込む**）。
 
 ## 画像を作るのに何も足さない
 
@@ -40,7 +43,11 @@ import sys
 import zlib
 from pathlib import Path
 
-FOLDER = Path(os.environ.get("SystemDrive", "C:") + "/gmp-canvas")
+# 収録から渡ってくる置き場所。**手で走らせても同じ所に作る**ように、
+# 同じ規則 (ドライブ直下の gmp) を fallback に書いておく
+STAGE = Path(os.environ.get("GHOSTMOVIEPLAY_STAGE")
+             or os.environ.get("SystemDrive", "C:") + "/gmp")
+FOLDER = STAGE / "canvas"
 CANVAS = FOLDER / "sketch.png"
 
 WIDTH, HEIGHT = 1280, 720

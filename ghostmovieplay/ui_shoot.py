@@ -744,8 +744,12 @@ class ShootWindow:
         try:
             flags = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} \
                 if sys.platform == "win32" else {"start_new_session": True}
+            # **仕込みと同じ環境で起こす** (`GHOSTMOVIEPLAY_STAGE`)。ここだけ
+            # 素の環境にすると、仕込んだ場所と違うところをアプリが開く
+            from .server import hook_env
+
             self.app_proc = subprocess.Popen(
-                start, shell=True, cwd=str(cwd),
+                start, shell=True, cwd=str(cwd), env=hook_env(),
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **flags)
         except OSError as exc:
             messagebox.showerror("起動できません", f"{start}\n\n{exc}",

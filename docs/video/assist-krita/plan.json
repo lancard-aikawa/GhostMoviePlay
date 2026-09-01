@@ -7,7 +7,7 @@
   },
   "app": {
     "window": "sketch.png",
-    "start": "call \"%ProgramFiles%\\Krita (x64)\\bin\\krita.exe\" \"%SystemDrive%\\gmp-canvas\\sketch.png\"",
+    "start": "call \"%ProgramFiles%\\Krita (x64)\\bin\\krita.exe\" \"%SystemDrive%\\gmp\\canvas\\sketch.png\"",
     "cwd": ".",
     "start_timeout": 60.0,
     "setup": "python make_sample.py",
@@ -51,7 +51,7 @@
       "title": "筆が反応しない",
       "beats": [
         {
-          "do": "まず「起動」を押す —— C:\\gmp-canvas\\sketch.png（四角が 2 つ並んだ白いキャンバス）が作られ、Krita がそれを開く（このフォルダは「終了」で消える使い捨て）。起動直後にダイアログが出ていたら閉じて、キャンバスだけが見えている状態を撮る",
+          "do": "まず「起動」を押す —— C:\\gmp\\canvas\\sketch.png（四角が 2 つ並んだ白いキャンバス）が作られ、Krita がそれを開く（このフォルダは「終了」で消える使い捨て）。起動直後にダイアログが出ていたら閉じて、キャンバスだけが見えている状態を撮る",
           "say": "Krita で筆がまったく反応しなくなったら、たいていは選択範囲が残っています。四角が二つ並んだキャンバスで、そこまでをなぞってみます。",
           "subtitle": "筆が反応しないときは、選択範囲が残っている",
           "hold": 3.0,

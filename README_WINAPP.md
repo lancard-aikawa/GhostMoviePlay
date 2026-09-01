@@ -84,9 +84,22 @@ do は「どの画面か：やること」の形で始めて。
 ```
 撮影用のダミーを作る make_sample.py を書いて、app.setup に繋いで。
 - 実ファイルは使わない。中身の無いダミーを、それらしい名前で置くだけ
-- 置き場所は浅いパスにして (タイトルバーとアドレスバーの 2 か所に出るので)
+- 置き場所は GHOSTMOVIEPLAY_STAGE (C:\gmp) の下に 1 つ掘る
 - --clean で消せるようにして、app.teardown に繋いで
 - 後半のビートだけ撮り直せるように、「途中まで進んだ状態」を作る引数も付けて
+```
+
+**置き場所は自分で決めない。** 撮る相手はパスを画面に出す（7-Zip はタイトルバーと
+アドレスバーの 2 か所）ので、深いところや `%USERPROFILE%` の下に置くと**公開する
+動画にユーザー名が最初から最後まで映る**。かといって 1 本ずつドライブ直下に作ると
+散らかるので、収録が `GHOSTMOVIEPLAY_STAGE`（`C:\gmp`）を渡す。仕込みはその下に
+`C:\gmp\sample` のように 1 つ掘って、後片付けでそれごと消す。
+手で走らせたときのために、同じ規則を fallback に書いておく:
+
+```python
+STAGE = Path(os.environ.get("GHOSTMOVIEPLAY_STAGE")
+             or os.environ.get("SystemDrive", "C:") + "/gmp")
+FOLDER = STAGE / "sample"
 ```
 
 ### 撮ったあとで直す

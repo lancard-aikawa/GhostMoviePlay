@@ -91,6 +91,8 @@ def cmd_where(args) -> int:
     print(f"  設定ファイル {paths.config_path()}"
           + ("" if paths.config_path().exists() else "  (未作成)"))
     print(f"  動画フォルダ {paths.user_videos_dir()}")
+    # 仕込みが使い捨てのデータを置く場所。**画に写るので設定にしていない**
+    print(f"  仕込みの置き場 {paths.stage_home()}  ({paths.ENV_STAGE} で渡す)")
 
     from .settings import find_project_file, machine_value
 

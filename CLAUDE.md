@@ -542,6 +542,30 @@ plan.json の隣では足りない。** 対象の場所は機械の設定 `proje
 なお **TOML の裸のキーは ASCII だけ**。`voice.dict` に日本語の表記を書くときは
 `'語' = 'ゴ'` とクォートする（`settings.dump` は自動でクォートする）。
 
+### 撮影用の使い捨て置き場は `C:\gmp` の下
+
+仕込み (`app.setup`) が作る使い捨てのデータは **`%SystemDrive%\gmp\<名前>`**
+に置く（`paths.stage_home()`）。収録が `GHOSTMOVIEPLAY_STAGE` で場所を渡し
+（`server.hook_env()` —— 仕込み・起動・後片付けの 3 つとも同じ環境で走る）、
+仕込みはその下に自分の名前で 1 つ掘る。
+
+- **深いところに置けない。** 撮る相手がパスを画面に出す（7-Zip はタイトルバーと
+  アドレスバー、GlossPop は画面上端）。`%USERPROFILE%` の下だと**公開する動画に
+  ユーザー名が最初から最後まで映る**（実際に 1 回撮り直した）
+- **ドライブ直下に 1 本ずつ作らない。** 各自が名前を決めていたころ、
+  `gmp-sample` / `gmp-canvas` / `gmp-glosspop` がドライブ直下に散らばり、
+  撮り終わったあと何が誰のものか分からなくなった（後片付けは kill されると
+  走らないので、残骸も溜まる）
+- **設定にしない。** ここは画に写るので、機械ごとに変えられるようにすると
+  同じ plan.json が機械ごとに違う絵を出す（`bake="runtime"` は「絵と音を変えない
+  値だけ」）。`stage_home()` が唯一の決め手で、環境変数から読み直しもしない
+- **`app.start` には literal で書く** (`%SystemDrive%\gmp\sample`)。plan.json は
+  設定ファイル無しで再現できるのが決まりなので、収録が注入する環境変数に
+  依存させない。`GHOSTMOVIEPLAY_STAGE` は**仕込みのスクリプトのための口**で、
+  手で走らせたときのために同じ規則を fallback に書いておく
+- **掘るのと消すのは仕込みの仕事。** ツールは場所を渡すだけ（何を置くかを
+  知っているのはあちら）
+
 ### 音声を乗せたらクレジットも焼く
 
 VOICEVOX は生成音声を使った作品にキャラクター名を含むクレジットを求める。
@@ -645,6 +669,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録の前後に走らせるもの | `plan.App` の `setup` / `teardown`、`server.prepared`（**仕込みが落ちたら止める / 後片付けは止めない**）、`settings.SCHEMA` の `app.*`、`ui.TABS` の「仕込みと後片付け」、`spec.PLAN_SCHEMA_DOC` と SKILL.md、`docs/plan.md`、`tests/test_server.py` |
 | 収録が走る場所 | **`paths.record_base()` の 1 か所**（`record.record` / `record_android.record` / `ui_shoot._app_cwd` が**同じ答えを出す必要がある** —— 散らすと、仕込みだけ別の場所で走る）、機械の設定 `projects`（`settings.project_root`）、`gmp where` の表示、`docs/settings.md`、`tests/test_paths.py`。**`app.cwd` があるほうが強い**（既存の台本の基準を動かさない）|
+| 撮影用の使い捨て置き場 | `paths.stage_home()` と `server.hook_env()`（**仕込み・起動・後片付けの 3 つに同じものを渡す** —— `ui_shoot` の起動も含む。1 つ漏らすと仕込んだ場所と違うところをアプリが開く）、`gmp where` の表示、各 `make_sample.py` の fallback、CLAUDE.md の不変条件、`tests/test_server.py`。**設定にしない**（画に写る）|
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
 | 撮る価値の前提を変える | `spec.GUIDE` の 1・2 番（**2 番が「何を撮る価値があるか」を決める唯一の行**。3〜7 は前提に依らない品質規則）、`skills/ghostplay/SKILL.md` の description・価値の 1 行・手順 3、`README.md` の冒頭、`docs/ideas/README.md` の「芯にあるもの」、`docs/governance.md`、`settings.PROJECT_TEMPLATE` の persona/topics、`tests/test_request.py`。**`video.md` の `scenes` は前提を変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る。**「失敗」に狭めない** —— 操作が全部通っても目的を果たしていなければ同じだけ障害で、7-Zip の 1 本が実際にそれ（zip は正常に作られる）|
 | Pass1 の起動のしかた | `agent.PLACEHOLDER` と `_prompt()`（**雛形とプロンプトは対**）、`_drop_placeholder` の呼び出し漏れ（落ちる経路すべて）、`agent.open_session` / `spec_prompt`、`ui_run.argv` の `--open`、`tests/test_agent.py` |
@@ -657,7 +682,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | Android で日本語を打つ | `android.ADB_KEYBOARD` と `Driver.type_text` / `Driver.ime`、`README_ANDROID.md` の「必ず踏むもの」、`tests/test_android.py`。**`input text` は非 ASCII を黙って落とす** —— コマンドは成功して入力欄が空のまま残るので、**打てていない画が撮れる**（実際に撮れた）。ローマ字は IME が変換してしまい（`zentai renraku` → 「全体れんらく」）、**学習状態で結果が変わる**ので決定論にならない。だから ADBKeyboard に broadcast（**base64 で渡す** —— ホストと端末で 2 回引用されるため）で渡し、**入っていない端末で日本語を書いたら撮る前に落とす**。**IME を切り替えるのはツールではなく `app.setup`**（人の端末の既定を黙って変えない）。**打ったら `press KEYCODE_BACK`** —— `ADB Keyboard {ON}` の帯が動画に写る。**ステータスバーの IME アイコンは諦める** —— 入力欄に触れると demo mode の偽バーに出て、その画面を閉じるまで消えない（`enter` の送り直しでは消えず`exit` → `enter` が要るので、収録中には掛け直せない）|
 | Android の写り込み | `app.setup` の demo mode に加えて、**DND (`cmd notification set_dnd none`) が要る** —— demo mode が隠すのはバーの中身だけで、**ヘッズアップ通知は降りてくる**（自分が送ったお知らせが一覧の上に出た）。**アプリを起動するとバーにアイコンが増える**ので、`app.start` の後ろで demo mode を掛け直す。`README_ANDROID.md` の「起動したあとに、もう一度ステータスバーを整える」|
 | 撮り方 (ウィンドウ・録画) | `capture.py`、`ui_shoot` の撮影バー、`docs/plan.md`、`README_WINAPP.md` の「進め方」。**デスクトップ全体を撮る道を作らない**（撮る対象と関係のないものが載る） |
-| 撮る画面・撮る面の見た目 | `README_WINAPP.md` の画像 (`docs/images/*.png`)。**撮り直すときは `GHOSTMOVIEPLAY_HOME` を `C:\gmp-doc` などへ逃がす** —— 既定のままだと画面の下端に出る出力先で**ユーザー名がドキュメントの画像に載る**。ウィンドウの欄は「直前に触っていたもの」を選ぶので、**撮る対象 → 撮る画面の順にフォーカスしてから**撮らないと、直前に使っていたエディタが選ばれた絵になる（実際になった） |
+| 撮る画面・撮る面の見た目 | `README_WINAPP.md` の画像 (`docs/images/*.png`)。**撮り直すときは `GHOSTMOVIEPLAY_HOME` を `C:\gmp\doc` へ逃がす** —— 既定のままだと画面の下端に出る出力先で**ユーザー名がドキュメントの画像に載る**。ウィンドウの欄は「直前に触っていたもの」を選ぶので、**撮る対象 → 撮る画面の順にフォーカスしてから**撮らないと、直前に使っていたエディタが選ばれた絵になる（実際になった） |
 | 構成の雛形 / 作り直し | `spec.TEMPLATE`、`spec.rebuild_text`（**人が書いたものは必ず残す**）、`ui_spec.SpecEditor`、`tests/test_ui_spec.py` |
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |
@@ -677,9 +702,10 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
   7-Zip は **UIA に Pane しか出さない**ので自動操作が原理的に届かない。題材は
   「AES-256 のパスワード付き zip でもファイル名は隠れない」で、**強い暗号でも
   隠れない**ことが要点（弱い暗号を使ったのが悪い、に見えると教訓がずれる）。
-  `app.setup` が `C:\gmp-sample` にダミーを作る（**実ファイルは使わない**。
-  ドライブ直下なのは、7-Zip がタイトルバーとアドレスバーの 2 か所にパスを出すため
-  —— `%USERPROFILE%` の下だと**公開する動画にユーザー名が 69 秒間映る**）。
+  `app.setup` が `C:\gmp\sample` にダミーを作る（**実ファイルは使わない**。
+  ドライブの浅いところなのは、7-Zip がタイトルバーとアドレスバーの 2 か所に
+  パスを出すため —— `%USERPROFILE%` の下だと**公開する動画にユーザー名が
+  69 秒間映る**。置き場所は上の「撮影用の使い捨て置き場」）。
   撮る相手が本体とダイアログの**2 つのウィンドウにまたがる**ので、ウィンドウを選び直す道が
   要ることもここで分かった
 - `docs/video/assist-krita/` —— **支援収録の 2 本目**（約 96 秒）。**録画 (clip) と
