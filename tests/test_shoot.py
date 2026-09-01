@@ -7,6 +7,7 @@ import json
 import pytest
 
 from ghostmovieplay.plan import PlanError, load
+from ghostmovieplay import shoot
 from ghostmovieplay.shoot import Doc, ShootError, next_shot_path, progress, skeleton
 
 
@@ -248,3 +249,21 @@ def test_an_empty_do_removes_the_key(tmp_path):
     edited.set_text(0, 0, do="なにか")
     assert edited.set_text(0, 0, do="") == ["do"]
     assert "do" not in edited.raw["scenes"][0]["beats"][0]
+
+
+# --- 自動収録のショット -------------------------------------------------
+def test_an_auto_shot_keeps_the_same_name(tmp_path):
+    """**撮り直しても増やさない。** 自動収録は plan.json に書き戻さないので、
+    通し番号にすると誰も参照しないショットだけが溜まる (実際に 64 枚溜まった)."""
+    first = shoot.auto_shot_path(tmp_path, "compose", 3)
+    first[0].write_bytes(b"x")
+    again = shoot.auto_shot_path(tmp_path, "compose", 3)
+    assert first == again
+    assert again[1] == "shots/compose-03.png"
+
+
+def test_auto_shots_do_not_collide_with_the_ones_people_take(tmp_path):
+    """人が撮ったほうは通し番号のまま (あいだにビートを挿しても動かない)."""
+    auto = shoot.auto_shot_path(tmp_path, "compose", 0)[1]
+    hand = shoot.next_shot_path(tmp_path, "compose")[1]
+    assert auto != hand

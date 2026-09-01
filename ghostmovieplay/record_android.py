@@ -27,7 +27,7 @@ from .android import DriveError, Driver
 from .assemble import Assembled, assemble
 from .plan import Plan
 from .server import prepared
-from .shoot import next_shot_path
+from .shoot import auto_shot_path
 
 # Android で意味のある action。**`highlight` は入れない** —— 疑似カーソルや
 # 枠は DOM に注入した JS なので、他人のアプリの上には出せない
@@ -89,6 +89,34 @@ def scroll_to(driver: Driver, selector: str) -> None:
         raise DriveError(f"{selector} は {SCROLL_TRIES} 回送っても出ません")
 
 
+def check_goal(driver: Driver, scene, warn) -> None:
+    """シーンの達成条件を見る. **`record.Recorder.check_goal` と同じ意味にする**.
+
+    **書いてあるのに効かない、が最悪。** `goal` は台本に書ける (`plan.Goal`) ので、
+    Android だけ黙って読み飛ばすと「達成条件を入れたから安心」が嘘になる。
+    語彙は web と同じ `contains` / `absent` だけ (Pass2 に AI を入れない)。
+
+    見る場所は Android のセレクタで、**その矩形の中の文字**を読む
+    (`android.text_within`)。
+    """
+    goal = getattr(scene, "goal", None)
+    if goal is None:
+        return
+    driver.refresh()
+    got = driver.text(goal.selector)
+    if got is None:
+        warn("goal_failed", scene.id,
+             f"達成条件を確かめられません ({goal.selector} が見つかりません): {goal.says}")
+        return
+    if goal.contains and goal.contains not in got:
+        warn("goal_failed", scene.id,
+             f"目的を果たしていません: {goal.says} ({goal.selector} = {got!r})")
+        return
+    if goal.absent and goal.absent in got:
+        warn("goal_failed", scene.id,
+             f"あってはいけない状態です: {goal.says} ({goal.selector} = {got!r})")
+
+
 def pick_device(serial: str = "") -> capture_android.Device:
     """撮る端末を選ぶ. **1 台に決まらないなら落とす**.
 
@@ -126,6 +154,13 @@ def record(plan: Plan, outdir: str | Path, verbose: bool = True,
         print(f"  端末: {device.label}")
 
     problems: list[str] = []
+    warnings: list[dict] = []
+
+    def warn(kind: str, where: str | None, message: str) -> None:
+        """**止めない失敗を数えられる形で残す** (`record.Recorder.warn` と同じ)."""
+        warnings.append({"kind": kind, "where": where, "message": message})
+        print(f"    ! {message}")
+
     root = base or (plan.source.parent if plan.source else Path.cwd())
     # **仕込みと起動は Web と同じ道を通す。** 順序の不変条件 (仕込みは start より
     # 前、後片付けはアプリを畳んでから) をここで作り直さない
@@ -148,11 +183,17 @@ def record(plan: Plan, outdir: str | Path, verbose: bool = True,
                         do(driver, action)
                 except DriveError as exc:
                     raise DriveError(f"{where}: {exc}") from exc
-                dest, relative = next_shot_path(outdir, scene.id, clip=False)
+                dest, relative = auto_shot_path(outdir, scene.id, index)
                 capture_android.shot(device.handle, dest)
                 # **メモリ上の plan にだけ差す** (plan.json は書き換えない)
                 beat.shot = relative
                 if verbose:
                     print(f"    {where}  {relative}")
+            check_goal(driver, scene, warn)
 
-    return assemble(plan, outdir, verbose=verbose)
+    # 後片付けの失敗は収録を失敗にしないが、黙って捨てもしない
+    # (`prepared` が積むのは with を抜けたあとなので、ここで混ぜる)
+    for message in problems:
+        warn("teardown_failed", None, message)
+
+    return assemble(plan, outdir, verbose=verbose, warnings=warnings)

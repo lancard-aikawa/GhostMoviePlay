@@ -194,3 +194,34 @@ def test_the_ime_is_read_once(monkeypatch):
     assert d.ime() == "com.example/.IME"
     assert d.ime() == "com.example/.IME"
     assert len(reads) == 1
+
+
+# --- 矩形の中の文字 -----------------------------------------------------
+NESTED = """<hierarchy rotation="0">
+  <node class="android.view.View" resource-id="com.example:id/set_enquete"
+        bounds="[28,898][692,986]" />
+  <node class="android.view.View" content-desc="未設定" bounds="[58,921][133,956]" />
+  <node class="android.view.View" content-desc="リマインド" bounds="[70,1021][354,1061]" />
+</hierarchy>"""
+
+
+def test_the_text_inside_a_box_is_read():
+    """**Flutter は文字を子ノードに載せる。** 枠そのものには文字が無い."""
+    nodes = parse(NESTED)
+    box = next(n for n in nodes if n.rid.endswith("set_enquete"))
+    assert android.text_within(nodes, box) == "未設定"
+
+
+def test_text_outside_the_box_is_not_read():
+    """外側の文字まで拾うと、達成条件がいつでも当たってしまう."""
+    nodes = parse(NESTED)
+    box = next(n for n in nodes if n.rid.endswith("set_enquete"))
+    assert "リマインド" not in android.text_within(nodes, box)
+
+
+def test_a_missing_target_reads_as_none(monkeypatch):
+    """**空文字と区別する** —— 「読めなかった」と「空だった」は別の話."""
+    d = driver(monkeypatch, NESTED)
+    d.refresh()
+    assert d.text("id=ありえない") is None
+    assert d.text("id=set_enquete") == "未設定"

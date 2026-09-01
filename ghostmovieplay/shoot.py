@@ -312,6 +312,23 @@ def _mtime(path: Path) -> float | None:
         return None
 
 
+def auto_shot_path(outdir: Path, scene_id: str, index: int) -> tuple[Path, str]:
+    """自動収録のショット. **毎回同じ名前にする**.
+
+    人が撮るほうが通し番号なのは、あいだにビートを挿しても**既に撮ったものが
+    動かない**ことが大事だから (`next_shot_path`)。自動収録は毎回すべて撮り直す
+    ので、同じビートは同じファイルでよい。
+
+    **通し番号のままだと、誰も参照しないショットだけが溜まる。** 自動収録は
+    plan.json に書き戻さないので、撮り直すたびに前回の分が丸ごと迷子になる
+    (4 回撮って 64 枚。参照されているのは 16 枚だけだった)。
+    """
+    directory = Path(outdir) / SHOT_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    name = f"{scene_id}-{index:02d}{STILL_SUFFIX}"
+    return directory / name, f"{SHOT_DIR}/{name}"
+
+
 def next_shot_path(outdir: Path, scene_id: str, clip: bool = False) -> tuple[Path, str]:
     """次に使うショットのファイル名. 戻り値は (絶対パス, 出力ディレクトリからの相対).
 

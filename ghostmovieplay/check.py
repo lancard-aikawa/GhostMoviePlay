@@ -49,6 +49,14 @@ OK, STALE, BROKEN = "ok", "stale", "broken"
 # は 1 文字も分からない。赤にはしないが、**通ったとも言わない**
 SKIP = "skip"
 
+
+class Cannot(Exception):
+    """撮り直せない理由. **赤ではなく「検査していない」に数える**.
+
+    端末が繋がっていない機械で Android の 1 本を掃くと、撮れないのは台本のせい
+    ではない。落ちた理由として赤にすると、**CI が常に赤**になって誰も見なくなる。
+    """
+
 # **印は ASCII で置く。** Windows の既定コンソールは cp932 で、`✓` は
 # `?` に化ける (`_lenient_output` が落ちない代わりに潰す)。飾りが化けるのは
 # 我慢できるが、化けるのが**判定そのもの**だと読めない
@@ -203,17 +211,25 @@ def check_one(path: Path, record_fn=None) -> Result:
         detail = f"直すところ {len(found)} 件" if found else "読めました"
         return Result(path, STALE if found else OK, detail, found)
 
-    # **支援収録は撮り直せない。** 素材は人が撮ったもので、生成物なので
+    # **人が撮った 1 本は撮り直せない。** 素材は人が撮ったもので、生成物なので
     # clone した機械には無い。並べ直しても「まだアプリに当たっているか」は
     # 分からないので、**通ったことにしない** (docs/ideas/desktop.md)。
     # 撮らずに分かる欠陥だけは同じように見る
-    if plan.app.assisted:
+    #
+    # **`actions` のある Android は撮り直せる** (`plan.driven`)。ここを
+    # `assisted` だけで見ていたころ、`gmp record` は自動で撮るのに `gmp check` は
+    # 「撮り直せません」と数えていた —— 検査できる 1 本を検査していないほうに
+    # 混ぜると、件数の正直さがそのぶん薄まる
+    if plan.app.assisted and not plan.driven:
         if found:
             return Result(path, STALE, f"直すところ {len(found)} 件", found)
         return Result(path, SKIP, "支援収録なので撮り直せません (この検査は効きません)")
 
     try:
         recorded = record_fn(plan, path)
+    except Cannot as exc:
+        # 撮れない理由が台本の外にある (端末が無いなど)。赤にしない
+        return Result(path, SKIP, str(exc))
     except Exception as exc:   # noqa: BLE001 — 落ちた理由そのものが結果
         return Result(path, BROKEN, f"収録が落ちました: {type(exc).__name__}: {exc}",
                       found)
@@ -256,7 +272,9 @@ class Report:
         if skipped:
             # **検査できなかったものを「通った」に混ぜない。** 混ぜると
             # 「赤が無い = 全部当たっている」がまた嘘になる
-            head += f"   ※ 支援収録 {skipped} 本は撮り直せないので検査していません"
+            # 理由は 1 本ずつ行に出ている (人が撮った / 端末が無い)。
+            # **まとめでは数だけ言う** —— 理由を 1 つに決めると、もう片方が嘘になる
+            head += f"   ※ {skipped} 本は撮り直せないので検査していません"
         if self.ignored:
             # **黙って捨てない。** 無視した警告があることは必ず言う
             head += f"   ※ 環境の警告 {self.ignored} 件は赤に数えていません"

@@ -222,6 +222,17 @@ class Plan:
     def beats(self) -> list[tuple[Scene, Beat]]:
         return [(s, b) for s in self.scenes for b in s.beats]
 
+    @property
+    def driven(self) -> bool:
+        """**機械が端末を操作して撮る 1 本か。**
+
+        `app.assisted` (人が撮る) の中で、**`actions` が書いてあるものだけは
+        機械が撮れる**。見る側が 2 つある (`gmp record` の分岐と `gmp check` の
+        除外) ので、**判定はここ 1 か所**にする —— 散らすと、`record` は自動で
+        撮るのに `check` が「撮り直せません」と数える (実際にそうなった)。
+        """
+        return bool(self.app.package) and any(b.actions for _, b in self.beats)
+
 
 def wav_seconds(path: Path) -> float | None:
     """wav の尺. 読めなければ None (合成前・欠落を区別せず扱えるように).

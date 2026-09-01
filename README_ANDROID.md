@@ -222,6 +222,37 @@ setup = 'adb shell cmd notification set_dnd none && ...'   # teardown で set_dn
 **ダンプは 1 回 2.6 秒。** 要素を探すたびに走るので、`wait_for` を並べるほど
 遅くなります。待つ必要のないところには書かないこと。
 
+**打った文字は `wait_for` で検算できます。** 入力欄はフォーカスを外すと打った
+文字が `text` に出るので、`press KEYCODE_BACK` のあとに待てば、**空振りした
+ビートをその場で落とせます**（撮り終わってから画を見比べるより早い）。
+
+```jsonc
+{ "type": "type", "selector": "id=post_title_field", "text": "9月の全体連絡" },
+{ "type": "press", "key": "KEYCODE_BACK" },
+{ "type": "wait_for", "selector": "text=9月の全体連絡", "seconds": 5 }
+```
+
+### シーンが目的を果たしたかを見る
+
+`goal` は Android でも効きます（`says` / `selector` / `contains` / `absent`）。
+**操作が全部通っても、目的を果たしたことにはならない** ——
+[docs/plan.md](docs/plan.md) の達成条件と同じ書き方です。
+
+見る場所は Android のセレクタで、**その矩形の中にある文字**を読みます。
+ダンプは平坦（親子が無い）ので、Flutter のように**文字が子ノードに載る**相手でも
+枠を指せば中の文字が取れます（`id=set_enquete` の枠を指して「未設定」を見る）。
+
+```jsonc
+"goal": { "says": "アンケートは付いていない", "selector": "id=set_enquete", "absent": "設定済み" }
+```
+
+### ショットの名前
+
+自動収録のショットは **`shots/<シーン>-<番号>.png`** で、撮り直すと同じ名前を
+上書きします（人が撮るほうは通し番号）。自動収録は plan.json に書き戻さないので、
+番号を増やしていくと**誰も参照しないショットだけが溜まります**（実際に 4 回撮って
+64 枚になり、生きているのは 16 枚だけでした）。
+
 ## つまずいたとき
 
 **端末が一覧に出ない。** `adb devices` を見る。`unauthorized` なら端末の画面に

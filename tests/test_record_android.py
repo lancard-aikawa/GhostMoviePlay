@@ -6,7 +6,7 @@ import pytest
 
 from ghostmovieplay import record_android as ra
 from ghostmovieplay.android import DriveError
-from ghostmovieplay.plan import Beat, Plan, Scene
+from ghostmovieplay.plan import Beat, Goal, Plan, Scene
 
 
 class FakeDriver:
@@ -136,3 +136,52 @@ def test_no_device_says_how_to_check(monkeypatch):
     monkeypatch.setattr(ra.capture_android, "windows", lambda: [])
     with pytest.raises(DriveError, match="adb devices"):
         ra.pick_device()
+
+
+# --- シーンの達成条件 ---------------------------------------------------
+class GoalDriver(FakeDriver):
+    """画面の文字を決め打ちで返すドライバ."""
+
+    def __init__(self, texts):
+        super().__init__()
+        self.texts = texts
+
+    def text(self, selector):
+        return self.texts.get(selector)
+
+
+def goal_warnings(texts, goal):
+    got: list[tuple] = []
+    scene = Scene(id="s", goal=goal, beats=[Beat()])
+    ra.check_goal(GoalDriver(texts), scene,
+                  lambda kind, where, message: got.append((kind, where, message)))
+    return got
+
+
+def test_a_met_goal_says_nothing():
+    """**当たっているときに出さない** —— 件数が信用されなくなる."""
+    goal = Goal(says="送信済みになる", selector="id=row", contains="送信済み")
+    assert goal_warnings({"id=row": "9月の全体連絡 送信済み"}, goal) == []
+
+
+def test_a_missed_goal_is_a_warning():
+    goal = Goal(says="送信済みになる", selector="id=row", contains="送信済み")
+    kind, where, message = goal_warnings({"id=row": "9月の全体連絡 下書き"}, goal)[0]
+    assert kind == "goal_failed" and where == "s"
+    assert "送信済みになる" in message      # 人が読む言い方をそのまま出す
+
+
+def test_a_forbidden_state_is_a_warning():
+    """`absent` は「動いたが別のことをした」を捕まえる (contains では捕まらない)."""
+    goal = Goal(says="アンケートは付かない", selector="id=row", absent="要回答")
+    assert goal_warnings({"id=row": "9月の全体連絡 要回答"}, goal)[0][0] == "goal_failed"
+
+
+def test_a_goal_that_cannot_be_read_is_a_warning():
+    """**確かめられないことを、満たしたことにしない**."""
+    goal = Goal(says="送信済みになる", selector="id=row", contains="送信済み")
+    assert "見つかりません" in goal_warnings({}, goal)[0][2]
+
+
+def test_no_goal_is_not_a_warning():
+    assert goal_warnings({}, None) == []

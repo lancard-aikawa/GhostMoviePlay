@@ -132,8 +132,14 @@ def _beat_seconds(outdir: Path, beat, shot_seconds: float | None) -> float:
     return round(seconds, 3)
 
 
-def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
-    """ショットを並べて 1 本にする."""
+def assemble(plan: Plan, outdir: str | Path, verbose: bool = True,
+             warnings: list[dict] | None = None) -> Assembled:
+    """ショットを並べて 1 本にする.
+
+    `warnings` は**撮るときに出た止めない失敗**（達成条件・後片付け）。組み立てで
+    出るもの（ショットの欠け・大きさのズレ）と同じ `timing.json` の欄に混ぜる ——
+    数える側 (`gmp check` / 撮る面) は 1 か所しか見ないので、分けると落ちる。
+    """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     work = outdir / WORK_DIR
@@ -143,7 +149,7 @@ def assemble(plan: Plan, outdir: str | Path, verbose: bool = True) -> Assembled:
 
     v = plan.video
     width, height, fps = v.width, v.height, v.fps
-    warnings: list[dict] = []
+    warnings: list[dict] = list(warnings or [])
     pieces: list[str] = []
     entries: list[dict] = []
     odd_sizes: dict[str, int] = {}

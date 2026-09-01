@@ -316,3 +316,58 @@ def test_faults_visible_without_recording_still_go_red(tmp_path):
     result = check.check_one(_assist(tmp_path, plan), lambda p, q: None)
     assert result.state == check.STALE
     assert result.red is True
+
+
+# --- 撮り直せるかどうかの見分け ----------------------------------------
+def android_plan(directory, actions):
+    """Android の 1 本。`actions` があれば機械が撮れる."""
+    doc = {
+        "meta": {"title": "Android の 1 本", "project": "proj"},
+        "app": {"package": "com.example.app"},
+        "scenes": [{"id": "s1", "beats": [{"say": "ひとつめ", "actions": actions}]}],
+    }
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "plan.json"
+    path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_a_plan_people_shoot_is_not_counted_as_checked(tmp_path):
+    """人が撮った素材は clone した機械に無いので、撮り直せない."""
+    path = android_plan(tmp_path / "hand", [])
+    result = check.check_one(path, lambda plan, p: pytest.fail("撮ってはいけない"))
+    assert result.state == check.SKIP
+
+
+def test_an_android_plan_with_actions_is_actually_checked(tmp_path):
+    """**`gmp record` が自動で撮れるものを「検査していない」に混ぜない。**
+
+    `assisted` だけで見ていたころ、record は自動で撮るのに check は
+    「撮り直せません」と数えていた。
+    """
+    path = android_plan(tmp_path / "auto", [{"type": "click", "selector": "desc=投稿"}])
+    result = check.check_one(path, lambda plan, p: recorded())
+    assert result.state == check.OK
+
+
+def test_a_missing_device_is_not_red(tmp_path):
+    """端末が無いのは台本のせいではない。赤にすると CI が常に赤になる."""
+    path = android_plan(tmp_path / "auto", [{"type": "click", "selector": "desc=投稿"}])
+
+    def no_device(plan, p):
+        raise check.Cannot("端末で撮り直せません: 端末が繋がっていません")
+
+    result = check.check_one(path, no_device)
+    assert result.state == check.SKIP
+    assert "端末" in result.detail
+
+
+def test_the_summary_does_not_call_every_skip_a_hand_shot():
+    """理由は行に出る。まとめで 1 つに決めると、もう片方が嘘になる."""
+    report = check.Report(results=[
+        check.Result("a", check.SKIP, "人が撮ったので撮り直せません"),
+        check.Result("b", check.SKIP, "端末が繋がっていません"),
+    ])
+    summary = report.summary()
+    assert "2 本は撮り直せないので検査していません" in summary
+    assert "支援収録" not in summary

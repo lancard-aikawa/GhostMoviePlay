@@ -130,6 +130,24 @@ def matches(node: Node, selector: str) -> bool:
     raise DriveError(f"知らないセレクタです: {selector!r}")
 
 
+def inside(outer: Node, inner: Node) -> bool:
+    """`inner` の矩形が `outer` に収まっているか."""
+    return (inner.left >= outer.left and inner.top >= outer.top
+            and inner.right <= outer.right and inner.bottom <= outer.bottom)
+
+
+def text_within(nodes: list[Node], target: Node) -> str:
+    """その矩形の中にある文字を集める. **web の `inner_text` に当たるもの**.
+
+    **ダンプは平坦で親子が無い**ので、矩形の内側かどうかで代用する。Flutter は
+    文字を子ノードの content-desc に載せるので、**指した相手そのものには文字が
+    無いのが普通** —— `id=set_enquete` (枠) の中に `desc=未設定` が別ノードで
+    いる。自分の文字だけを見ると、達成条件がいつまでも当たらない。
+    """
+    parts = [n.desc or n.text for n in nodes if inside(target, n) and (n.desc or n.text)]
+    return " ".join(" ".join(parts).split())
+
+
 def point_at(selector: str, width: int, height: int) -> tuple[int, int] | None:
     """`at=0.5,0.75` を画素にする. それ以外なら None.
 
@@ -181,6 +199,11 @@ class Driver:
 
     def find(self, selector: str) -> Node | None:
         return next((n for n in self.nodes if matches(n, selector)), None)
+
+    def text(self, selector: str) -> str | None:
+        """その相手の中にある文字. 見つからなければ None (空文字と区別する)."""
+        hit = self.find(selector)
+        return None if hit is None else text_within(self.nodes, hit)
 
     def wait_for(self, selector: str, timeout: float = 10.0) -> Node:
         """出るまで待つ. **出なければ落とす** (見えていない画面を撮らない)."""

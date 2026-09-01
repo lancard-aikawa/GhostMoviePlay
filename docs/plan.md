@@ -59,6 +59,10 @@ action: `goto` `click` `dblclick` `hover` `type` `press` `select` `scroll_to`
 - **書けるなら必ず書く。** 画面の状態が変わらない解説シーンには書けない
 - **Pass2 で機械的に見る**ので、語彙はこれだけ（[AI を入れない](../CLAUDE.md)）
 - 満たせないと `timing.json` の警告 (`goal_failed`) に残り、`gmp check` が赤にする
+- **Android の自動収録でも同じように効く。** `selector` はあちらの書き方
+  （`desc=` / `id=` など）で、**その矩形の中にある文字**を読む。ダンプは平坦なので、
+  文字が子ノードに載る相手（Flutter）でも枠を指せばよい
+  （[README_ANDROID.md](../README_ANDROID.md)）
 
 `app` `video` `voice` `determinism` は[設定](settings.md)から解決された値が
 焼き込まれる。plan.json はそれ単体で撮り直せる（設定ファイルは要らない）。
