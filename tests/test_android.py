@@ -25,8 +25,8 @@ DUMP = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
   <node index="2" class="android.view.View" content-desc="９月の全体連絡"
         bounds="[24,180][696,218]" />
   <node index="3" class="android.widget.Button" content-desc="コメントする"
-        resource-id="com.lancard.a_lamo:id/send_comment" bounds="[440,960][680,1014]" />
-  <node index="4" class="android.view.View" content-desc="発信者: &#10;東京６等"
+        resource-id="com.example.app:id/send_comment" bounds="[440,960][680,1014]" />
+  <node index="4" class="android.view.View" content-desc="発信者: &#10;グループA等"
         bounds="[24,320][284,348]" />
   <node index="5" class="android.view.View" text="ふつうの text" bounds="[0,0][0,0]" />
 </hierarchy>"""
