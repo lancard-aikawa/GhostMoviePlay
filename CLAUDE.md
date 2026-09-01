@@ -687,6 +687,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | 撮る面のボタン | **足す前に `claude に書かせる` で済まないかを見る**。`ui_run._build_steps` / `_build_failure` / `_refresh_buttons`、`tests/test_ui_run.py` |
 | 撮る面の段を足した | `ui_run.STEPS`、`ui_run.argv()`、`blocker()`、`docs/settings.md` の「撮る面」、`tests/test_ui_run.py`（**絵と音を変える引数を組み立てていないか**を見ている） |
 | 展示に出した動画の素材 | `lancard-aikawa/GhostMoviePlayGallery` の **`videos.py`**（カードの**再現コマンド**と素材へのリンク。`python build.py` が `index.html` / `v/*.html` / **設定の zip** を吐くので、**HTML は手で直さない**）。**`docs/video/<名前>/` を動かしたら向こうの `bundle` も直す** —— `git archive` で束ねているので、パスが変わると build がそこで止まる（黙って古い zip を配らない）。`app.cwd` の指す先を変えたら **`bundle_note`（束をどこに置けば動くか）**も直す。素材を動かすと展示が黙って嘘になる（あちらは撮り直しても気づけない）。**mp4 はあちらにしか置かない** |
+| **使う人から見えるもの**（コマンド・設定・plan.json の書式・画面・出来上がるファイル） | [`CHANGELOG.md`](CHANGELOG.md) の先頭に 1 行。**内部の作り直しと資料の手入れは載せない**（`git log` の担当）。**もう撮ってある 1 本に手当てが要るなら ⚠ を付けて必ず書く** —— README も CLAUDE.md も *いま何が真か* しか書かないので、**前のやり方で作ったものがどうなるか**を言える場所が他に無い。**目玉だけ表に出して残りは `<details>` に畳む**が、**⚠ は畳まない** —— 閉じた `<details>` の中は Ctrl+F に引っかからないので、畳むと *`app.setup` を書き換える必要がある* を探しに来た人に何も当たらない。`<summary>` の次には空行が要る（無いと中の Markdown が生のまま出る）|
 
 ## サンプルと実例
 

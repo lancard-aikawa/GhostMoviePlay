@@ -262,6 +262,7 @@ gmp.toml の voice.dict に読みを足して。
 | [docs/training.md](docs/training.md) | **研修と教材に使う**（社内 Web サービス、スクール）。SaaS を撮るときの壁 |
 | [docs/internals.md](docs/internals.md) | 実装メモ（なぜこの実装なのか） |
 | [CLAUDE.md](CLAUDE.md) | 設計の前提、壊しやすい不変条件、実測値 |
+| [CHANGELOG.md](CHANGELOG.md) | **何が変わったか**。もう撮ってある 1 本に手当てが要るものには ⚠ が付く |
 
 ## 開発
 
