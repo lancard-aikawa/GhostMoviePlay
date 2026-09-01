@@ -223,6 +223,7 @@ gmp.toml の voice.dict に読みを足して。
 |---|---|
 | `gmp doctor` | ffmpeg / playwright の状態確認 |
 | `gmp where [plan.json]` | 生成物の置き場所を見る |
+| `gmp clean` | 撮影用の使い捨て置き場（`C:\gmp`）を片付ける。`--list` で見るだけ |
 | `gmp ui [video.md]` | 画面を開く（設定 / 撮る）。`--run` で「撮る」面から |
 | `gmp config [video.md]` | 効いている設定と由来を見る |
 | `gmp config --set KEY=VALUE` | グローバル設定を書く（`--set-home DIR` も可） |

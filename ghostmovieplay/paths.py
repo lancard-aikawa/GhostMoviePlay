@@ -98,6 +98,22 @@ def stage_home() -> Path:
     return Path(os.environ.get("SystemDrive", "C:") + "/" + STAGE_DIR_NAME)
 
 
+def stage_leftovers() -> list[Path]:
+    """使い捨て置き場に残っているもの.
+
+    **後片付けは中止すると走らない。** 画面の中止は子孫ごと `taskkill /F` で
+    落とすので、`prepared()` の finally (= `app.teardown`) は動かない
+    (実際に、収録用のデータルートが 1 つ残った)。消しに行くのは人の判断 ——
+    別の 1 本を撮っている最中に消すと、その収録のデータが消える。
+    ここは**数えて見せるだけ**。
+    """
+    home = stage_home()
+    try:
+        return sorted(home.iterdir())
+    except OSError:
+        return []
+
+
 # --- 設定ファイル -----------------------------------------------------
 def config_path() -> Path:
     if sys.platform == "win32":

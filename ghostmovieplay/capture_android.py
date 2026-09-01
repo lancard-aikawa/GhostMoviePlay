@@ -49,8 +49,13 @@ __all__ = ["CaptureError", "Recording", "Device", "duration", "even",
 
 ADB = "adb"
 
-# 録画を置く端末側の場所。**撮り終わったら必ず消す** (人の端末に溜めない)
-REMOTE_CLIP = "/sdcard/gmp-shoot.mp4"
+# 端末側の作業場所。**`/sdcard` に置かない。** あそこは MediaStore が舐めるので、
+# 中止や adb の切断で残った録画が**人の端末のギャラリーに出る** (次に端末を撮る
+# ときに写り込みさえする)。`/data/local/tmp` は adb のスクラッチで、ギャラリーには
+# 出ない。PC 側の使い捨てを `C:\gmp` にまとめたのと同じ話が端末にもある。
+# **撮り終わったら必ず消す**のは変わらない (人の端末に溜めない)
+REMOTE_TMP = "/data/local/tmp"
+REMOTE_CLIP = f"{REMOTE_TMP}/gmp-shoot.mp4"
 
 # screencap のヘッダ。Android 9 以降は 16 バイト (幅・高さ・format・colorspace)、
 # それ以前は 12 バイト。**どちらも受ける** —— 長さで見分ける

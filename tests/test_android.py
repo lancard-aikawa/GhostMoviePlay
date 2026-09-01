@@ -225,3 +225,26 @@ def test_a_missing_target_reads_as_none(monkeypatch):
     d.refresh()
     assert d.text("id=ありえない") is None
     assert d.text("id=set_enquete") == "未設定"
+
+
+# --- 端末側の作業場所 -------------------------------------------------
+def test_the_device_side_scratch_is_not_in_the_gallery():
+    """`/sdcard` に置かない.
+
+    あそこは MediaStore が舐めるので、中止や adb の切断で残った録画が
+    **人の端末のギャラリーに出る**。PC 側の使い捨てを 1 か所に決めたのと
+    同じ話で、端末でも `/data/local/tmp` に寄せる。
+    """
+    from ghostmovieplay import capture_android
+
+    for path in (android.REMOTE_DUMP, capture_android.REMOTE_CLIP):
+        assert path.startswith(capture_android.REMOTE_TMP), path
+        assert "/sdcard" not in path, path
+
+
+def test_the_dump_and_the_clip_share_one_scratch():
+    """置き場所を 2 か所に書かない (片方だけ直すと端末に散らばる)."""
+    from ghostmovieplay import capture_android
+
+    assert android.REMOTE_DUMP.rsplit("/", 1)[0] == capture_android.REMOTE_TMP
+    assert capture_android.REMOTE_CLIP.rsplit("/", 1)[0] == capture_android.REMOTE_TMP

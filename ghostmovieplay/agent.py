@@ -82,10 +82,16 @@ def spec_prompt(spec: Path, hints: list | None = None) -> str:
     )
 
 
-def open_session(prompt: str, cwd: Path, allow, model: str | None = None,
-                 where: Path | None = None, verbose: bool = True,
+def open_session(prompt: str, cwd: Path, allow, *, where: Path,
+                 model: str | None = None, verbose: bool = True,
                  title: str = "claude を開きます") -> Path:
     """**対話の claude を新しいコンソールで開く.** 戻り値は起こしたランチャ.
+
+    `where` は**書き出す先**（ランチャと貼り付け用のプロンプト）。`cwd` は
+    claude を動かす場所で、**対象プロジェクトのルート**になる。既定で `cwd` に
+    落とす作りにしていたが、それだと呼び側が 1 つ忘れただけで
+    `gmp-claude.cmd` と `gmp-claude-prompt.txt` が**人のリポジトリに残る**。
+    生成物は出力先に置くのが決まりなので、省略できないようにしてある。
 
     `-p` と違って、訊かれたら人が答えられる。承認もその場で出せるので
     `bypassPermissions` に落とす必要もない。収録対象やセレクタは、そのプロジェクトを
@@ -106,7 +112,7 @@ def open_session(prompt: str, cwd: Path, allow, model: str | None = None,
     if not cwd.is_dir():
         raise AgentError(f"作業ディレクトリが見つかりません: {cwd}")
 
-    target = Path(where or cwd) / LAUNCHER
+    target = Path(where) / LAUNCHER
     target.parent.mkdir(parents=True, exist_ok=True)
 
     # **貼り付けを 1 操作にする。** claude が引数の指示で自分から始めなかった

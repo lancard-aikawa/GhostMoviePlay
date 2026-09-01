@@ -39,11 +39,13 @@ import time
 from dataclasses import dataclass
 
 from .capture import CaptureError
-from .capture_android import _argv, _run, _text
+from .capture_android import REMOTE_TMP, _argv, _run, _text
 
 # ダンプが idle を待てずに落ちたときの、諦めるまでの回数
 DUMP_TRIES = 3
-REMOTE_DUMP = "/sdcard/gmp-ui.xml"
+# 端末側の作業場所は capture_android が 1 か所で持っている (`/sdcard` に置かない
+# 理由もあちら)。**録画とダンプで別の場所にしない**
+REMOTE_DUMP = f"{REMOTE_TMP}/gmp-ui.xml"
 
 # 日本語を打つための IME (senzhk/ADBKeyBoard)。**端末に入れるのは撮る人の仕事**で、
 # ここは入れない —— 人の端末にアプリを勝手に足す道を作らない。既定に据えるのも

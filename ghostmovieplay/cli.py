@@ -93,6 +93,13 @@ def cmd_where(args) -> int:
     print(f"  動画フォルダ {paths.user_videos_dir()}")
     # 仕込みが使い捨てのデータを置く場所。**画に写るので設定にしていない**
     print(f"  仕込みの置き場 {paths.stage_home()}  ({paths.ENV_STAGE} で渡す)")
+    # **中止すると後片付けが走らない**ので、残るときは残る。数えて言うだけ
+    leftovers = paths.stage_leftovers()
+    if leftovers:
+        print(f"    残っています ({len(leftovers)}): "
+              + " / ".join(p.name for p in leftovers[:6])
+              + ("  ..." if len(leftovers) > 6 else ""))
+        print("    撮影中でなければ gmp clean で片付きます")
 
     from .settings import find_project_file, machine_value
 
@@ -121,6 +128,46 @@ def cmd_where(args) -> int:
     print(f"    音声      {outdir / 'voice'}")
     print(f"    成果物    {outdir / 'output.mp4'}")
     return 0
+
+
+def cmd_clean(args) -> int:
+    """撮影用の使い捨て置き場を片付ける.
+
+    **中止すると `app.teardown` は走らない**（子孫ごと落とすので finally が
+    動かない）。残ったものを消す道がどこにも無いと、ドライブ直下に溜まる。
+
+    消すのは `paths.stage_home()` の下だけ。**生成物 (出力先) には触らない** ——
+    撮り直しの効かないショットがあるので、同じコマンドで消せてはいけない。
+    """
+    import shutil
+
+    home = paths.stage_home()
+    leftovers = paths.stage_leftovers()
+    if not leftovers:
+        print(f"  片付けるものはありません: {home}")
+        return 0
+
+    if args.list:
+        print(f"  {home} に残っているもの:")
+        for path in leftovers:
+            print(f"    {path.name}{'/' if path.is_dir() else ''}")
+        print("\n  消すなら: gmp clean")
+        return 0
+
+    # **撮影中に消すと、その収録のデータが消える。** 止めはしないが先に言う
+    print(f"  片付けます: {home}  (撮影中なら中断してください)")
+    failed = 0
+    for path in leftovers:
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            print(f"    消しました: {path.name}")
+        except OSError as exc:
+            failed += 1
+            print(f"    ! 消せません: {path.name} ({exc})")
+    return 1 if failed else 0
 
 
 def _assign(tree: dict, dotted: str, value) -> None:
@@ -846,7 +893,11 @@ def cmd_check(args) -> int:
         # 速いほうを先に回して、赤ならそこで止めるのが安い
         print(f"確認: {len(plans)} 本の台本を読みます (撮りません)")
     else:
+        # **何が起きるかを撮る前に言う。** 既定が「本物の収録」なので、知らずに
+        # 叩くと数分かかり、いつもの出力先が上書きされる (実際に踏んだ)
         print(f"確認: {len(plans)} 本の台本を撮り直します (動画の尺ぶんかかります)")
+        print(f"      出力先を上書きします: {paths.output_home()}")
+        print("      仕込み (app.setup) も走ります。撮らずに読むだけなら --dry")
 
     report = checker.Report()
     for i, path in enumerate(plans, start=1):
@@ -991,6 +1042,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("where", help="生成物の置き場所を見る")
     p.add_argument("plan", nargs="?", help="plan.json (渡すとその動画の出力先を出す)")
     p.set_defaults(func=cmd_where)
+
+    p = sub.add_parser("clean", help="撮影用の使い捨て置き場を片付ける (生成物は消さない)")
+    p.add_argument("--list", action="store_true", help="消さずに残っているものを出す")
+    p.set_defaults(func=cmd_clean)
 
     p = sub.add_parser("config", help="効いている設定と由来を見る / グローバル設定を変える")
     p.add_argument("spec", nargs="?", help="video.md (渡すとその動画の解決結果を出す)")

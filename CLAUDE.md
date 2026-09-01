@@ -565,6 +565,18 @@ plan.json の隣では足りない。** 対象の場所は機械の設定 `proje
   手で走らせたときのために同じ規則を fallback に書いておく
 - **掘るのと消すのは仕込みの仕事。** ツールは場所を渡すだけ（何を置くかを
   知っているのはあちら）
+- **中止では後片付けが走らない。** 画面の中止は子孫ごと `taskkill /F` なので
+  `prepared()` の finally が動かない（実際に収録用のデータルートが 1 つ残った）。
+  場所が決まったので**残っていることは言える** —— `gmp where` と中止のログが
+  数えて出し、消すのは `gmp clean`。**自動で消さない**（別の 1 本を撮っている
+  最中に走ると、その収録のデータを消す）。`gmp clean` が触るのは使い捨て置き場
+  だけで、**生成物には触らない**（撮り直しの効かないショットがある）
+
+端末 (Android) にも同じ話がある。**`/sdcard` に置かない** ——
+`capture_android.REMOTE_TMP` (`/data/local/tmp`) に録画とダンプを置く。
+`/sdcard` は MediaStore が舐めるので、中止や adb の切断で残った録画が
+**人の端末のギャラリーに出る**（次に端末を撮るときに写り込みさえする）。
+実機で `uiautomator dump` と `screenrecord` の両方が書けることを確認済み。
 
 ### 音声を乗せたらクレジットも焼く
 
@@ -669,6 +681,7 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録の前後に走らせるもの | `plan.App` の `setup` / `teardown`、`server.prepared`（**仕込みが落ちたら止める / 後片付けは止めない**）、`settings.SCHEMA` の `app.*`、`ui.TABS` の「仕込みと後片付け」、`spec.PLAN_SCHEMA_DOC` と SKILL.md、`docs/plan.md`、`tests/test_server.py` |
 | 収録が走る場所 | **`paths.record_base()` の 1 か所**（`record.record` / `record_android.record` / `ui_shoot._app_cwd` が**同じ答えを出す必要がある** —— 散らすと、仕込みだけ別の場所で走る）、機械の設定 `projects`（`settings.project_root`）、`gmp where` の表示、`docs/settings.md`、`tests/test_paths.py`。**`app.cwd` があるほうが強い**（既存の台本の基準を動かさない）|
+| 端末側の作業場所 | **`capture_android.REMOTE_TMP` の 1 か所**（録画とダンプで別の場所にしない）、`android.REMOTE_DUMP`、`tests/test_android.py`。**`/sdcard` に戻さない** —— MediaStore に拾われて人の端末のギャラリーに出る |
 | 撮影用の使い捨て置き場 | `paths.stage_home()` と `server.hook_env()`（**仕込み・起動・後片付けの 3 つに同じものを渡す** —— `ui_shoot` の起動も含む。1 つ漏らすと仕込んだ場所と違うところをアプリが開く）、`gmp where` の表示、各 `make_sample.py` の fallback、CLAUDE.md の不変条件、`tests/test_server.py`。**設定にしない**（画に写る）|
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
 | 撮る価値の前提を変える | `spec.GUIDE` の 1・2 番（**2 番が「何を撮る価値があるか」を決める唯一の行**。3〜7 は前提に依らない品質規則）、`skills/ghostplay/SKILL.md` の description・価値の 1 行・手順 3、`README.md` の冒頭、`docs/ideas/README.md` の「芯にあるもの」、`docs/governance.md`、`settings.PROJECT_TEMPLATE` の persona/topics、`tests/test_request.py`。**`video.md` の `scenes` は前提を変えない** —— goal を伝えるだけで、依頼文には GUIDE が無条件で入る。**「失敗」に狭めない** —— 操作が全部通っても目的を果たしていなければ同じだけ障害で、7-Zip の 1 本が実際にそれ（zip は正常に作られる）|

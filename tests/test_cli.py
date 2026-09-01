@@ -135,6 +135,45 @@ def test_registering_a_project_folder_from_the_cli(tmp_path, monkeypatch, capsys
     assert "C:/Repos/a-lamo" in capsys.readouterr().out
 
 
+def test_leftovers_are_named_and_only_removed_when_asked(tmp_path, monkeypatch, capsys):
+    """**中止では後片付けが走らない。** 残ったことを言い、消すのは明示操作."""
+    from ghostmovieplay import paths
+
+    stage = tmp_path / "gmp"
+    (stage / "sample").mkdir(parents=True)
+    (stage / "sample" / "dummy.pdf").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(paths, "stage_home", lambda: stage)
+
+    # 場所を出す口が、残っていることも言う
+    assert main(["where"]) == 0
+    assert "sample" in capsys.readouterr().out
+
+    # --list は消さない
+    assert main(["clean", "--list"]) == 0
+    assert "sample" in capsys.readouterr().out
+    assert (stage / "sample").is_dir()
+
+    assert main(["clean"]) == 0
+    assert not list(stage.iterdir())
+
+
+def test_clean_does_not_touch_the_finished_videos(tmp_path, monkeypatch, capsys):
+    """撮り直しの効かないショットが生成物側にある. 同じコマンドで消せてはいけない."""
+    from ghostmovieplay import paths
+
+    stage = tmp_path / "gmp"
+    stage.mkdir()
+    (stage / "canvas").mkdir()
+    monkeypatch.setattr(paths, "stage_home", lambda: stage)
+
+    home = paths.output_home()
+    (home / "proj" / "video").mkdir(parents=True, exist_ok=True)
+    (home / "proj" / "video" / "output.mp4").write_text("mp4", encoding="utf-8")
+
+    assert main(["clean"]) == 0
+    assert (home / "proj" / "video" / "output.mp4").exists()
+
+
 def test_where_on_a_broken_plan_says_why(tmp_path, capsys):
     broken = tmp_path / "plan.json"
     broken.write_text("{ not json", encoding="utf-8")

@@ -972,6 +972,14 @@ class RunPane:
             return
         self.append("-- 中止しました (途中の生成物が残ることがあります) --")
         self.runner.stop()
+        # **中止では後片付け (app.teardown) が走らない** —— 子孫ごと落とすので
+        # finally が動かない。仕込みが作った使い捨てはそのまま残るので、
+        # どこに何が残ったかをその場で言う (黙ると、ドライブ直下に溜まる)
+        leftovers = paths.stage_leftovers()
+        if leftovers:
+            names = " / ".join(p.name for p in leftovers[:6])
+            self.append(f"   仕込みが {paths.stage_home()} に残っています: {names}")
+            self.append("   撮影中でなければ `gmp clean` で片付きます")
 
     def begin(self) -> None:
         """1 回ぶんの実行を始める前の後始末."""

@@ -245,7 +245,7 @@ def test_the_launcher_survives_quotes_and_japanese(tmp_path, monkeypatch):
 
     launcher = agent.open_session(
         '「台本」を作って。"引用符" も改行も\n入る',
-        tmp_path, allow={tmp_path}, model="opus", verbose=False)
+        tmp_path, allow={tmp_path}, where=tmp_path, model="opus", verbose=False)
 
     text = launcher.read_text(encoding="utf-8")
     assert launcher.name == agent.LAUNCHER
@@ -283,7 +283,7 @@ def test_add_dir_binds_exactly_one_value(tmp_path, monkeypatch):
     monkeypatch.setattr(agent.os, "startfile", lambda path: None, raising=False)
 
     launcher = agent.open_session("しじ", tmp_path, allow={tmp_path, tmp_path / "x"},
-                                  verbose=False)
+                                  where=tmp_path, verbose=False)
     line = next(one for one in launcher.read_text(encoding="utf-8").splitlines()
                 if one.startswith('"C:'))
 
@@ -303,7 +303,7 @@ def test_the_prompt_is_put_on_the_clipboard(tmp_path, monkeypatch):
     monkeypatch.setattr(agent.os, "startfile", lambda path: None, raising=False)
 
     launcher = agent.open_session("台本を作ってください", tmp_path, allow={tmp_path},
-                                  verbose=False)
+                                  where=tmp_path, verbose=False)
     prompt_file = launcher.parent / agent.PROMPT_FILE
 
     assert prompt_file.is_file()
@@ -316,7 +316,30 @@ def test_the_prompt_is_put_on_the_clipboard(tmp_path, monkeypatch):
 def test_opening_without_claude_is_reported(tmp_path, monkeypatch):
     monkeypatch.setattr(agent.shutil, "which", lambda name: None)
     with pytest.raises(agent.AgentError, match="claude コマンドが見つかりません"):
-        agent.open_session("x", tmp_path, allow={tmp_path}, verbose=False)
+        agent.open_session("x", tmp_path, allow={tmp_path}, where=tmp_path,
+                           verbose=False)
+
+
+def test_the_launcher_is_not_left_in_the_project(tmp_path, monkeypatch):
+    """**書き出す先は省略できない。** 省けたころは `cwd` に落ちる作りだったので、
+    呼び側が 1 つ忘れると人のリポジトリに `.cmd` と原稿が残る。
+    """
+    monkeypatch.setattr(agent.shutil, "which", lambda name: r"C:\bin\claude.exe")
+    monkeypatch.setattr(agent.sys, "platform", "win32")
+    monkeypatch.setattr(agent.os, "startfile", lambda path: None, raising=False)
+
+    project, out = tmp_path / "project", tmp_path / "out"
+    project.mkdir()
+
+    launcher = agent.open_session("しじ", project, allow={project}, where=out,
+                                  verbose=False)
+
+    assert launcher.parent == out
+    assert (out / agent.PROMPT_FILE).is_file()
+    assert not list(project.iterdir()), "対象プロジェクトに書き出している"
+
+    with pytest.raises(TypeError):        # where を省けないこと
+        agent.open_session("しじ", project, allow={project}, verbose=False)
 
 
 def test_the_spec_prompt_does_not_ask_for_the_script(tmp_path):
