@@ -260,6 +260,7 @@ gmp.toml の voice.dict に読みを足して。
 | [README_ANDROID.md](README_ANDROID.md) | **Android アプリを撮る**（支援収録）。Windows と違うところと、端末の繋ぎ方 |
 | [README_BUNDLE.md](README_BUNDLE.md) | **落とした設定で撮る**。Gallery の zip を受け取った側の手引き（Claude への頼み方つき） |
 | [docs/check.md](docs/check.md) | 台本が古くなっていないかを CI で見る (`gmp check`) |
+| [docs/gallery.md](docs/gallery.md) | **撮り直した 1 本を展示に反映する**。Gallery の差し替え手順と、カードが嘘になるところ |
 | [docs/governance.md](docs/governance.md) | 運用そのものを題材にする撮り方（統治・習慣・荒れたデータの仕込み） |
 | [docs/training.md](docs/training.md) | **研修と教材に使う**（社内 Web サービス、スクール）。SaaS を撮るときの壁 |
 | [docs/internals.md](docs/internals.md) | 実装メモ（なぜこの実装なのか） |
