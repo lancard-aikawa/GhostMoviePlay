@@ -1,17 +1,20 @@
 # Windows デスクトップアプリを撮る
 
-[アイデア](README.md) — 収録対象を Web から Windows のデスクトップアプリへ広げる案の
-うち、**まだ作っていないほう** —— **自動で操作する (UIA ドライバ)**。
+[アイデア](README.md) — 収録対象を Web から Windows のデスクトップアプリへ広げる案。
 下の数字は 2026-08-25 に Windows 11 で実際に叩いて取ったもので、書いたら測り直すこと。
 
-**UI Automation (UIA) が selector を持っている**ので、[Android](android.md) と同じ形
-—— 差し替えが要るのは実質 **Pass2 だけ**で、`plan.json` / `timing.json` の境界の
-おかげで Pass1 と Pass3 はほぼそのまま使える。
+> **駆動は入った（2026-09-02）。** ただし **UIA ではなく Win32 のウィンドウツリー**
+> を読む形になった —— 前提が 1 つ外れていて、**7-Zip は UIA に Pane しか出さない**
+> のに Win32 では一覧もアドレス欄も揃って出る。COM の依存も要らない。
+> 実装は `windows.py` / `record_windows.py`、使い方は
+> [README_WINAPP.md](../../README_WINAPP.md) と [docs/plan.md](../plan.md)、
+> 実測した罠は [CLAUDE.md](../../CLAUDE.md) の「Windows は UIA ではなく Win32 で掴む」。
+> **ここに残してあるのは、まだ当たっていない側**（UIA が要る相手＝WPF / WinUI /
+> Electron、render 時オーバーレイ、AI に操作させる案）。
 
 **ウィンドウを撮るところは既にある。** 人が操作して撮る道
 （[支援収録](../plan.md#自動操作が届かない相手を撮る支援収録)）を入れたときに
 `capture.py` を書いたので、`PrintWindow` も `gdigrab` もそのまま使える。
-足りないのは**人の代わりに操作する部分**だけ。
 
 ## 段ごとの影響
 

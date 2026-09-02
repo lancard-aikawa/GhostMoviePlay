@@ -130,6 +130,66 @@ def cmd_where(args) -> int:
     return 0
 
 
+def cmd_inspect(args) -> int:
+    """ウィンドウの中身を出して、**セレクタを実在から選べるようにする**.
+
+    web には「Playwright MCP で実際に触って DOM から取る」があるのに、Windows
+    には無かった。**推測で書いたセレクタは収録時に必ず落ちる**ので、台本を書く前に
+    これで見る。`gmp record` を回して落ちるまで分からない、を無くすのが目的。
+    """
+    from .capture import windows as list_windows
+    from .windows import DriveError, rows, tree
+
+    if not args.title:
+        found = list_windows()
+        print(f"  開いているウィンドウ ({len(found)}):")
+        for win in found:
+            print(f"    {win.label}")
+        print("\n  中身を見るなら: gmp inspect <タイトルの一部>")
+        return 0
+
+    from .capture import find as find_window
+
+    win = find_window(args.title)
+    if win is None:
+        return _err(f"ウィンドウが見つかりません: {args.title!r}"
+                    "  (gmp inspect で一覧が出ます)")
+    print(f"  {win.label}")
+
+    try:
+        nodes = tree(win.handle)
+    except DriveError as exc:
+        return _err(str(exc))
+    if not nodes:
+        # **Win32 の部品を持たない相手**は、ここでは掴めない (WPF / WinUI /
+        # Electron)。黙って空を出すと「セレクタが無い」に見えるので理由を言う
+        print("\n  子ウィンドウがありません。"
+              "Win32 の部品でできていないアプリ (WPF / WinUI / Electron) は\n"
+              "  この方式では掴めません。人が操作して撮ってください (gmp shoot)")
+        return 0
+
+    print(f"\n  掴めるもの ({len(nodes)}):")
+    for node in nodes:
+        selector = f"name={node.text}" if node.text else f"class={node.cls}"
+        print(f"    {node.cls:22} cid={node.cid:<6} {node.right - node.left}x"
+              f"{node.bottom - node.top:<6} {selector}")
+
+    # **一覧の中は「中身で指す」ためにいちばん要る。** 並び順で指すと、
+    # 並べ替えやスクロールで別のものを押す
+    for node in nodes:
+        if node.cls != "SysListView32":
+            continue
+        try:
+            found = rows(node.hwnd)
+        except DriveError as exc:
+            print(f"\n  一覧 (cid={node.cid}) を読めません: {exc}")
+            continue
+        print(f"\n  一覧 cid={node.cid} の行 ({len(found)}):")
+        for _index, text, _rect in found[:30]:
+            print(f"    row={text}")
+    return 0
+
+
 def cmd_clean(args) -> int:
     """撮影用の使い捨て置き場を片付ける.
 
@@ -722,15 +782,25 @@ def cmd_record(args) -> int:
     # 人が撮ると、途中で状態が変わったまま撮り足して「同じ画面のはずの 2 枚で
     # 表示が食い違う」ことが起きる (実際に起きた)。通しで撮れば無くなる
     if plan.driven:
-        from .android import DriveError
         from .ffmpeg import FFmpegError
-        from .record_android import record as drive
 
-        print(f"自動収録 (Android): {plan.title}  ({len(plan.beats)} beats -> {outdir})")
+        # **相手が端末か Windows のウィンドウか。** `driven` の判定は plan が
+        # 1 か所で持っているので、ここでは「どちらのドライバか」だけを見る
+        if plan.app.package:
+            from .android import DriveError
+            from .record_android import record as drive
+
+            noun, kwargs = "Android", {"serial": getattr(args, "serial", "") or ""}
+        else:
+            from .record_windows import record as drive
+            from .windows import DriveError
+
+            noun, kwargs = "Windows", {}
+
+        print(f"自動収録 ({noun}): {plan.title}  ({len(plan.beats)} beats -> {outdir})")
         try:
             # record サブコマンドに --verbose は無い (check だけが持っている)
-            result = drive(plan, outdir, verbose=True,
-                           serial=getattr(args, "serial", "") or "")
+            result = drive(plan, outdir, verbose=True, **kwargs)
         except (DriveError, FFmpegError, ValueError) as exc:
             return _err(str(exc))
         print(f"\n  video   {result.video}  ({result.duration:.2f}s)")
@@ -876,16 +946,24 @@ def cmd_check(args) -> int:
     def record_one(plan, path):
         outdir = paths.resolve_outdir(path, project=plan.project, app_cwd=plan.app.cwd)
         if plan.driven:
-            # **端末が無いのは台本のせいではない。** 赤にすると、電話を繋いで
-            # いない機械 (CI を含む) が常に赤になって、誰も件数を見なくなる
-            from .android import DriveError
-            from .record_android import record as drive
+            # **相手が無いのは台本のせいではない。** 赤にすると、電話を繋いで
+            # いない機械 (CI を含む) や、そのアプリが入っていない機械が
+            # 常に赤になって、誰も件数を見なくなる
+            if plan.app.package:
+                from .android import DriveError
+                from .record_android import record as drive
+
+                noun, kwargs = "端末", {"serial": getattr(args, "serial", "") or ""}
+            else:
+                from .record_windows import record as drive
+                from .windows import DriveError
+
+                noun, kwargs = "この機械", {}
 
             try:
-                return drive(plan, outdir, verbose=args.verbose,
-                             serial=getattr(args, "serial", "") or "")
+                return drive(plan, outdir, verbose=args.verbose, **kwargs)
             except DriveError as exc:
-                raise checker.Cannot(f"端末で撮り直せません: {exc}") from exc
+                raise checker.Cannot(f"{noun}で撮り直せません: {exc}") from exc
         return record(plan, outdir, headless=True, verbose=args.verbose)
 
     if args.dry:
@@ -1042,6 +1120,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("where", help="生成物の置き場所を見る")
     p.add_argument("plan", nargs="?", help="plan.json (渡すとその動画の出力先を出す)")
     p.set_defaults(func=cmd_where)
+
+    p = sub.add_parser(
+        "inspect", help="ウィンドウの中身を出す (Windows の自動収録のセレクタを選ぶ)")
+    p.add_argument("title", nargs="?", help="ウィンドウのタイトル (部分一致)")
+    p.set_defaults(func=cmd_inspect)
 
     p = sub.add_parser("clean", help="撮影用の使い捨て置き場を片付ける (生成物は消さない)")
     p.add_argument("--list", action="store_true", help="消さずに残っているものを出す")

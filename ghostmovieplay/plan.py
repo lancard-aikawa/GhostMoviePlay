@@ -224,14 +224,20 @@ class Plan:
 
     @property
     def driven(self) -> bool:
-        """**機械が端末を操作して撮る 1 本か。**
+        """**機械が端末やアプリを操作して撮る 1 本か。**
 
         `app.assisted` (人が撮る) の中で、**`actions` が書いてあるものだけは
         機械が撮れる**。見る側が 2 つある (`gmp record` の分岐と `gmp check` の
         除外) ので、**判定はここ 1 か所**にする —— 散らすと、`record` は自動で
         撮るのに `check` が「撮り直せません」と数える (実際にそうなった)。
+
+        端末 (`app.package`) と Windows アプリ (`app.window`) の両方が来る。
+        **`actions` が無ければ人が撮る道のまま** —— 既に撮ってある 1 本
+        (assist-7zip / assist-krita) はショットだけを持っているので、ここで
+        「機械が撮れる」に変わるとショットが捨てられる。
         """
-        return bool(self.app.package) and any(b.actions for _, b in self.beats)
+        target = self.app.package or self.app.window
+        return bool(target) and any(b.actions for _, b in self.beats)
 
 
 def wav_seconds(path: Path) -> float | None:

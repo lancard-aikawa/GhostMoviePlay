@@ -47,6 +47,12 @@ FILES = (
 )
 BODY = "これは GhostMoviePlay の撮影用ダミーです。中身はありません。\n"
 
+# ダミーに焼く日時 (2026-07-01 09:00 JST)。**固定しないと画が毎回変わる** ——
+# 一覧に更新日時と作成日時が出るので、撮り直すたびに違う絵になる。
+# 動画の題材が「2026-07 の給与明細」なので、それらしい日付にしてある。
+# **秒で持つ** (`datetime` を計算に使うと、撮る機械の時間帯でずれる)
+STAMP = 1782864000.0        # 2026-07-01 09:00 (JST)
+
 # 書庫の名前は **7-Zip が勝手に付けるもの**に合わせてある (フォルダ名 + 拡張子)。
 # 形式を変えると拡張子も変わるので、幕 1 の zip と幕 3 の 7z はぶつからない
 PASSWORD = "1234"
@@ -64,7 +70,12 @@ def seven_zip() -> Path:
 def build() -> Path:
     FOLDER.mkdir(parents=True, exist_ok=True)
     for name in FILES:
-        (FOLDER / name).write_text(BODY, encoding="utf-8")
+        path = FOLDER / name
+        path.write_text(BODY, encoding="utf-8")
+        # **日時を固定する。** 7-Zip は一覧に更新日時と作成日時を出すので、
+        # 作り直すたびに**画が変わる** (自動収録で 2 回撮って、駆動は同じなのに
+        # 3 枚が一致しなかった)。書庫に入る日時もこれで決まる
+        os.utime(path, (STAMP, STAMP))
     return FOLDER
 
 

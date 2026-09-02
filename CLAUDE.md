@@ -351,6 +351,44 @@ plan.json の **シーン / ビート**で、**1 ビート = ショット 1 つ 
 撮る本人が見ていないものは入らない。**録画 (`gdigrab`) だけは画面の矩形を舐める**
 ので重なりに弱い —— 埋められない差なので、画面がそう書いている。
 
+### Windows は UIA ではなく Win32 で掴む
+
+`docs/ideas/desktop.md` は UIA ドライバとして書いてあったが、**前提が 1 つ外れて
+いた** —— 7-Zip は UIA に Pane しか出さない (だから 1 本目は人が撮った)。同じ
+ウィンドウを Win32 から見ると `SysListView32` も `Edit` も control id つきで
+全部出る。**COM の依存も要らない** (`capture.py` が user32 を ctypes で叩くのと
+同じ形)。だから `windows.py` は `EnumChildWindows` を読む。
+
+**掴めない相手は残る** —— WPF / WinUI / Electron は子ウィンドウを持たない。
+そこは支援収録の担当のまま。`gmp inspect` が「子ウィンドウがありません」と
+言って、人が撮る道へ案内する。
+
+繰り返し撮れるようにするための決めごと:
+
+- **一覧の行は中身で指す** (`row=`)。「上から 3 番目」は並べ替えとスクロールで
+  別のものを押す。`SysListView32` は**別プロセスからでも行の文字と矩形を読める**
+  (`VirtualAllocEx` した先に `LVITEMW` を書いて `LVM_GETITEMTEXTW` を送る) ので、
+  id の無い相手でも名前で指せる。**これが「id が変わっても撮り直せる」の芯**
+- **押すのは `LVIR_SELECTBOUNDS`**。行全体 (`LVIR_BOUNDS`) の中心は**ラベルの外**で、
+  「行全体を選択」の入っていない一覧では当たり判定ではない —— focus の点線は動くのに
+  開かない (7-Zip で実測。ダブルクリックが 1 度も効かず、原因が押す場所だと
+  分かるまで時間を使った)
+- **`Driver.fit` で `video.width/height` に合わせてから撮る。** 前回の撮影で
+  リサイズされたままだと、同じ台本が違うレイアウトを撮る
+- **hwnd を焼かない。** 毎回タイトルから掴み直す (`capture.find`)。ダイアログに
+  乗り換えられるのも同じ仕組み
+- **`type` は中身を置き換える** (web の `type` は追記)。デスクトップで打つ相手は
+  アドレス欄のように最初から中身があるのが普通で、追記だと壊れる。**押す前に
+  `press Control+a` を書いても効かない** —— 入力欄を押した時点で選択が外れる
+- **`SendInput` の `INPUT` は x64 で 40 バイト。** union に `MOUSEINPUT` を
+  残したまま組む。`KEYBDINPUT` だけだと 32 バイトになり、`cbSize` 不一致で
+  **1 文字も入らない**
+- **文字は `KEYEVENTF_UNICODE`。** IME を経由しないので、撮る人の IME が日本語
+  入力の状態でもそのまま入る
+- **仕込みは日時まで固定する。** 一覧に更新日時が出る相手だと、作り直すたびに
+  画が変わる (2 回撮って、駆動は同じなのに 3 枚が一致しなかった。
+  `make_sample.py` の `STAMP`)
+
 ### 画面は Claude の代わりをしない
 
 作っていて何度も踏んだ形: **詰まるたびに「Claude に回す」が正解で、画面はその
@@ -676,11 +714,12 @@ CLI を通るテストが実際に `~/Videos/GhostMoviePlay/` を汚す**（実�
 | シーンの達成条件 (`goal`) | `plan.Goal` と `load()` の検査、`record.Recorder.check_goal` と **`record_android.check_goal`**（**片方だけ足すと、書いてあるのに効かない台本ができる**。実際に Android だけ読み飛ばしていた）、Android は矩形の中の文字を読む (`android.text_within`)（**`ENV_KINDS` に入れない** —— 撮った環境の話ではなく台本の欠陥）、`spec.PLAN_SCHEMA_DOC` と SKILL.md（**書かせないと空のまま**）、`docs/plan.md`、`docs/check.md`、`tests/test_record.py`。**Pass2 で見るので AI を入れない** —— 語彙は `contains` / `absent` だけ。**当たっているときに出さない** |
 | 撮らずに分かる欠陥を足した | `check.inspect`（**撮っても一緒に出る**ので、`--dry` で赤なら本番も赤を保つ）、`docs/check.md` の表、`tests/test_check.py`。リポジトリの台本は `tests/test_plan.py` が同じ規則で見ている |
 | 検査できない台本を足した | `check.SKIP` と `check.Cannot`（**撮れない理由が台本の外にあるなら赤にしない** —— 端末の無い機械が常に赤になると誰も件数を見なくなる）、`Report.summary()`（**「通った」に混ぜない**。**まとめで理由を 1 つに決めない** —— 理由は 1 本ずつの行に出る）、`docs/check.md`、`tests/test_check.py` |
-| 誰がその 1 本を撮るか | **`plan.Plan.driven` の 1 か所**（`app.package` + `actions`）。`gmp record` の分岐と `gmp check` の除外が**同じ答えを出す必要がある** —— 散らしていたころ、record は自動で撮るのに check は「撮り直せません」と数えていた。`cli.cmd_record` / `cli.cmd_check` / `check.check_one`、`tests/test_check.py` |
+| 誰がその 1 本を撮るか | **`plan.Plan.driven` の 1 か所**（`app.package` か `app.window` + `actions`）。`gmp record` の分岐と `gmp check` の除外が**同じ答えを出す必要がある** —— 散らしていたころ、record は自動で撮るのに check は「撮り直せません」と数えていた。`cli.cmd_record` / `cli.cmd_check` / `check.check_one`、`tests/test_check.py` |
 | 画面やドキュメントの呼び名 | README の「呼び名」の表（**ここが正**）、`ui_run.py` の成果物の行と段のボタン、`docs/settings.md`、`settings.LAYER_LABEL`、`tests/test_ui_run.py`。`台本` の意味を変えるなら `docs/video/intro` の撮り直しも |
 | `gmp init` の雛形 | `spec.TEMPLATE`、`settings.PROJECT_TEMPLATE`（`{app}` を埋めるのは `settings.app_block`）、`spec.TEMPLATE_HINTS`（**見本値は写し**）、`tests/test_request.py`。**収録対象を値として焼かない** |
 | 収録の前後に走らせるもの | `plan.App` の `setup` / `teardown`、`server.prepared`（**仕込みが落ちたら止める / 後片付けは止めない**）、`settings.SCHEMA` の `app.*`、`ui.TABS` の「仕込みと後片付け」、`spec.PLAN_SCHEMA_DOC` と SKILL.md、`docs/plan.md`、`tests/test_server.py` |
 | 収録が走る場所 | **`paths.record_base()` の 1 か所**（`record.record` / `record_android.record` / `ui_shoot._app_cwd` が**同じ答えを出す必要がある** —— 散らすと、仕込みだけ別の場所で走る）、機械の設定 `projects`（`settings.project_root`）、`gmp where` の表示、`docs/settings.md`、`tests/test_paths.py`。**`app.cwd` があるほうが強い**（既存の台本の基準を動かさない）|
+| Windows を自動で操作する | `windows.py`（`Driver` とセレクタの解釈）、`record_windows.py`（`SUPPORTED` と `do()` の分岐）、`cli.cmd_record` / `cli.cmd_check` の分岐、`gmp inspect`、`spec.WINDOWS_DRIVE_NOTE` と SKILL.md（**書かせないと空のまま**）、`README_WINAPP.md`、`docs/plan.md`、`tests/test_record_windows.py`。**実測で決まっていること**は上の「Windows は UIA ではなく Win32 で掴む」。**`plan.driven` は 1 か所** —— `app.window` + `actions` で自動、`actions` が無ければ人が撮る道のまま（既に撮ってある 1 本のショットを捨てない）|
 | 端末側の作業場所 | **`capture_android.REMOTE_TMP` の 1 か所**（録画とダンプで別の場所にしない）、`android.REMOTE_DUMP`、`tests/test_android.py`。**`/sdcard` に戻さない** —— MediaStore に拾われて人の端末のギャラリーに出る |
 | 撮影用の使い捨て置き場 | `paths.stage_home()` と `server.hook_env()`（**仕込み・起動・後片付けの 3 つに同じものを渡す** —— `ui_shoot` の起動も含む。1 つ漏らすと仕込んだ場所と違うところをアプリが開く）、`gmp where` の表示、各 `make_sample.py` の fallback、CLAUDE.md の不変条件、`tests/test_server.py`。**設定にしない**（画に写る）|
 | 収録対象の推測 | `detect.py`（`SCRIPTS` / `RUNNERS` / `FRAMEWORK_PORTS` / `MOUNT_IDS`）、`tests/test_detect.py`。**由来 (`why`) を必ず埋める** |
