@@ -47,6 +47,27 @@ SETTLE = 0.45           # 押したあと画面が落ち着くまで
 WINDOW_WAIT = 30.0      # 起動してウィンドウが出るまで待つ上限
 
 
+def steady_shot(handle: int, dest: Path, tries: int = 5, gap: float = 0.35) -> None:
+    """**絵が落ち着いてから撮る。** 同じ画が 2 回続いたら撮れたとみなす.
+
+    一覧の中身は「読めるようになった」あとから描かれる。`wait_for` が通った直後に
+    撮ると、**行はあるのに描かれていない画**が残る —— 書庫を開いた画で、4 行の
+    うち 2 行しか写っていなかった。
+
+    **`byte 一致` では気づけない。** 2 回撮ると同じところで同じように欠けるので、
+    繰り返し撮れていることの確認をすり抜ける (展示に出すサムネを見て初めて
+    分かった)。だから撮る側で落ち着くのを待つ。
+    """
+    previous: bytes | None = None
+    for _ in range(tries):
+        capture.shot(handle, dest)
+        current = dest.read_bytes()
+        if current == previous:
+            return
+        previous = current
+        time.sleep(gap)
+
+
 def unsupported(plan: Plan) -> list[str]:
     """使えない action を数える. **撮る前に見る** (途中で落とさない)."""
     bad: list[str] = []
@@ -215,10 +236,11 @@ def record(plan: Plan, outdir: str | Path, verbose: bool = True,
                     except DriveError as exc:
                         raise DriveError(f"{where}: {exc}") from exc
                     # **落ち着いてから撮る。** 出たばかりのウィンドウは中身が
-                    # まだ描かれていないことがあり、枠だけの白紙が撮れる
+                    # まだ描かれていないことがあり、枠だけの白紙や、行の足りない
+                    # 一覧が撮れる
                     time.sleep(SETTLE)
                     dest, relative = auto_shot_path(outdir, scene.id, index)
-                    capture.shot(driver.window.handle, dest)
+                    steady_shot(driver.window.handle, dest)
                     # **メモリ上の plan にだけ差す** (plan.json は書き換えない)
                     beat.shot = relative
                     if verbose:
