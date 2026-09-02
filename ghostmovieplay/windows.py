@@ -78,6 +78,7 @@ INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
 MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
+BM_GETCHECK = 0x00F0
 
 SETTLE = 0.35           # 押したあと画面が落ち着くまで
 POLL = 0.25             # wait_for の間隔
@@ -234,7 +235,7 @@ def matches(node: Node, selector: str) -> bool:
     if not sep:
         raise DriveError(
             f"セレクタに接頭辞がありません: {selector!r} "
-            "(name= / name*= / class= / cid= / row= / row*= / at= のどれか)")
+            "(name= / name*= / class= / cid= / row= / row*= / win= / at= のどれか)")
     if kind == "name":
         return node.text == want
     if kind == "name*":
@@ -243,8 +244,8 @@ def matches(node: Node, selector: str) -> bool:
         return node.cls == want
     if kind == "cid":
         return str(node.cid) == want.strip()
-    if kind in ("row", "row*", "at"):
-        return False        # 一覧の中と座標は find の外で扱う
+    if kind in ("row", "row*", "at", "win"):
+        return False        # 一覧の中・座標・別ウィンドウは find の外で扱う
     raise DriveError(f"知らないセレクタです: {selector!r}")
 
 
@@ -363,12 +364,45 @@ class Driver:
         return rect.left, rect.top, rect.right, rect.bottom
 
     def focus(self) -> None:
-        """前面に出す. **入力の前に必ず通る** (裏に居ると別のアプリに入る)."""
+        """前面に出す. **入力の前に必ず通る** (裏に居ると別のアプリに入る).
+
+        **既に前面なら何もしない。** `ShowWindow` + `SetForegroundWindow` を
+        毎回打つと、**ウィンドウの中の焦点が既定の部品に戻る** —— 入力欄を押して
+        から `Control+a` を送ると、選択されるのは入力欄の文字ではなく一覧の
+        ファイル全部になる (実際にそうなって、打ったつもりの文字がどこにも
+        入らなかった)。
+        """
         user32, _ = _api()
         hwnd = self.window.handle
+        if user32.GetForegroundWindow() == hwnd:
+            return
         user32.ShowWindow(hwnd, 9)              # SW_RESTORE (最小化を戻す)
-        user32.SetForegroundWindow(hwnd)
-        time.sleep(0.12)
+
+        # **`SetForegroundWindow` は、呼び出し側が前面を持っていないと黙って
+        # 失敗する。** 収録は端末の裏で走っているので普通は持っていない ——
+        # 失敗したまま押すと、**入力が前に居る別のアプリに入る** (実際に、
+        # 打ったはずの文字がどこにも入らなかった)。前面のスレッドに入力状態を
+        # 繋いでから頼むと通る
+        current = user32.GetForegroundWindow()
+        here = user32.GetWindowThreadProcessId(hwnd, None)
+        there = user32.GetWindowThreadProcessId(current, None) if current else 0
+        if there and there != here:
+            user32.AttachThreadInput(there, here, True)
+            try:
+                user32.SetForegroundWindow(hwnd)
+                user32.BringWindowToTop(hwnd)
+            finally:
+                user32.AttachThreadInput(there, here, False)
+        else:
+            user32.SetForegroundWindow(hwnd)
+        time.sleep(0.15)
+
+        # **前面に出せなかったら押さない。** 別のアプリに向かって本物のクリックと
+        # 打鍵を送ることになる (何が起きるか分からない)
+        if user32.GetForegroundWindow() != hwnd:
+            raise DriveError(
+                f"ウィンドウを前面に出せません: {self.title!r}\n"
+                "  別のアプリが前面を掴んでいます (全画面のものを閉じてください)")
 
     def fit(self, width: int, height: int) -> None:
         """撮る大きさに合わせる. **座標に落ちる操作を繰り返し可能にする芯.**
@@ -401,6 +435,20 @@ class Driver:
         どれが「その一覧」かは台本に書けないので、当たったものを使う。
         """
         kind, _, want = selector.partition("=")
+        if kind == "win":
+            # **1 つのアプリの操作はウィンドウ 1 つでは終わらない。** 7-Zip なら
+            # 圧縮ダイアログは別の exe (7zG.exe) の別ウィンドウで、そこも操作する。
+            # `win=` で乗り換えて、以降のセレクタはそのウィンドウの中を見る
+            found = find(want)
+            if found is None:
+                return None
+            if want != self.title:
+                self.title = want
+                self._nodes = None
+            user32, _ = _api()
+            rect = wintypes.RECT()
+            user32.GetWindowRect(found.handle, ctypes.byref(rect))
+            return rect.left, rect.top, rect.right, rect.bottom
         if kind == "at":
             point = point_at(selector, self.rect)
             if point is None:
@@ -437,8 +485,13 @@ class Driver:
         limit = self.timeout if seconds is None else float(seconds)
         deadline = time.monotonic() + limit
         while True:
-            self.refresh()
-            rect = self.find(selector)
+            try:
+                # **いま見ているウィンドウが閉じていても待ち続ける。** ダイアログを
+                # OK で閉じたあと `win=` で本体へ戻る、という並びが普通にある
+                self.refresh()
+                rect = self.find(selector)
+            except DriveError:
+                rect = self.find(selector) if selector.startswith("win=") else None
             if rect is not None:
                 return rect
             if time.monotonic() >= deadline:
@@ -473,11 +526,29 @@ class Driver:
         return None
 
     # --- 押す・打つ ---------------------------------------------------
-    def click(self, selector: str, double: bool = False) -> None:
+    def click(self, selector: str, double: bool = False,
+              modifiers: str = "") -> None:
+        """押す. `modifiers` は `Shift` / `Control` (`+` 区切り).
+
+        **範囲選択には修飾キー付きのクリックが要る。** `Shift+Down` で伸ばす手は
+        相手によっては効かない (7-Zip の一覧は選択が伸びず、焦点が動くだけだった
+        —— 書庫にファイルが 1 つしか入らない画が撮れた)。一覧の端を押して、
+        もう一方の端を Shift 付きで押すほうが、どの一覧でも同じに動く。
+        """
         rect = self.wait_for(selector)
         self.focus()
         x, y = (rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2
-        self._click_at(x, y, double)
+        codes = []
+        for name in (m.strip() for m in str(modifiers).split("+") if m.strip()):
+            code = MODIFIERS.get(name.casefold())
+            if code is None:
+                raise DriveError(f"知らない修飾キーです: {name!r}")
+            codes.append(code)
+        self._send([self._key_event(code, False) for code in codes])
+        try:
+            self._click_at(x, y, double)
+        finally:
+            self._send([self._key_event(code, True) for code in reversed(codes)])
         self._nodes = None
 
     def _click_at(self, x: int, y: int, double: bool = False) -> None:
@@ -491,6 +562,58 @@ class Driver:
             user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             time.sleep(CLICK_GAP)
             user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+    def _node(self, selector: str) -> Node | None:
+        """セレクタに当たるツリーのノード (hwnd が要るとき用)."""
+        for node in self.nodes:
+            if matches(node, selector):
+                return node
+        return None
+
+    def select(self, selector: str, value: str) -> None:
+        """**押すのではなく、その状態にする。**
+
+        チェックボックスを `click` で切り替えると、**前回の状態次第で結果が
+        変わる** —— 7-Zip は「パスワードを表示」を憶えているので、2 回目の収録で
+        チェックが外れた (実際に外れて、パスワードが伏字のまま撮れた)。
+        繰り返し撮れることが自動収録の値打ちなので、状態で書けるようにする。
+
+        - チェックボックス: `value` が on/off/true/false/1/0
+        - コンボボックス: `value` はそのまま項目の文字 (先頭一致で選ぶ)
+        """
+        self.wait_for(selector)
+        node = self._node(selector)
+        if node is None:
+            raise DriveError(f"見つかりません: {selector!r}")
+
+        want = str(value).strip().casefold()
+        if node.cls == "Button":
+            user32, _ = _api()
+            on = want in ("on", "true", "1", "yes", "checked")
+            if bool(user32.SendMessageW(node.hwnd, BM_GETCHECK, 0, 0)) != on:
+                self.click(selector)
+            return
+
+        # コンボは開いてから頭文字で選ぶ。**メッセージで値だけ変えない** ——
+        # 親に変更が伝わらないアプリがあり、選んだのに何も起きない画が撮れる。
+        # **打つのは仮想キー** —— `KEYEVENTF_UNICODE` で入れた文字では先頭一致が
+        # 動かず、選んだつもりで前のままの画が撮れた (実際に撮れた)。
+        # 送るのは英数字が続くところまで (`AES-256` なら `AES`) —— 記号の
+        # 仮想キーコードは配列で変わるうえ、先頭一致にはそこまでで足りる
+        self.click(selector)
+        time.sleep(SETTLE)
+        typed = 0
+        for char in str(value):
+            if not char.isalnum() or not char.isascii():
+                break
+            self.key(char)
+            typed += 1
+        if not typed:
+            raise DriveError(
+                f"選ぶ値の頭が英数字ではありません: {value!r} ({selector})")
+        self.key("Enter")
+        time.sleep(SETTLE)
+        self._nodes = None
 
     def hover(self, selector: str) -> None:
         """押さずにカーソルを乗せる. **ツールチップや hover の見た目を撮る用.**"""
@@ -539,8 +662,28 @@ class Driver:
         self.key("Control+a")
         self._send_unicode(text)
 
-    def _send_unicode(self, text: str) -> None:
+    @staticmethod
+    def _key_event(code: int, up: bool) -> _INPUT:
+        """仮想キー 1 つの押し下げ / 離し."""
+        item = _INPUT(type=INPUT_KEYBOARD)
+        item.ki = _KEYBDINPUT(wVk=code, wScan=0,
+                              dwFlags=KEYEVENTF_KEYUP if up else 0,
+                              time=0, dwExtraInfo=None)
+        return item
+
+    @staticmethod
+    def _send(events: list) -> None:
+        if not events:
+            return
         user32, _ = _api()
+        array = (_INPUT * len(events))(*events)
+        sent = user32.SendInput(len(events), array, ctypes.sizeof(_INPUT))
+        if sent != len(events):
+            raise DriveError(
+                f"キーを送れません (SendInput={sent}/{len(events)}, "
+                f"error={ctypes.get_last_error()})")
+
+    def _send_unicode(self, text: str) -> None:
         events = []
         for ch in text:
             for flags in (KEYEVENTF_UNICODE, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP):
@@ -548,14 +691,7 @@ class Driver:
                 item.ki = _KEYBDINPUT(wVk=0, wScan=ord(ch), dwFlags=flags,
                                       time=0, dwExtraInfo=None)
                 events.append(item)
-        if not events:
-            return
-        array = (_INPUT * len(events))(*events)
-        sent = user32.SendInput(len(events), array, ctypes.sizeof(_INPUT))
-        if sent != len(events):
-            raise DriveError(
-                f"文字を送れません (SendInput={sent}/{len(events)}, "
-                f"error={ctypes.get_last_error()})")
+        self._send(events)
 
     def key(self, name: str) -> None:
         """`Enter` / `Control+A` のような打鍵. **web と同じ綴りで書ける.**"""
@@ -578,12 +714,14 @@ class Driver:
                 raise DriveError(
                     f"知らないキーです: {last!r} (使えるのは: "
                     f"{' / '.join(sorted(KEYS))})")
-        user32, _ = _api()
-        for code in codes:
-            user32.keybd_event(code, 0, 0, 0)
-        user32.keybd_event(target, 0, 0, 0)
-        time.sleep(0.03)
-        user32.keybd_event(target, 0, KEYEVENTF_KEYUP, 0)
-        for code in reversed(codes):
-            user32.keybd_event(code, 0, KEYEVENTF_KEYUP, 0)
+        # **打鍵も `SendInput` で送る。** `keybd_event` だと修飾キーが届かず、
+        # `Shift+Down` が「ただの Down」になって**選択が伸びない** (実際にそうなって、
+        # 書庫にファイルが 1 つしか入らなかった)。1 回の `SendInput` に
+        # 押す・打つ・離すを並べると、間に何も割り込まない
+        events = [self._key_event(code, False) for code in codes]
+        events.append(self._key_event(target, False))
+        events.append(self._key_event(target, True))
+        events += [self._key_event(code, True) for code in reversed(codes)]
+        self._send(events)
+        time.sleep(0.05)
         self._nodes = None

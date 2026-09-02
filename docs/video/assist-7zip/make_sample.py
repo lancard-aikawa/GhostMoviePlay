@@ -67,6 +67,31 @@ def seven_zip() -> Path:
     return exe
 
 
+def set_created(path: Path, stamp: float) -> None:
+    """作成日時も固定する.
+
+    **`os.utime` は更新日時しか変えない。** 7-Zip の一覧は作成日時の列も出すので、
+    そこだけが作り直すたびに変わって、**同じ台本で撮った 2 枚が一致しなかった**
+    (差分を取ったら、その列の 4 行だけが光った)。
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    # FILETIME は 1601-01-01 起点の 100ns 単位
+    ticks = int(stamp * 10_000_000) + 116_444_736_000_000_000
+    when = wintypes.FILETIME(ticks & 0xFFFFFFFF, ticks >> 32)
+    handle = kernel32.CreateFileW(
+        str(path), 0x0100, 0, None, 3, 0x02000000, None)   # FILE_WRITE_ATTRIBUTES
+    if handle in (None, -1, 2**64 - 1):
+        return          # 撮影用のダミーなので、失敗しても止めない
+    try:
+        kernel32.SetFileTime(handle, ctypes.byref(when), None, None)
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def build() -> Path:
     FOLDER.mkdir(parents=True, exist_ok=True)
     for name in FILES:
@@ -74,8 +99,9 @@ def build() -> Path:
         path.write_text(BODY, encoding="utf-8")
         # **日時を固定する。** 7-Zip は一覧に更新日時と作成日時を出すので、
         # 作り直すたびに**画が変わる** (自動収録で 2 回撮って、駆動は同じなのに
-        # 3 枚が一致しなかった)。書庫に入る日時もこれで決まる
+        # 一致しなかった)。書庫に入る日時もこれで決まる
         os.utime(path, (STAMP, STAMP))
+        set_created(path, STAMP)
     return FOLDER
 
 

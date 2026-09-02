@@ -40,7 +40,7 @@ from .windows import DriveError, Driver
 # Windows で意味のある action。**`highlight` は入れない** —— 疑似カーソルや枠は
 # DOM に注入した JS なので、他人のアプリの上には出せない (Android と同じ)。
 # **`select_text` も入れない** —— 文字の範囲は Win32 では相手依存で決まらない
-SUPPORTED = ("click", "dblclick", "hover", "type", "press",
+SUPPORTED = ("click", "dblclick", "hover", "type", "press", "select",
              "wait_for", "sleep", "scroll_to")
 
 SETTLE = 0.45           # 押したあと画面が落ち着くまで
@@ -63,13 +63,19 @@ def do(driver: Driver, action: dict) -> None:
     """1 つ操作する."""
     kind = action.get("type", "")
     if kind == "click":
-        driver.click(action["selector"])
+        # `modifiers` は任意 (`Shift` / `Control`)。一覧の範囲選択に要る
+        driver.click(action["selector"], modifiers=action.get("modifiers", ""))
     elif kind == "dblclick":
-        driver.click(action["selector"], double=True)
+        driver.click(action["selector"], double=True,
+                     modifiers=action.get("modifiers", ""))
     elif kind == "hover":
         driver.hover(action["selector"])
     elif kind == "type":
         driver.type_text(action["selector"], action["text"])
+    elif kind == "select":
+        # **チェックボックスとコンボは「押す」ではなく「その状態にする」。**
+        # 押すと前回の状態次第で結果が変わり、2 回目の収録で絵が変わる
+        driver.select(action["selector"], action["value"])
     elif kind == "press":
         driver.key(action["key"])
     elif kind == "sleep":
@@ -208,6 +214,9 @@ def record(plan: Plan, outdir: str | Path, verbose: bool = True,
                             do(driver, action)
                     except DriveError as exc:
                         raise DriveError(f"{where}: {exc}") from exc
+                    # **落ち着いてから撮る。** 出たばかりのウィンドウは中身が
+                    # まだ描かれていないことがあり、枠だけの白紙が撮れる
+                    time.sleep(SETTLE)
                     dest, relative = auto_shot_path(outdir, scene.id, index)
                     capture.shot(driver.window.handle, dest)
                     # **メモリ上の plan にだけ差す** (plan.json は書き換えない)

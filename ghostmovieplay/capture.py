@@ -236,6 +236,11 @@ def shot(handle: int, out: str | Path) -> Path:
     if width < 2 or height < 2:
         raise CaptureError("ウィンドウの大きさが取れません")
 
+    # **`RedrawWindow` で描き直させない。** 白紙で撮れるのを直そうとして入れたら、
+    # 7-Zip 本体の**アドレスバーと状態バーが空になった** (自前で描いている部品は、
+    # 外から無効化されると中身を持たないまま描き直す)。撮る前に落ち着くのを待つ
+    # のは呼び側の仕事 (`record_windows` が SETTLE ぶん待つ)
+
     window_dc = user32.GetWindowDC(handle)
     if not window_dc:
         raise CaptureError("デバイスコンテキストを取れません")

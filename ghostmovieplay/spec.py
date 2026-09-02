@@ -414,13 +414,21 @@ gmp inspect {window}
 | `class=Edit` | ウィンドウクラス |
 | `cid=1001` | コントロール ID |
 | `row=給与明細.pdf` / `row*=給与` | **一覧の行を中身で指す** |
+| `win=圧縮` | **別のウィンドウに乗り換える** (ダイアログ) |
 | `at=0.5,0.75` | ウィンドウの中の割合 (最後の手段) |
 
 - **一覧は `row=` で指してください。** 「上から 3 番目」は並べ替えやスクロールで
   別のものを押します。**中身で指すと繰り返し撮れます**
-- 使える action は `click` / `dblclick` / `hover` / `type` / `press` /
+- 使える action は `click` / `dblclick` / `hover` / `type` / `press` / `select` /
   `wait_for` / `sleep` / `scroll_to` です。`highlight` と `select_text` は
   他人のアプリの上には出せないので**書かないでください**
+- **ダイアログは別のウィンドウです。** 出したら `wait_for` に `win=<タイトル>` を
+  書いて乗り換え、閉じたら `win=<本体のタイトル>` で戻ってください
+- **チェックボックスとコンボは `select` で状態を書いてください**
+  (`{"type":"select","selector":"cid=3803","value":"on"}`)。`click` で切り替えると
+  **前回の状態次第で結果が変わり、2 回目の収録で絵が変わります**
+- 一覧の範囲選択は、端を押してからもう一方の端を `"modifiers": "Shift"` 付きで
+  押します (`Shift+Down` は相手によって効きません)
 - **`type` は中身を置き換えます** (アドレス欄のように最初から中身がある相手が
   普通なので)。消してから打つ必要はありません
 - **画面が変わる操作のあとには `wait_for` を書いてください。** 待たずに次を
@@ -542,7 +550,9 @@ def build_request(spec: Spec, resolved=None, plan_dir: str | Path | None = None)
         # `actions` を書けば通しで撮れる (撮り直しが手作業でなくなる)。ただし
         # **掴めるかは相手による**ので、確かめる手順ごと渡す
         if window:
-            extra += "\n" + WINDOWS_DRIVE_NOTE.format(window=window)
+            # **`format` を使わない。** 中に JSON の例があるので、`{` を
+            # 書式指定と取り違えて落ちる (実際に落ちた)
+            extra += "\n" + WINDOWS_DRIVE_NOTE.replace("{window}", str(window))
         done = ("シーンとビートの並びを決めて `say` を書いたら、そこで完了です。\n"
                 "このあと人が `gmp shoot` の画面でビートごとに画面を撮り、\n"
                 "`gmp record` がショットと音声を並べて 1 本にします。")

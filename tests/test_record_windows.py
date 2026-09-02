@@ -26,8 +26,13 @@ class FakeDriver:
     def __init__(self):
         self.trace: list[tuple] = []
 
-    def click(self, selector, double=False):
-        self.trace.append(("dblclick" if double else "click", selector))
+    def click(self, selector, double=False, modifiers=""):
+        kind = "dblclick" if double else "click"
+        self.trace.append((kind, selector) if not modifiers
+                          else (kind, selector, modifiers))
+
+    def select(self, selector, value):
+        self.trace.append(("select", selector, value))
 
     def hover(self, selector):
         self.trace.append(("hover", selector))
@@ -123,6 +128,8 @@ def test_each_action_reaches_the_driver():
         {"type": "hover", "selector": "class=Button"},
         {"type": "type", "selector": "class=Edit", "text": "C:/gmp"},
         {"type": "press", "key": "Enter"},
+        {"type": "select", "selector": "cid=3803", "value": "on"},
+        {"type": "click", "selector": "row=給与明細.pdf", "modifiers": "Shift"},
         {"type": "wait_for", "selector": "row*=給与"},
         {"type": "scroll_to", "selector": "row*=給与"},
     ):
@@ -134,6 +141,8 @@ def test_each_action_reaches_the_driver():
         ("hover", "class=Button"),
         ("type", "class=Edit", "C:/gmp"),
         ("key", "Enter"),
+        ("select", "cid=3803", "on"),
+        ("click", "row=給与明細.pdf", "Shift"),
         ("wait", "row*=給与"),
         ("scroll", "row*=給与"),
     ]
@@ -202,7 +211,7 @@ def test_a_window_with_actions_is_driven():
 
 
 def test_a_window_without_actions_stays_a_human_job():
-    """既に撮ってある 1 本 (assist-7zip) はショットだけを持っている.
+    """既に撮ってある 1 本 (assist-krita) はショットだけを持っている.
 
     ここで「機械が撮れる」に変わると、撮り直しの効かないショットが捨てられる。
     """
@@ -215,3 +224,37 @@ def test_a_window_without_actions_stays_a_human_job():
 def test_a_plan_without_a_window_is_refused(tmp_path):
     with pytest.raises(DriveError, match="app.window"):
         rw.record(plan_with([{"type": "click", "selector": "name=OK"}]), tmp_path)
+
+
+# --- 押すのではなく、その状態にする ------------------------------------
+def test_a_checkbox_is_set_to_a_state_not_toggled():
+    """**押すと前回の状態次第で結果が変わる。** 7-Zip は「パスワードを表示」を
+    憶えているので、2 回目の収録でチェックが外れた (伏字のまま撮れた)。
+    """
+    import ghostmovieplay.windows as mod
+
+    class Fake(w.Driver):
+        def __init__(self, checked):
+            self.title, self.timeout = "x", 1.0
+            self._nodes = [node(cls="Button", text="表示", cid=3803)]
+            self.checked, self.clicks = checked, 0
+
+        def wait_for(self, selector, seconds=None):
+            return (0, 0, 1, 1)
+
+        def click(self, selector, double=False, modifiers=""):
+            self.clicks += 1
+
+    monkey = mod._api
+    mod._api = lambda: (type("U", (), {
+        "SendMessageW": staticmethod(lambda *a: 1 if driver.checked else 0)})(), None)
+    try:
+        driver = Fake(checked=True)
+        driver.select("cid=3803", "on")
+        assert driver.clicks == 0, "既にその状態なら押さない"
+
+        driver = Fake(checked=False)
+        driver.select("cid=3803", "on")
+        assert driver.clicks == 1
+    finally:
+        mod._api = monkey
